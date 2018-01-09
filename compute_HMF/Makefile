@@ -8,18 +8,18 @@ include ${COSMOSIS_SRC_DIR}/config/compilers.mk
 #For python, leave this as is.  For C/C++/Fortran, 
 #comment the first line and uncomment the second:
 all: 
-#all spt_cluster.so
+#all compute_HMF.so
 
 # ... and then provide the command to compile it, perhaps
 # like this for a simple example in C:
-#spt_cluster.so: my_files.c
-#	$(CC) -shared -o spt_cluster.so my_files.c
+#compute_HMF.so: my_files.c
+#	$(CC) -shared -o compute_HMF.so my_files.c
 
 
 #Replace this to put in some kind of test command for
 #your module, if you have one.
 test:
-	@echo "Alas, cosmosis_spt_cluster/spt_cluster module has no tests"
+	@echo "Alas, cosmosis_spt_cluster/compute_HMF module has no tests"
 
 #Add anything else to clean here
 clean:
