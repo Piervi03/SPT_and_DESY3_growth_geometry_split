@@ -1,18 +1,21 @@
 from __future__ import division
 import numpy as np
-
 from cosmosis.datablock import names, option_section
+import compute_HMF
 
 cosmo = names.cosmological_parameters
 
 def setup(options):
-    return 0
+    Deltacrit = options.get_double(option_section, 'Deltacrit', default=500.)
+    # Initialize HMF calculator
+    HMF_calculator = compute_HMF.HMFCalculator(Deltacrit)
+    return HMF_calculator
 
-def execute(block, config):
-    print block.sections()
-    print block['matter_power_lin', '_cosmosis_order_p_k']
-    print block['matter_power_lin', 'p_k'].shape
+def execute(block, HMF_calculator):
+    # print "block.sections", block.sections()
+    block.put('hmf', 'dNdlnM', 12.3)
+
+    return 0
 
 def cleanup(config):
     pass
-
