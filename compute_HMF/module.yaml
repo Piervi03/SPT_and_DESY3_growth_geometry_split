@@ -1,0 +1,14 @@
+name: compute_HMF
+version: 0
+purpose: "Compute the Tinker halo mass function for (critical) spherical overdensity"
+url:
+interface: compute_HMF_interface.py
+attribution: [Sebastian Bocquet]
+rules:
+cite:
+
+inputs:
+    cosmological_parameters:
+
+outputs:
+    
