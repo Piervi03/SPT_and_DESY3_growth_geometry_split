@@ -1,0 +1,37 @@
+name: abundance
+version: 0
+purpose: Compute likelihood of SPT-SZ 2500d cluster abundance
+url:
+interface: abundance_interface.py
+attribution: [Sebastian Bocquet]
+rules:
+cite:
+
+assumptions:
+    - wCDM cosmology with wa = 0
+    - spatial flatness
+    - massive neutrinos are included by providing the corresponding HMF
+
+params:
+    SPTcatalogfile: path to catalog fits file
+    SZmPivot: (float) pivot point of SZ mor relation (in Msun/h)
+    SPTfieldNames: (list of strings) names of SPT fields
+    SPTfieldCorrection: (list of float) field depth rescaling factor
+    SPTfieldSize: (list of float) field sizes of SPT fields (in deg^2)
+    SPTnFalse_alpha: (list of float) false detection rate per field
+    SPTnFalse_beta: (list of float) xi-dependence of false detection rate
+    surveyCutSZ: (list of two float) lower and upper limit in xi
+    surveyCutRedshift: (list of two float) lower and upper limit in redshift
+inputs:
+    cosmological_parameters:
+        omega_m: (float) matter density fraction of critical
+        omega_lambda: (float) dark energy density fraction of critical
+        w0: (float) dark energy equation of state
+    mor_parameters:
+        SZ scaling relation parameters
+    HMF:
+        halo mass function
+
+outputs:
+    likelihoods:
+        abundance_like: (float) ln-likelihood
