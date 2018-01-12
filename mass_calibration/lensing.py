@@ -1,9 +1,9 @@
 from __future__ import division
 import numpy as np
-import cosmo
-from numpy.lib import scimath as sm
+# from numpy.lib import scimath as sm
 from scipy.stats import norm
 import cPickle
+import imp
 import os
 
 from cosmosis.datablock import option_section
@@ -13,10 +13,17 @@ from cosmosis.datablock import option_section
 class SPTlensing:
 
     def __init__(self, options, catalog):
+        ##### Load my cosmology functions
+        cosmo_calculator_file = options.get_string(option_section, 'cosmo_calculator_file')
+        self.cosmo = imp.load_source('cosmo_calculator', cosmo_calculator_file)
         # Lensing data
         self.HSTfile = options.get_string(option_section, 'HSTfile')
         self.MegacamDir = options.get_string(option_section, 'MegacamDir')
         self.DESDir = options.get_string(option_section, 'DESDir')
+        # I don't know how to pass a None
+        if self.HSTfile=='None': self.HSTfile = None
+        if self.MegacamDir=='None': self.MegacamDir = None
+        if self.DESDir=='None': self.DESDir = None
         self.readdata(catalog)
         # WL simulation calibration data
         WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
@@ -31,8 +38,8 @@ class SPTlensing:
         self.WLdata = data['WLdata'][dataindex]
 
         ##### Precalculate M and r independent stuff, everything in h units
-        self.rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.zcluster, cosmology)**2 # [h^2 Msun/Mpc^3]
-        Dl = cosmo.AngDiamDist(self.zcluster, cosmology)
+        self.rho_c_z = self.cosmo.RHOCRIT * self.cosmo.Ez(self.zcluster, cosmology)**2 # [h^2 Msun/Mpc^3]
+        Dl = self.cosmo.AngDiamDist(self.zcluster, cosmology)
         self.get_beta(cosmology)
 
         ##### M200 and scale radius, wrt critical density, everything in h units
@@ -97,7 +104,7 @@ class SPTlensing:
 
             # Only consider 500<r/kpc/1500 in reference cosmology
             cosmoRef = {'Omega_m':.3, 'Omega_l':.7, 'h':.7, 'w0':-1.}
-            DlRef = cosmo.AngDiamDist(self.zcluster, cosmoRef)
+            DlRef = self.cosmo.AngDiamDist(self.zcluster, cosmoRef)
             rPhysRef = self.WLdata['r_deg'] * DlRef * np.pi/180. /cosmoRef['h']
             rInclude = np.where((rPhysRef>.5)&(rPhysRef<1.5))[0]
 
@@ -122,7 +129,7 @@ class SPTlensing:
     # dA [Mpc/h]
     def GetAngDiamDists(self, cosmology):
         zs = np.logspace(-1,np.log10(5),100)
-        dA = np.array([cosmo.AngDiamDist(z, cosmology) for z in zs])
+        dA = np.array([self.cosmo.AngDiamDist(z, cosmology) for z in zs])
         self.dAs = {'lnz':np.log(zs), 'lndA':np.log(dA)}
 
 
@@ -134,7 +141,7 @@ class SPTlensing:
         bgIdx = np.where(self.WLdata['redshifts']>self.zcluster)[0]
 
         ##### Calculate beta(z_source)
-        betaArr[bgIdx] = np.array([cosmo.AngDiamDist_12(self.zcluster, z, cosmology) for z in self.WLdata['redshifts'][bgIdx]])
+        betaArr[bgIdx] = np.array([self.cosmo.AngDiamDist_12(self.zcluster, z, cosmology) for z in self.WLdata['redshifts'][bgIdx]])
         betaArr[bgIdx]/= np.exp(np.interp(np.log(self.WLdata['redshifts'][bgIdx]), self.dAs['lnz'], self.dAs['lndA']))
 
         ##### Weight beta(z) with N(z) distribution to get <beta> and <beta^2>
@@ -185,11 +192,11 @@ class SPTlensing:
     ########################################
     ##### Read data
     def readdata(self, catalog):
-
         # "Allocate" empty data field
         catalog['WLdata'] = [None for i in range(len(catalog['SPT_ID']))]
 
         ##### Check for HST data
+        print self.HSTfile
         if self.HSTfile is not None:
             assert os.path.isfile(self.HSTfile), "HST shear data %s not found"%self.HSTfile
             # Load weak lensing data
@@ -203,8 +210,8 @@ class SPTlensing:
                         pzs[j] = np.sum(HSTdata[name].pzs[j], axis=0)
                         Ntot[j] = np.sum(HSTdata[name].pzs[j])
                     catalog['WLdata'][i] = {'datatype':'HST', 'center':HSTdata[name].center, 'r_deg':HSTdata[name].r_deg, 'shear':HSTdata[name].shear, 'shearerr':HSTdata[name].shearerr, 'magbinids':HSTdata[name].magbinids, 'redshifts':HSTdata[name].redshifts, 'pzs':pzs, 'magcorr':HSTdata[name].magnificationcorr, 'Ntot':Ntot,
-                           'massModelErr': (WLcalib['HSTsim'][name][1]**2 + WLcalib['HSTmcErr']**2 + WLcalib['HSTcenterErr']**2)**.5,
-                           'zDistShearErr': (WLcalib['HSTzDistErr']**2 + WLcalib['HSTshearErr']**2)**.5}
+                           'massModelErr': (self.WLcalib['HSTsim'][name][1]**2 + self.WLcalib['HSTmcErr']**2 + self.WLcalib['HSTcenterErr']**2)**.5,
+                           'zDistShearErr': (self.WLcalib['HSTzDistErr']**2 + self.WLcalib['HSTshearErr']**2)**.5}
 
         ##### Megacam data
         if self.MegacamDir is not None:
@@ -215,8 +222,8 @@ class SPTlensing:
                     shear = np.loadtxt(prefix+'_shear.txt', unpack=True)
                     Nz = np.loadtxt(prefix+'_Nz.txt', unpack=True)
                     catalog['WLdata'][i] = {'datatype':'Megacam', 'r_deg':shear[0], 'shear':shear[1], 'shearerr':shear[2], 'redshifts':Nz[0], 'Nz':Nz[1], 'Ntot':np.sum(Nz[1]),
-                            'massModelErr': (WLcalib['MegacamSim'][1]**2 + WLcalib['MegacamMcErr']**2 + WLcalib['MegacamCenterErr']**2)**.5,
-                            'zDistShearErr': (WLcalib['MegacamzDistErr']**2 + WLcalib['MegacamShearErr']**2)**.5}
+                            'massModelErr': (self.WLcalib['MegacamSim'][1]**2 + self.WLcalib['MegacamMcErr']**2 + self.WLcalib['MegacamCenterErr']**2)**.5,
+                            'zDistShearErr': (self.WLcalib['MegacamzDistErr']**2 + self.WLcalib['MegacamShearErr']**2)**.5}
 
         ##### Check for DES data
         if self.DESDir is not None:
@@ -227,35 +234,34 @@ class SPTlensing:
                     shear = np.loadtxt(prefix+'_shear.txt', unpack=True)
                     Nz = np.loadtxt(prefix+'_Nz.txt', unpack=True)
                     catalog['WLdata'][i] = {'datatype':'DES', 'r_deg':shear[0], 'shear':shear[1], 'shearerr':shear[2], 'redshifts':Nz[0], 'Nz':Nz[1], 'Ntot':np.sum(Nz[1]),
-                            'massModelErr': (WLcalib['DESsim'][1]**2 + WLcalib['DESmcErr']**2 + WLcalib['DEScenterErr']**2)**.5,
-                            'zDistShearErr': (WLcalib['DESzDistErr']**2 + WLcalib['DESshearErr']**2)**.5}
+                            'massModelErr': (self.WLcalib['DESsim'][1]**2 + self.WLcalib['DESmcErr']**2 + self.WLcalib['DEScenterErr']**2)**.5,
+                            'zDistShearErr': (self.WLcalib['DESzDistErr']**2 + self.WLcalib['DESshearErr']**2)**.5}
 
 
-#######################################
-##### Get total bias and scatter for Megacam and DES
-# If not used, set to fiducial number so that CheckCovMat does not return error
-def getScaling(scaling):
-    # Megacam
-    if self.MegacamDir is None:
-        scaling['bWL_Megacam'], scaling['DWL_Megacam'] = 1, .3
-    else:
-        massModelErr = (WLcalib['MegacamSim'][1]**2 + WLcalib['MegacamMcErr']**2 + WLcalib['MegacamCenterErr']**2)**.5
-        zDistShearErr = (WLcalib['MegacamzDistErr']**2 + WLcalib['MegacamShearErr']**2 + WLcalib['MegacamContamCorr']**2)**.5
-        # bias = bSim + bMassModel + (bN(z)+bShearCal)
-        scaling['bWL_Megacam'] = WLcalib['MegacamSim'][0] + scaling['WLbias']*massModelErr + scaling['MegacamBias']*zDistShearErr
-        # lognormal scatter
-        scaling['DWL_Megacam'] = WLcalib['MegacamSim'][2]+scaling['WLscatter']*WLcalib['MegacamSim'][3]
-    # DES
-    if self.DESDir is None:
-        scaling['bWL_DES'], scaling['DWL_DES'] = 1, .3
-    else:
-        massModelErr = (WLcalib['DESsim'][1]**2 + WLcalib['DESmcErr']**2 + WLcalib['DEScenterErr']**2)**.5
-        zDistShearErr = (WLcalib['DESzDistErr']**2 + WLcalib['DESshearErr']**2 + WLcalib['DEScontamCorr']**2)**.5
-        # bias = bSim + bFitParam * err(bSim)
-        scaling['bWL_DES'] = WLcalib['DESsim'][0] + scaling['WLbias']*massModelErr + scaling['DESbias']*zDistShearErr
-        # D^2 = Dint^2 + (DSim + DErrParam * err(DSim))^2
-        scaling['DWL_DES'] = WLcalib['DESsim'][2]+scaling['WLscatter']*WLcalib['DESsim'][3]
-
+    #######################################
+    ##### Get total bias and scatter for Megacam and DES
+    # If not used, set to fiducial number so that CheckCovMat does not return error
+    def getScaling(self, scaling):
+        # Megacam
+        if self.MegacamDir is None:
+            scaling['bWL_Megacam'], scaling['DWL_Megacam'] = 1, .3
+        else:
+            massModelErr = (self.WLcalib['MegacamSim'][1]**2 + self.WLcalib['MegacamMcErr']**2 + self.WLcalib['MegacamCenterErr']**2)**.5
+            zDistShearErr = (self.WLcalib['MegacamzDistErr']**2 + self.WLcalib['MegacamShearErr']**2 + self.WLcalib['MegacamContamCorr']**2)**.5
+            # bias = bSim + bMassModel + (bN(z)+bShearCal)
+            scaling['bWL_Megacam'] = self.WLcalib['MegacamSim'][0] + scaling['WLbias']*massModelErr + scaling['MegacamBias']*zDistShearErr
+            # lognormal scatter
+            scaling['DWL_Megacam'] = self.WLcalib['MegacamSim'][2]+scaling['WLscatter']*self.WLcalib['MegacamSim'][3]
+        # DES
+        if self.DESDir is None:
+            scaling['bWL_DES'], scaling['DWL_DES'] = 1, .3
+        else:
+            massModelErr = (self.WLcalib['DESsim'][1]**2 + self.WLcalib['DESmcErr']**2 + self.WLcalib['DEScenterErr']**2)**.5
+            zDistShearErr = (self.WLcalib['DESzDistErr']**2 + self.WLcalib['DESshearErr']**2 + self.WLcalib['DEScontamCorr']**2)**.5
+            # bias = bSim + bFitParam * err(bSim)
+            scaling['bWL_DES'] = self.WLcalib['DESsim'][0] + scaling['WLbias']*massModelErr + scaling['DESbias']*zDistShearErr
+            # D^2 = Dint^2 + (DSim + DErrParam * err(DSim))^2
+            scaling['DWL_DES'] = self.WLcalib['DESsim'][2]+scaling['WLscatter']*self.WLcalib['DESsim'][3]
 
 
 
