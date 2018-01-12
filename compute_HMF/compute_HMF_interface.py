@@ -5,19 +5,20 @@ import compute_HMF
 import pickle
 
 def setup(options):
-    recalc_HMF = options.get_bool(option_section, 'recalc_HMF', default=T)
-    save_HMF_to_disk = options.get_bool(option_section, 'save_HMF_to_disk', default=F)
+    recalc_HMF = options.get_bool(option_section, 'recalc_HMF', default=True)
+    save_HMF_to_disk = options.get_bool(option_section, 'save_HMF_to_disk', default=False)
     if recalc_HMF:
-        Deltacrit = options.get_double(option_section, 'Deltacrit', default=500.)
-        HMF_calculator = compute_HMF.HMFCalculator(Deltacrit)
+        HMF_calculator = compute_HMF.HMFCalculator(options)
     else:
         HMF_calculator = pickle.load(open('HMF.pkl', 'rb'))
+    HMF_calculator.recalc_HMF = recalc_HMF
+    HMF_calculator.save_HMF_to_disk = save_HMF_to_disk
     return HMF_calculator
 
 def execute(block, HMF_calculator):
-    if recalc_HMF:
+    if HMF_calculator.recalc_HMF:
         HMF_calculator.compute_HMF(block)
-        if save_HMF_to_disk:
+        if HMF_calculator.save_HMF_to_disk:
             HMF = {'M_arr': block.get_double_array_1d('HMF', 'M_arr'),
                 'z_arr': block.get_double_array_1d('HMF', 'z_arr'),
                 'dNdlnM': block.get_double_array_nd('HMF', 'dNdlnM')}

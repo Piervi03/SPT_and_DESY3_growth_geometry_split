@@ -2,15 +2,20 @@ from __future__ import division
 import numpy as np
 from scipy.interpolate import interp1d
 import scipy.integrate
+import imp
+from cosmosis.datablock import option_section
 
 DIST_H = 2997.92458
 RHOCRIT = 2.775362e11
 
 class HMFCalculator:
-    def __init__(self, Deltacrit):
+    def __init__(self, options):
         """Initialize Tinker interpolation functions and critical overdensity,
         and store in self."""
-        self.Deltacrit = Deltacrit
+        self.Deltacrit = options.get_double(option_section, 'Deltacrit', default=500.)
+        # Load my cosmology functions
+        cosmo_calculator_file = options.get_string(option_section, 'cosmo_calculator_file')
+        self.cosmo = imp.load_source('cosmo_calculator', cosmo_calculator_file)
         # Initialize Tinker interpolation (A, a, b, c)
         x = np.log((200., 300., 400., 600., 800., 1200., 1600., 2400., 3200.))
         y = (1.858659e-01, 1.995973e-01, 2.115659e-01, 2.184113e-01, 2.480968e-01, 2.546053e-01, 2.600000e-01, 2.600000e-01, 2.600000e-01)
@@ -26,18 +31,20 @@ class HMFCalculator:
     def compute_HMF(self, block):
         """Compute Tinker HMF, apply redshift volume, and add to block."""
         ##### Setup
+        # Only need cosmo for E(z)-type stuff
+        cosmology = {'Omega_m': block.get_double('cosmological_parameters', 'Omega_m'),
+            'Omega_l': block.get_double('cosmological_parameters', 'omega_lambda'),
+            'w0': block.get_double('cosmological_parameters', 'w')}
         # Data arrays
         M_arr = np.logspace(13, 16, 301)
         z_arr = block.get_double_array_1d('matter_power_lin', 'z')
         k_arr = block.get_double_array_1d('matter_power_lin', 'k_h')
         Pk = block.get_double_array_nd('matter_power_lin', 'p_k')
         # cosmological parameters
-        self.Omega_m = block.get_double('cosmological_parameters', 'Omega_m')
-        self.Omega_l = block.get_double('cosmological_parameters', 'omega_lambda')
-        self.w0 = block.get_double('cosmological_parameters', 'w')
-        rho_m = self.Omega_m * RHOCRIT
+        # cosmo = self.cosmo_calculator.Cosmology(block)
+        rho_m = cosmology['Omega_m'] * RHOCRIT
         # Mean overdensity at each redshift
-        Deltamean = self.Deltacrit / self.Omega_m_z(z_arr)
+        Deltamean = self.Deltacrit / self.cosmo.Omega_m_z(z_arr, cosmology)
 
         ##### Compute sigma(M)
         # Radius [M_arr]
@@ -61,7 +68,7 @@ class HMFCalculator:
         dNdlnM_noVol = - fsigma * rho_m * dsigma2dM/2/sigma2
 
         ##### Apply redshift volume
-        deltaV = self.deltaV(z_arr[1:])
+        deltaV = self.cosmo.deltaV(z_arr[1:], cosmology)
         deltaV = np.insert(deltaV, 0, deltaV[1])
         dNdlnM = dNdlnM_noVol * deltaV[:,None]
 
@@ -90,25 +97,3 @@ class HMFCalculator:
         a*= (1+z)**-.06
         b*= (1+z)**-alpha
         return A, a, b, c
-
-
-    ##########
-    # Some cosmology function.
-    # This should be re-organized centrally at some point!
-    def Ez(self, z):
-        """Return the growth factor."""
-        return (self.Omega_m*(1+z)**3 + self.Omega_l*(1+z)**(3*(1+self.w0)))**.5
-
-    def Omega_m_z(self, z):
-        """Return Omega_m(z)."""
-        return self.Omega_m * (1+z)**3 / self.Ez(z)**2
-
-    def AngDiamDist(self, z):
-        """Return angular diameter distance in Mpc/h."""
-        integrand = lambda z_int: 1/self.Ez(z_int)
-        return scipy.integrate.quad(integrand, 0., z)[0] * DIST_H/(1+z)
-
-    def deltaV(self, z_arr):
-        """Return solid angle volume as a function of redshift [(Mpc/h)^3]."""
-        AngDiamDist_arr = [self.AngDiamDist(z) for z in z_arr]
-        return DIST_H * ((1+z_arr) * AngDiamDist_arr)**2 / self.Ez(z_arr)
