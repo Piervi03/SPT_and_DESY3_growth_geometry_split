@@ -10,6 +10,9 @@ import imp
 
 class NumberCount:
     def __init__(self, options):
+        ##### Load my cosmology functions
+        cosmo_calculator_file = options.get_string(option_section, 'cosmo_calculator_file')
+        self.cosmo = imp.load_source('cosmo_calculator', cosmo_calculator_file)
         ##### Global variables
         self.SZmPivot = options.get_double(option_section, 'SZmPivot')
         self.surveyCutSZ = options.get_double_array_1d(option_section, 'surveyCutSZ')
@@ -44,10 +47,10 @@ class NumberCount:
 
     ########## lnlikelihood
     def lnlike(self, block):
-        # Need cosmo params for E(z)
-        self.Omega_m = block.get_double('cosmological_parameters', 'Omega_m')
-        self.Omega_l = block.get_double('cosmological_parameters', 'omega_lambda')
-        self.w0 = block.get_double('cosmological_parameters', 'w')
+        # Only need cosmo for E(z)-type stuff
+        self.cosmology = {'Omega_m': block.get_double('cosmological_parameters', 'Omega_m'),
+            'Omega_l': block.get_double('cosmological_parameters', 'omega_lambda'),
+            'w0': block.get_double('cosmological_parameters', 'w')}
         # SZ scaling relation parameters
         self.Asz = block.get_double('mor_parameters', 'Asz')
         self.Bsz = block.get_double('mor_parameters', 'Bsz')
@@ -74,7 +77,7 @@ class NumberCount:
         if ((self.Bsz2==0.)&(self.Esz==0.)):
             dlnM_dlnzeta = 1/self.Bsz
         else:
-            lnEz_E0p6 = np.log(self.Ez(HMF['z_arr'])/self.Ez(.6))
+            lnEz_E0p6 = np.log(self.cosmo.Ez(HMF['z_arr'], self.cosmology)/self.cosmo.Ez(.6, self.cosmology))
             lnmassRatio = np.log(HMF['M_arr']/self.SZmPivot)
             bLin = self.Bsz + self.Esz*lnEz_E0p6
             cEff = self.Csz*lnEz_E0p6 + self.Csz2*lnEz_E0p6**2
@@ -168,7 +171,7 @@ class NumberCount:
         ##### Add total number of clusters contribution
         lnlike-= Ntotal
 
-        # print 'Ntotal',Ntotal
+        print 'Ntotal', Ntotal
 
         return lnlike
 
@@ -176,9 +179,6 @@ class NumberCount:
 
     ########## Utility functions
     # Self-explanatory function names :p
-
-    def Ez(self, z):
-        return (self.Omega_m*(1+z)**3. + self.Omega_l*(1+z)**(3.*(1+self.w0)))**.5
 
     def dlnzeta_dxi(self, xi):
         return xi/(xi**2 - 3)
@@ -189,5 +189,5 @@ class NumberCount:
     def mass2zeta(self, mass, z):
         # [redshift][mass]
         massterm = (mass/self.SZmPivot)**self.Bsz
-        zterm = (self.Ez(z)/self.Ez(.6))**self.Csz
+        zterm = (self.cosmo.Ez(z, self.cosmology)/self.cosmo.Ez(.6, self.cosmology))**self.Csz
         return self.Asz * massterm[None,:] * zterm[:,None]
