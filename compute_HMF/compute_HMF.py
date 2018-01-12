@@ -5,9 +5,6 @@ import scipy.integrate
 import imp
 from cosmosis.datablock import option_section
 
-DIST_H = 2997.92458
-RHOCRIT = 2.775362e11
-
 class HMFCalculator:
     def __init__(self, options):
         """Initialize Tinker interpolation functions and critical overdensity,
@@ -41,8 +38,7 @@ class HMFCalculator:
         k_arr = block.get_double_array_1d('matter_power_lin', 'k_h')
         Pk = block.get_double_array_nd('matter_power_lin', 'p_k')
         # cosmological parameters
-        # cosmo = self.cosmo_calculator.Cosmology(block)
-        rho_m = cosmology['Omega_m'] * RHOCRIT
+        rho_m = cosmology['Omega_m'] * self.cosmo.RHOCRIT
         # Mean overdensity at each redshift
         Deltamean = self.Deltacrit / self.cosmo.Omega_m_z(z_arr, cosmology)
 
