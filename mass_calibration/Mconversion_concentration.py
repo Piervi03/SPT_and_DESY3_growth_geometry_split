@@ -13,36 +13,9 @@ class ConcentrationConversion(object):
         self.MCrelation = MCrelation
         if isinstance(MCrelation, str):
             if MCrelation=='DK15':
-                self.colossuscosmo = DKcosmo.setCosmology('mycosmo', {'flat':True, 'H0':100.*cosmology['h'], 'Om0':cosmology['Omega_m'], 'Ob0':cosmology['Omega_b'], 'sigma8':cosmology['sigma8'], 'ns':cosmology['ns']})
-
-                """Omh2 = cosmology['Omega_m']*cosmology['h']**2
-                Obh2 = cosmology['Omega_b']*cosmology['h']**2
-                fb = cosmology['Omega_b']/cosmology['Omega_m']
-                k_arr = np.logspace(.4, 1, 50)
-                self.logk_arr = np.log(k_arr)
-                sound_horizon = 44.5 * np.log(9.83/Omh2)/(1+10*Obh2**.75)**.5
-                alphaGamma = 1. - .328*np.log(431.*Omh2)*Obh2/Omh2 + .38*np.log(22.3*Omh2)*fb**2
-                Gamma = cosmology['Omega_m']*cosmology['h'] * (alphaGamma + (1.-alphaGamma)/(1.+(.43*k_arr*h0*sound_horizon)**4))
-                q = k_arr * (2.7255/2.7)**2 / Gamma
-                C0 = 14.2 + 731. / (1. + 62.5*q)
-                L0 = np.log(2. * np.exp(1.) + 1.8*q)
-                TF = L0 / (L0 + C0*q**2)
-
-                E_z = lambda z: (cosmology['Omega_m']*(1+z)**3 + 1-cosmology['Omega_m'])**.5
-                integrand = lambda z_int: (1+z_int)/(cosmology['Omega_m']*(1+z_int)**3+1-cosmology['Omega_m'])**1.5
-
-                self.z_arr = np.linspace(0, 2, 50)
-                self.D_arr = np.array([E_z(z) * scipy.integrate.quad(integrand, z, 1e3) for z in self.z_arr])
-
-                PK_unnorm = k_arr**cosmology['ns']* TF**2 * self.D_arr[0]**2
-                norm = cosmology['sigma_8']/sigma.calc_sigma8(k_arr, PK_unnorm)
-
-                self.PK_EHsmooth = k_arr**cosmology['ns']* TF**2 * norm**2
-                self.interp_n = InterpolatedUnivariateSpline(self.logk_arr, np.log(self.PK_EHsmooth))
-
-                r_array = (3.*M_arr/4./math.pi/rho_m)**(1./3.)
-                self.M_arr = M_arr
-                self.sigma_M_0 = sigma.calc_sigma2_r(r_array, k_arr, self.PK_EHsmooth)"""
+                self.colossuscosmo = DKcosmo.setCosmology('mycosmo',
+                    {'flat':True, 'H0':100.*cosmology['h'], 'Om0':cosmology['Omega_m'],
+                    'Ob0':cosmology['Omega_b'], 'sigma8':cosmology['sigma8'], 'ns':cosmology['ns']})
 
             elif MCrelation!='Duffy08':
                 raise ValueError('Unknown mass-concentration relation:',
@@ -63,14 +36,6 @@ class ConcentrationConversion(object):
             c = np.atleast_1d(concentration.concentration(m, '200c', z, model='diemer15'))
             c[c>30.] = 30.
             return c
-
-            """R_M = (3.*m*h0/4./np.pi/Omega_m/rhocrit)**(1./3.)
-            k_r = .69*2.*np.pi/R_M
-            n = self.interp_n(np.log(k_r), nu=1)
-            nu = 1.686 / np.interp(np.log(k_r), self.logk_arr, np.log(self.sigma_M_0)) * np.interp(z, self.z_arr,  self.D_arr)/self.D_arr[0]
-            cfloor = 6.58 + n*1.37
-            nu0 = 6.82 + n*1.42
-            return .5*cfloor * ((nu0/nu)**1.12 + (nu/nu0)**1.69)"""
         else:
             return float(self.MCrelation)
 
