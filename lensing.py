@@ -37,7 +37,7 @@ class SPTlensing:
 
         ##### Precalculate M and r independent stuff, everything in h units
         self.rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.zcluster, cosmology)**2 # [h^2 Msun/Mpc^3]
-        Dl = cosmo.AngDiamDist(self.zcluster, cosmology)
+        Dl = cosmo.dA(self.zcluster, cosmology)
         self.get_beta(cosmology)
 
         ##### M200 and scale radius, wrt critical density, everything in h units
@@ -102,7 +102,7 @@ class SPTlensing:
 
             # Only consider 500<r/kpc/1500 in reference cosmology
             cosmoRef = {'Omega_m':.3, 'Omega_l':.7, 'h':.7, 'w0':-1.}
-            DlRef = cosmo.AngDiamDist(self.zcluster, cosmoRef)
+            DlRef = cosmo.dA(self.zcluster, cosmoRef)
             rPhysRef = self.WLdata['r_deg'] * DlRef * np.pi/180. /cosmoRef['h']
             rInclude = np.where((rPhysRef>.5)&(rPhysRef<1.5))[0]
 
@@ -127,7 +127,7 @@ class SPTlensing:
     # dA [Mpc/h]
     def GetAngDiamDists(self, cosmology):
         zs = np.logspace(-1,np.log10(5),100)
-        dA = np.array([cosmo.AngDiamDist(z, cosmology) for z in zs])
+        dA = np.array([cosmo.dA(z, cosmology) for z in zs])
         self.dAs = {'lnz':np.log(zs), 'lndA':np.log(dA)}
 
 
@@ -139,7 +139,7 @@ class SPTlensing:
         bgIdx = np.where(self.WLdata['redshifts']>self.zcluster)[0]
 
         ##### Calculate beta(z_source)
-        betaArr[bgIdx] = np.array([cosmo.AngDiamDist_12(self.zcluster, z, cosmology) for z in self.WLdata['redshifts'][bgIdx]])
+        betaArr[bgIdx] = np.array([cosmo.dA_two_z(self.zcluster, z, cosmology) for z in self.WLdata['redshifts'][bgIdx]])
         betaArr[bgIdx]/= np.exp(np.interp(np.log(self.WLdata['redshifts'][bgIdx]), self.dAs['lnz'], self.dAs['lndA']))
 
         ##### Weight beta(z) with N(z) distribution to get <beta> and <beta^2>
