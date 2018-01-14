@@ -1,9 +1,9 @@
 from __future__ import division
 import numpy as np
-import SPTnumbercount
+import abundance
 
 def setup(options):
-    number_count = SPTnumbercount.NumberCount(options)
+    number_count = abundance.NumberCount(options)
     return number_count
 
 def execute(block, number_count):

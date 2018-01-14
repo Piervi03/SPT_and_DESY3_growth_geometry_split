@@ -1,13 +1,13 @@
 from __future__ import division
 import numpy as np
-import masscalib
+import mass_calibration
 
 def setup(options):
-    mass_calibration = masscalib.MassCalibration(options)
-    return mass_calibration
+    masscalibration = mass_calibration.MassCalibration(options)
+    return masscalibration
 
-def execute(block, mass_calibration):
-    lnlike = mass_calibration.lnlike(block)
+def execute(block, masscalibration):
+    lnlike = masscalibration.lnlike(block)
     block.put_double('likelihoods', 'MASS_CALIBRATION_LIKE', lnlike)
     return 0
 
