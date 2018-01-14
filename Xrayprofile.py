@@ -2,13 +2,11 @@ from __future__ import division
 import numpy as np
 import imp
 from cosmosis.datablock import option_section
+import cosmo
 
 
 class XrayProfile:
     def __init__(self, options):
-        ##### Load my cosmology functions
-        cosmo_calculator_file = options.get_string(option_section, 'cosmo_calculator_file')
-        self.cosmo = imp.load_source('cosmo_calculator', cosmo_calculator_file)
         self.todo = {'Yx': options.get_bool(option_section, 'doYx'),
             'Mgas': options.get_bool(option_section, 'doMgas')}
         self.todo['Xobs'] = 'Mg' if self.todo['Mgas'] else 'Yx'
@@ -42,7 +40,7 @@ class XrayProfile:
         Note: Everything in this function is in units of Mpc or Msun, no h!
         """
 
-        E06 = self.cosmo.Ez(.6, self.cosmologyRef)
+        E06 = cosmo.Ez(.6, self.cosmologyRef)
 
         catalog['XrayRef'] = [None for i in range(len(catalog['SPT_ID']))]
 
@@ -65,8 +63,8 @@ class XrayProfile:
             ##### Exclude double entries
             if name in self.XraySample and (name,catalog['field'][i]) not in self.SPTdoubleCount:
 
-                E_z = self.cosmo.Ez(catalog['redshift'][i], self.cosmologyRef)
-                rho_c_z = self.cosmo.RHOCRIT * (self.cosmologyRef['h']*self.cosmo.Ez(catalog['redshift'][i], self.cosmologyRef))**2.
+                E_z = cosmo.Ez(catalog['redshift'][i], self.cosmologyRef)
+                rho_c_z = cosmo.RHOCRIT * (self.cosmologyRef['h']*cosmo.Ez(catalog['redshift'][i], self.cosmologyRef))**2.
 
                 ##### Initial M500 guess, and observational error
                 if self.todo['Xobs']=='Yx':
@@ -118,7 +116,7 @@ class XrayProfile:
         Note: Everything in this function is in units of Mpc or Msun, no h!
         """
 
-        E06 = self.cosmo.Ez(.6, cosmology)
+        E06 = cosmo.Ez(.6, cosmology)
 
         catalog['XrayRef'] = [None for i in range(len(catalog['SPT_ID']))]
 
@@ -127,8 +125,8 @@ class XrayProfile:
             if (name,catalog['field'][i]) in self.SPTdoubleCount: continue
             if catalog['Mg'][i][0,0]!=0.:
 
-                E_z = self.cosmo.Ez(catalog['redshift'][i], cosmology)
-                rho_c_z = self.cosmo.RHOCRIT * (cosmology['h']*E_z)**2.
+                E_z = cosmo.Ez(catalog['redshift'][i], cosmology)
+                rho_c_z = cosmo.RHOCRIT * (cosmology['h']*E_z)**2.
                 dA = cosmo.AngDiamDist(catalog['redshift'][i], cosmology) / cosmology['h']
 
                 # Angular diameter distance in reference cosmology

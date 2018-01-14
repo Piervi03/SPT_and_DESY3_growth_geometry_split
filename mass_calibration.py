@@ -1,7 +1,7 @@
 from __future__ import division
 import numpy as np
 from multiprocessing import Pool
-import Mconversion_concentration, lensing, Xrayprofile
+import cosmo, Mconversion_concentration, lensing, Xrayprofile
 from scipy.stats import norm
 from scipy.stats import lognorm
 from scipy.stats import multivariate_normal
@@ -13,6 +13,7 @@ import scipy.special as ss
 import os
 from astropy.table import Table
 import imp
+
 
 # Cosmosis stuff
 from cosmosis.datablock import option_section
@@ -28,9 +29,6 @@ def unwrap_self_f(arg, **kwarg):
 class MassCalibration:
 
     def __init__(self, options):
-        ##### Load my cosmology functions
-        cosmo_calculator_file = options.get_string(option_section, 'cosmo_calculator_file')
-        self.cosmo = imp.load_source('cosmo_calculator', cosmo_calculator_file)
         ##### Config parameters
         self.todo = {
             'WL': options.get_bool(option_section, 'doWL'),
@@ -346,10 +344,10 @@ class MassCalibration:
         ##### Add radial dependence for X-ray observables
         if obsname in ('Mgas','Yx') and self.XrayProfileHandling=='modelMgasPL':
             # Angular diameter distances in current and reference cosmology [Mpc]
-            dA = self.cosmo.AngDiamDist(self.catalog['redshift'][dataID], self.cosmology)/self.cosmology['h']
-            dAref = self.cosmo.AngDiamDist(self.catalog['redshift'][dataID], cosmologyRef)/cosmologyRef['h']
+            dA = cosmo.AngDiamDist(self.catalog['redshift'][dataID], self.cosmology)/self.cosmology['h']
+            dAref = cosmo.AngDiamDist(self.catalog['redshift'][dataID], cosmologyRef)/cosmologyRef['h']
             # R500 [kpc]
-            rho_c_z = self.cosmo.RHOCRIT * self.cosmo.Ez(self.catalog['redshift'][dataID], self.cosmology)**2
+            rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.catalog['redshift'][dataID], self.cosmology)**2
             r500 = 1000 * (3*M_obsArr/(4*np.pi*500*rho_c_z))**(1/3) / self.cosmology['h']
             # r500 in reference cosmology [kpc]
             r500ref = r500 * dAref/dA
@@ -539,10 +537,10 @@ class MassCalibration:
             ##### Add radial dependence for X-ray observables
             if obsnames[i] in ('Mgas','Yx') and self.XrayProfileHandling=='modelMgasPL':
                 # Angular diameter distances in current and reference cosmology [Mpc]
-                dA = self.cosmo.AngDiamDist(self.catalog['redshift'][dataID], self.cosmology)/self.cosmology['h']
-                dAref = self.cosmo.AngDiamDist(self.catalog['redshift'][dataID], cosmologyRef)/cosmologyRef['h']
+                dA = cosmo.AngDiamDist(self.catalog['redshift'][dataID], self.cosmology)/self.cosmology['h']
+                dAref = cosmo.AngDiamDist(self.catalog['redshift'][dataID], cosmologyRef)/cosmologyRef['h']
                 # R500 [kpc]
-                rho_c_z = self.cosmo.RHOCRIT * self.cosmo.Ez(self.catalog['redshift'][dataID], self.cosmology)**2
+                rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.catalog['redshift'][dataID], self.cosmology)**2
                 r500 = 1000 * (3*M_obsArr/(4*np.pi*500*rho_c_z))**(1/3) / self.cosmology['h']
                 # r500 in reference cosmology [kpc]
                 r500ref = r500 * dAref/dA
@@ -645,27 +643,27 @@ class MassCalibration:
         if name=='zeta':
             Asz = self.thisSPTfieldCorrection * self.scaling['Asz']
             lnM = np.log(self.SZmPivot) + (np.log(obs) - np.log(Asz)\
-                - self.scaling['Csz']*np.log(self.cosmo.Ez(z, self.cosmology)/self.cosmo.Ez(.6, self.cosmology)))/(self.scaling['Bsz']\
-                + self.scaling['Esz']*np.log(self.cosmo.Ez(z, self.cosmology)/self.cosmo.Ez(.6, self.cosmology)))
+                - self.scaling['Csz']*np.log(cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology)))/(self.scaling['Bsz']\
+                + self.scaling['Esz']*np.log(cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology)))
             return np.exp(lnM)
         elif name=='Yx':
             if self.YXPARAM=='SPT_XVP':
                 return 1e14 * self.scaling['Ax'] * self.cosmology['h']**1.5\
                     * (self.cosmology['h']/.72)**(2.5*self.scaling['Bx']-1.5)\
-                    * (obs/3.)**self.scaling['Bx'] * self.cosmo.Ez(z, self.cosmology)**self.scaling['Cx']
+                    * (obs/3.)**self.scaling['Bx'] * cosmo.Ez(z, self.cosmology)**self.scaling['Cx']
             elif self.YXPARAM=='Munich':
                 return self.XraymPivot * self.cosmology['h']**1.5 * (obs/(self.scaling['Ax']
-                    *(self.cosmo.Ez(z, self.cosmology)/self.cosmo.Ez(.6, self.cosmology))**self.scaling['Cx']))**(1/self.scaling['Bx'])
+                    *(cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology))**self.scaling['Cx']))**(1/self.scaling['Bx'])
         elif name=='Mgas':
             return self.XraymPivot * self.cosmology['h'] * (obs/self.XraymPivot/self.scaling['Ax']
-                /(self.cosmo.Ez(z, self.cosmology)/self.cosmo.Ez(.6, self.cosmology))**self.scaling['Cx'])**(1./self.scaling['Bx'])
+                /(cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology))**self.scaling['Cx'])**(1./self.scaling['Bx'])
         elif name=='disp':
-            h70z = self.cosmology['h']/.7*self.cosmo.Ez(z, self.cosmology)
+            h70z = self.cosmology['h']/.7*cosmo.Ez(z, self.cosmology)
             M200c = 1e15*self.cosmology['h'] * (obs/self.scaling['Adisp']/h70z**self.scaling['Cdisp'])**self.scaling['Bdisp']
             return np.exp(self.lnM200_to_lnM500(np.log(M200c), z))
         elif name=='richness':
             return self.richmPivot* (obs/self.scaling['Arichness']
-                /(self.cosmo.Ez(z, self.cosmology)/self.cosmo.Ez(.6, self.cosmology))**self.scaling['Crichness'])**(1/self.scaling['Brichness'])
+                /(cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology))**self.scaling['Crichness'])**(1/self.scaling['Brichness'])
         elif name=='WLMegacam':
             return obs/self.scaling['bWL_Megacam']
         elif name=='WLHST':
@@ -681,30 +679,30 @@ class MassCalibration:
         if name=='zeta':
             lnzeta = np.log(self.scaling['Asz']*self.thisSPTfieldCorrection)\
                 + self.scaling['Bsz'] * np.log(mass/self.SZmPivot)\
-                + self.scaling['Csz'] * np.log(self.cosmo.Ez(z, self.cosmology)/self.cosmo.Ez(.6, self.cosmology))\
-                + self.scaling['Esz'] * np.log(mass/self.SZmPivot)*np.log(self.cosmo.Ez(z, self.cosmology)/self.cosmo.Ez(.6, self.cosmology))
+                + self.scaling['Csz'] * np.log(cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology))\
+                + self.scaling['Esz'] * np.log(mass/self.SZmPivot)*np.log(cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology))
             return np.exp(lnzeta)
         elif name=='Yx':
             if self.YXPARAM=='SPT_XVP':
                 return 3.*(mass*1e-14/(self.scaling['Ax'] * self.cosmology['h']**1.5
                     * (self.cosmology['h']/.72)**(2.5*self.scaling['Bx']-1.5)
-                    * self.cosmo.Ez(z, self.cosmology)**self.scaling['Cx']))**(1/self.scaling['Bx'])
+                    * cosmo.Ez(z, self.cosmology)**self.scaling['Cx']))**(1/self.scaling['Bx'])
             elif self.YXPARAM=='Munich':
                 return self.scaling['Ax']* (mass/self.cosmology['h']**1.5/self.XraymPivot)**self.scaling['Bx']\
-                    * (self.cosmo.Ez(z, self.cosmology)/self.cosmo.Ez(.6, self.cosmology))**self.scaling['Cx']
+                    * (cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology))**self.scaling['Cx']
         elif name=='Mgas':
             lnMgas = np.log(self.XraymPivot * self.scaling['Ax']) + self.scaling['Bx']*np.log(mass/self.XraymPivot/self.cosmology['h'])\
-                + self.scaling['Cx']*np.log(self.cosmo.Ez(z, self.cosmology)/self.cosmo.Ez(.6, self.cosmology))\
-                + self.scaling['Ex']*np.log(mass/self.XraymPivot/self.cosmology['h'])*np.log(self.cosmo.Ez(z, self.cosmology)/self.cosmo.Ez(.6, self.cosmology))
+                + self.scaling['Cx']*np.log(cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology))\
+                + self.scaling['Ex']*np.log(mass/self.XraymPivot/self.cosmology['h'])*np.log(cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology))
             return np.exp(lnMgas)
         elif name=='disp':
-            h70z = self.cosmology['h']/.7*self.cosmo.Ez(z, self.cosmology)
+            h70z = self.cosmology['h']/.7*cosmo.Ez(z, self.cosmology)
             M200c = np.exp(self.lnM500_to_lnM200(np.log(mass), z))
             if len(M200c)==1: M200c = M200c[0]
             return self.scaling['Adisp'] * (M200c/1e15/self.cosmology['h'])**(1/self.scaling['Bdisp']) * h70z**self.scaling['Cdisp']
         elif name=='richness':
             return self.scaling['Arichness'] * (mass/self.richmPivot)**self.scaling['Brichness']\
-                * (self.cosmo.Ez(z, self.cosmology)/self.cosmo.Ez(.6, self.cosmology))**self.scaling['Crichness']
+                * (cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology))**self.scaling['Crichness']
         elif name=='WLMegacam':
             return self.scaling['bWL_Megacam'] * mass
         elif name=='WLHST':

@@ -7,12 +7,10 @@ from astropy.table import Table
 from scipy.stats import norm
 from scipy import interpolate
 import imp
+import cosmo
 
 class NumberCount:
     def __init__(self, options):
-        ##### Load my cosmology functions
-        cosmo_calculator_file = options.get_string(option_section, 'cosmo_calculator_file')
-        self.cosmo = imp.load_source('cosmo_calculator', cosmo_calculator_file)
         ##### Global variables
         self.SZmPivot = options.get_double(option_section, 'SZmPivot')
         self.surveyCutSZ = options.get_double_array_1d(option_section, 'surveyCutSZ')
@@ -77,7 +75,7 @@ class NumberCount:
         if ((self.Bsz2==0.)&(self.Esz==0.)):
             dlnM_dlnzeta = 1/self.Bsz
         else:
-            lnEz_E0p6 = np.log(self.cosmo.Ez(HMF['z_arr'], self.cosmology)/self.cosmo.Ez(.6, self.cosmology))
+            lnEz_E0p6 = np.log(cosmo.Ez(HMF['z_arr'], self.cosmology)/cosmo.Ez(.6, self.cosmology))
             lnmassRatio = np.log(HMF['M_arr']/self.SZmPivot)
             bLin = self.Bsz + self.Esz*lnEz_E0p6
             cEff = self.Csz*lnEz_E0p6 + self.Csz2*lnEz_E0p6**2
@@ -189,5 +187,5 @@ class NumberCount:
     def mass2zeta(self, mass, z):
         # [redshift][mass]
         massterm = (mass/self.SZmPivot)**self.Bsz
-        zterm = (self.cosmo.Ez(z, self.cosmology)/self.cosmo.Ez(.6, self.cosmology))**self.Csz
+        zterm = (cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology))**self.Csz
         return self.Asz * massterm[None,:] * zterm[:,None]

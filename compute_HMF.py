@@ -4,15 +4,13 @@ from scipy.interpolate import interp1d
 import scipy.integrate
 import imp
 from cosmosis.datablock import option_section
+import cosmo
 
 class HMFCalculator:
     def __init__(self, options):
         """Initialize Tinker interpolation functions and critical overdensity,
         and store in self."""
         self.Deltacrit = options.get_double(option_section, 'Deltacrit', default=500.)
-        # Load my cosmology functions
-        cosmo_calculator_file = options.get_string(option_section, 'cosmo_calculator_file')
-        self.cosmo = imp.load_source('cosmo_calculator', cosmo_calculator_file)
         # Initialize Tinker interpolation (A, a, b, c)
         x = np.log((200., 300., 400., 600., 800., 1200., 1600., 2400., 3200.))
         y = (1.858659e-01, 1.995973e-01, 2.115659e-01, 2.184113e-01, 2.480968e-01, 2.546053e-01, 2.600000e-01, 2.600000e-01, 2.600000e-01)
@@ -38,9 +36,9 @@ class HMFCalculator:
         k_arr = block.get_double_array_1d('matter_power_lin', 'k_h')
         Pk = block.get_double_array_nd('matter_power_lin', 'p_k')
         # cosmological parameters
-        rho_m = cosmology['Omega_m'] * self.cosmo.RHOCRIT
+        rho_m = cosmology['Omega_m'] * cosmo.RHOCRIT
         # Mean overdensity at each redshift
-        Deltamean = self.Deltacrit / self.cosmo.Omega_m_z(z_arr, cosmology)
+        Deltamean = self.Deltacrit / cosmo.Omega_m_z(z_arr, cosmology)
 
         ##### Compute sigma(M)
         # Radius [M_arr]
@@ -64,7 +62,7 @@ class HMFCalculator:
         dNdlnM_noVol = - fsigma * rho_m * dsigma2dM/2/sigma2
 
         ##### Apply redshift volume
-        deltaV = self.cosmo.deltaV(z_arr[1:], cosmology)
+        deltaV = cosmo.deltaV(z_arr[1:], cosmology)
         deltaV = np.insert(deltaV, 0, deltaV[1])
         dNdlnM = dNdlnM_noVol * deltaV[:,None]
 
