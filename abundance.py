@@ -169,7 +169,7 @@ class NumberCount:
         ##### Add total number of clusters contribution
         lnlike-= Ntotal
 
-        print 'Ntotal', Ntotal
+        # print 'Ntotal', Ntotal
 
         return lnlike
 
