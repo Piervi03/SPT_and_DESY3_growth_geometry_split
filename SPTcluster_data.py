@@ -1,4 +1,3 @@
-SPTcatalogfile = 'modules/cosmosis_spt_cluster/SPT2500d.fits'
 SPTfieldNames = ('ra5h30dec-55', 'ra23h30dec-55', 'ra21hdec-60', 'ra3h30dec-60',
     'ra21hdec-50', 'ra4h10dec-50', 'ra0h50dec-50', 'ra2h30dec-50', 'ra1hdec-60',
     'ra5h30dec-45', 'ra6h30dec-55', 'ra3h30dec-42.5', 'ra23hdec-62.5',

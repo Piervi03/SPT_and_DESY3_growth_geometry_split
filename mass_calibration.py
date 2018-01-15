@@ -52,7 +52,7 @@ class MassCalibration:
         # Data
         SPTdatafile = options.get_string(option_section, 'SPTdatafile')
         SPTdata = imp.load_source('SPTdata', SPTdatafile)
-        SPTcatalogfile = SPTdata.SPTcatalogfile
+        SPTcatalogfile = options.get_string(option_section, 'SPTcatalogfile')
         assert os.path.isfile(SPTcatalogfile), "SPT catalog file does not exist"
         self.catalog = Table.read(SPTcatalogfile)
         ###### X-ray data analysis mess
