@@ -1,6 +1,6 @@
 from __future__ import division
 import numpy as np
-# from numpy.lib import scimath as sm
+from numpy.lib import scimath as sm
 from scipy.stats import norm
 import pickle
 import imp
@@ -14,6 +14,10 @@ from cosmosis.datablock import option_section
 class SPTlensing:
 
     def __init__(self, options, catalog):
+        # WL simulation calibration data
+        WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
+        WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
+        self.WLcalib = WLsimcalib.WLcalibration
         # Lensing data
         self.HSTfile = options.get_string(option_section, 'HSTfile')
         self.MegacamDir = options.get_string(option_section, 'MegacamDir')
@@ -23,10 +27,7 @@ class SPTlensing:
         if self.MegacamDir=='None': self.MegacamDir = None
         if self.DESDir=='None': self.DESDir = None
         self.readdata(catalog)
-        # WL simulation calibration data
-        WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
-        WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
-        self.WLcalib = WLsimcalib.WLcalibration
+
 
     ########################################
     # Get P(Mwl) from dP/dMwl and shear data
