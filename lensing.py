@@ -2,7 +2,7 @@ from __future__ import division
 import numpy as np
 # from numpy.lib import scimath as sm
 from scipy.stats import norm
-import cPickle
+import pickle
 import imp
 import os
 import cosmo
@@ -194,22 +194,23 @@ class SPTlensing:
         catalog['WLdata'] = [None for i in range(len(catalog['SPT_ID']))]
 
         ##### Check for HST data
-        print self.HSTfile
         if self.HSTfile is not None:
             assert os.path.isfile(self.HSTfile), "HST shear data %s not found"%self.HSTfile
             # Load weak lensing data
-            HSTdataclass = HSTCluster(self.HSTfile)
-            HSTdata = HSTdataclass.clusters
+            # HSTdataclass = HSTCluster(self.HSTfile)
+            HSTdata = pickle.load(open(self.HSTfile, 'rb'))
             for i,name in enumerate(catalog['SPT_ID']):
                 if name in HSTdata.keys():
                     # Total number of background galaxies
                     Ntot, pzs = {}, {}
-                    for j in HSTdata[name].pzs.keys():
-                        pzs[j] = np.sum(HSTdata[name].pzs[j], axis=0)
-                        Ntot[j] = np.sum(HSTdata[name].pzs[j])
-                    catalog['WLdata'][i] = {'datatype':'HST', 'center':HSTdata[name].center, 'r_deg':HSTdata[name].r_deg, 'shear':HSTdata[name].shear, 'shearerr':HSTdata[name].shearerr, 'magbinids':HSTdata[name].magbinids, 'redshifts':HSTdata[name].redshifts, 'pzs':pzs, 'magcorr':HSTdata[name].magnificationcorr, 'Ntot':Ntot,
-                           'massModelErr': (self.WLcalib['HSTsim'][name][1]**2 + self.WLcalib['HSTmcErr']**2 + self.WLcalib['HSTcenterErr']**2)**.5,
-                           'zDistShearErr': (self.WLcalib['HSTzDistErr']**2 + self.WLcalib['HSTshearErr']**2)**.5}
+                    for j in HSTdata[name]['pzs'].keys():
+                        pzs[j] = np.sum(HSTdata[name]['pzs'][j], axis=0)
+                        Ntot[j] = np.sum(HSTdata[name]['pzs'][j])
+                    catalog['WLdata'][i] = {'datatype':'HST', 'center':HSTdata[name]['center'],
+                        'r_deg':HSTdata[name]['r_deg'], 'shear':HSTdata[name]['shear'], 'shearerr':HSTdata[name]['shearerr'],
+                        'magbinids':HSTdata[name]['magbinids'], 'redshifts':HSTdata[name]['redshifts'], 'pzs':pzs, 'magcorr':HSTdata[name]['magnificationcorr'], 'Ntot':Ntot,
+                        'massModelErr': (self.WLcalib['HSTsim'][name][1]**2 + self.WLcalib['HSTmcErr']**2 + self.WLcalib['HSTcenterErr']**2)**.5,
+                        'zDistShearErr': (self.WLcalib['HSTzDistErr']**2 + self.WLcalib['HSTshearErr']**2)**.5}
 
         ##### Megacam data
         if self.MegacamDir is not None:
@@ -219,9 +220,10 @@ class SPTlensing:
                 if os.path.isfile(prefix+'_shear.txt'):
                     shear = np.loadtxt(prefix+'_shear.txt', unpack=True)
                     Nz = np.loadtxt(prefix+'_Nz.txt', unpack=True)
-                    catalog['WLdata'][i] = {'datatype':'Megacam', 'r_deg':shear[0], 'shear':shear[1], 'shearerr':shear[2], 'redshifts':Nz[0], 'Nz':Nz[1], 'Ntot':np.sum(Nz[1]),
-                            'massModelErr': (self.WLcalib['MegacamSim'][1]**2 + self.WLcalib['MegacamMcErr']**2 + self.WLcalib['MegacamCenterErr']**2)**.5,
-                            'zDistShearErr': (self.WLcalib['MegacamzDistErr']**2 + self.WLcalib['MegacamShearErr']**2)**.5}
+                    catalog['WLdata'][i] = {'datatype':'Megacam', 'r_deg':shear[0], 'shear':shear[1], 'shearerr':shear[2],
+                        'redshifts':Nz[0], 'Nz':Nz[1], 'Ntot':np.sum(Nz[1]),
+                        'massModelErr': (self.WLcalib['MegacamSim'][1]**2 + self.WLcalib['MegacamMcErr']**2 + self.WLcalib['MegacamCenterErr']**2)**.5,
+                        'zDistShearErr': (self.WLcalib['MegacamzDistErr']**2 + self.WLcalib['MegacamShearErr']**2)**.5}
 
         ##### Check for DES data
         if self.DESDir is not None:
@@ -231,9 +233,10 @@ class SPTlensing:
                 if os.path.isfile(prefix+'_shear.txt'):
                     shear = np.loadtxt(prefix+'_shear.txt', unpack=True)
                     Nz = np.loadtxt(prefix+'_Nz.txt', unpack=True)
-                    catalog['WLdata'][i] = {'datatype':'DES', 'r_deg':shear[0], 'shear':shear[1], 'shearerr':shear[2], 'redshifts':Nz[0], 'Nz':Nz[1], 'Ntot':np.sum(Nz[1]),
-                            'massModelErr': (self.WLcalib['DESsim'][1]**2 + self.WLcalib['DESmcErr']**2 + self.WLcalib['DEScenterErr']**2)**.5,
-                            'zDistShearErr': (self.WLcalib['DESzDistErr']**2 + self.WLcalib['DESshearErr']**2)**.5}
+                    catalog['WLdata'][i] = {'datatype':'DES', 'r_deg':shear[0], 'shear':shear[1], 'shearerr':shear[2],
+                        'redshifts':Nz[0], 'Nz':Nz[1], 'Ntot':np.sum(Nz[1]),
+                        'massModelErr': (self.WLcalib['DESsim'][1]**2 + self.WLcalib['DESmcErr']**2 + self.WLcalib['DEScenterErr']**2)**.5,
+                        'zDistShearErr': (self.WLcalib['DESzDistErr']**2 + self.WLcalib['DESshearErr']**2)**.5}
 
 
     #######################################
@@ -260,24 +263,3 @@ class SPTlensing:
             scaling['bWL_DES'] = self.WLcalib['DESsim'][0] + scaling['WLbias']*massModelErr + scaling['DESbias']*zDistShearErr
             # D^2 = Dint^2 + (DSim + DErrParam * err(DSim))^2
             scaling['DWL_DES'] = self.WLcalib['DESsim'][2]+scaling['WLscatter']*self.WLcalib['DESsim'][3]
-
-
-
-########################################
-
-class HSTCluster(object):
-    '''At this point, just a simple structure to organize data, without functionality'''
-    def __init__(self, inputfilename):
-        self.name = None  #SPT cluster name
-        self.zcluster = None #cluster redshift
-        self.center = None  #type of center used: xray, sz, bcg
-        self.r_deg = None   #center point of each shear bin, numpy array
-        self.shear = None   #reduced shear measured in bin, numpy array
-        self.shearerr = None   #uncertainty in shear measurement, numpy array
-        self.magbinids = None  #id for self.pzs, to select matching p(z) distribution, numpy array
-        self.redshifts = None  #eval points for redshift histogram, numpy array
-        self.pzs = {}  #dict magbinid -> p(z) numpy array
-        self.magnificationcorr = {} #dict magbinid -> (mu0, beta/beta0) 2xn array
-
-        with open(inputfilename, 'rb') as input:
-            self.clusters = cPickle.load(input)
