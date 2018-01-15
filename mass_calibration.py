@@ -150,7 +150,7 @@ class MassCalibration:
         ##### Setup stuff for WL
         if self.todo['WL']:
             self.WL.getScaling(self.scaling)
-            self.WL.GetAngDiamDists(self.cosmology)
+            self.WL.get_dAs(self.cosmology)
 
         ##### Get X-ray (old method)
         if self.XrayProfileHandling=='old':
@@ -344,8 +344,8 @@ class MassCalibration:
         ##### Add radial dependence for X-ray observables
         if obsname in ('Mgas','Yx') and self.XrayProfileHandling=='modelMgasPL':
             # Angular diameter distances in current and reference cosmology [Mpc]
-            dA = cosmo.AngDiamDist(self.catalog['redshift'][dataID], self.cosmology)/self.cosmology['h']
-            dAref = cosmo.AngDiamDist(self.catalog['redshift'][dataID], cosmologyRef)/cosmologyRef['h']
+            dA = cosmo.dA(self.catalog['redshift'][dataID], self.cosmology)/self.cosmology['h']
+            dAref = cosmo.dA(self.catalog['redshift'][dataID], cosmologyRef)/cosmologyRef['h']
             # R500 [kpc]
             rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.catalog['redshift'][dataID], self.cosmology)**2
             r500 = 1000 * (3*M_obsArr/(4*np.pi*500*rho_c_z))**(1/3) / self.cosmology['h']
@@ -537,8 +537,8 @@ class MassCalibration:
             ##### Add radial dependence for X-ray observables
             if obsnames[i] in ('Mgas','Yx') and self.XrayProfileHandling=='modelMgasPL':
                 # Angular diameter distances in current and reference cosmology [Mpc]
-                dA = cosmo.AngDiamDist(self.catalog['redshift'][dataID], self.cosmology)/self.cosmology['h']
-                dAref = cosmo.AngDiamDist(self.catalog['redshift'][dataID], cosmologyRef)/cosmologyRef['h']
+                dA = cosmo.dA(self.catalog['redshift'][dataID], self.cosmology)/self.cosmology['h']
+                dAref = cosmo.dA(self.catalog['redshift'][dataID], cosmologyRef)/cosmologyRef['h']
                 # R500 [kpc]
                 rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.catalog['redshift'][dataID], self.cosmology)**2
                 r500 = 1000 * (3*M_obsArr/(4*np.pi*500*rho_c_z))**(1/3) / self.cosmology['h']

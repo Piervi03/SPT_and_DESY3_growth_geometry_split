@@ -126,7 +126,7 @@ class SPTlensing:
 
     ########################################
     # dA [Mpc/h]
-    def GetAngDiamDists(self, cosmology):
+    def get_dAs(self, cosmology):
         zs = np.logspace(-1,np.log10(5),100)
         dA = np.array([cosmo.dA(z, cosmology) for z in zs])
         self.dAs = {'lnz':np.log(zs), 'lndA':np.log(dA)}
