@@ -32,6 +32,8 @@ class SPTlensing:
     ########################################
     # Get P(Mwl) from dP/dMwl and shear data
     def like(self, data, dataindex, mArr, cosmology, MCrel, lnM500_to_lnM200):
+        """Return likelihood of shear profile for a given cluster (index) given
+        an array of cluster masses."""
         self.name = data['SPT_ID'][dataindex]
         self.zcluster = data['redshift'][dataindex]
         self.WLdata = data['WLdata'][dataindex]
@@ -127,14 +129,15 @@ class SPTlensing:
     ########################################
     # dA [Mpc/h]
     def get_dAs(self, cosmology):
+        """Precompute angular diameter distances for an array of redshifts."""
         zs = np.logspace(-1,np.log10(5),100)
         dA = np.array([cosmo.dA(z, cosmology) for z in zs])
         self.dAs = {'lnz':np.log(zs), 'lndA':np.log(dA)}
 
 
     ########################################
-    # Calculate <beta> and <beta^2> from distribution of redshift galaxies
     def get_beta(self, cosmology):
+        """Compute <beta> and <beta^2> from distribution of redshift galaxies."""
         ##### Only consider redshift bins behind the cluster
         betaArr = np.zeros(len(self.WLdata['redshifts']))
         bgIdx = np.where(self.WLdata['redshifts']>self.zcluster)[0]
@@ -243,7 +246,7 @@ class SPTlensing:
     #######################################
     ##### Get total bias and scatter for Megacam and DES
     # If not used, set to fiducial number so that CheckCovMat does not return error
-    def getScaling(self, scaling):
+    def set_scaling(self, scaling):
         # Megacam
         if self.MegacamDir is None:
             scaling['bWL_Megacam'], scaling['DWL_Megacam'] = 1, .3

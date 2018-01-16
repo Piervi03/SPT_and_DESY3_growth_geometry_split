@@ -149,7 +149,7 @@ class MassCalibration:
 
         ##### Setup stuff for WL
         if self.todo['WL']:
-            self.WL.getScaling(self.scaling)
+            self.WL.set_scaling(self.scaling)
             self.WL.get_dAs(self.cosmology)
 
         ##### Get X-ray (old method)
