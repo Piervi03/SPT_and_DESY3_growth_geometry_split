@@ -1,7 +1,7 @@
 from __future__ import division
 import numpy as np
 from multiprocessing import Pool
-import cosmo, Mconversion_concentration, lensing, Xrayprofile
+import cosmo, Mconversion_concentration, lensing, Xrayprofile, checkcovmat
 from scipy.stats import norm
 from scipy.stats import lognorm
 from scipy.stats import multivariate_normal
@@ -132,10 +132,18 @@ class MassCalibration:
             'MegacamScatterLSS': block.get_double('mor_parameters', 'MegacamScatterLSS'),
             'DESbias': block.get_double('mor_parameters', 'DESbias'),
             'DESscatterLSS': block.get_double('mor_parameters', 'DESscatterLSS'),
+            # dispersion
+            'Adisp': block.get_double('mor_parameters', 'Adisp'),
+            'Bdisp': block.get_double('mor_parameters', 'Bdisp'),
+            'Cdisp': block.get_double('mor_parameters', 'Cdisp'),
+            'Ddisp0': block.get_double('mor_parameters', 'Ddisp0'),
+            'DdispN': block.get_double('mor_parameters', 'DdispN'),
             # Correlation coefficients
             'rhoSZWL': block.get_double('mor_parameters', 'rhoSZWL'),
             'rhoWLX': block.get_double('mor_parameters', 'rhoWLX'),
             'rhoSZX': block.get_double('mor_parameters', 'rhoSZX'),
+            'rhoXdisp': block.get_double('mor_parameters', 'rhoXdisp'),
+            'rhoSZdisp': block.get_double('mor_parameters', 'rhoSZdisp'),
             }
         # Halo mass function
         self.HMF = {'M_arr': block.get_double_array_1d('HMF', 'M_arr'),
@@ -143,14 +151,17 @@ class MassCalibration:
             'dNdlnM': block.get_double_array_nd('HMF', 'dNdlnM')}
         self.HMF['len_z'] = len(self.HMF['z_arr'])
 
-
-        ##### Set up spline interpolation for HMF
-        self.HMF_interp = interpolate.interp2d(np.log(self.HMF['M_arr']), np.log(self.HMF['z_arr'][1:]), np.log(self.HMF['dNdlnM'][1:,:]), kind='cubic')
-
         ##### Setup stuff for WL
         if self.todo['WL']:
             self.WL.set_scaling(self.scaling)
             self.WL.get_dAs(self.cosmology)
+
+        ##### Check observable covariance matrix
+        if not checkcovmat.isfine(self.scaling, self.todo):
+            return -np.inf
+
+        ##### Set up spline interpolation for HMF
+        self.HMF_interp = interpolate.interp2d(np.log(self.HMF['M_arr']), np.log(self.HMF['z_arr'][1:]), np.log(self.HMF['dNdlnM'][1:,:]), kind='cubic')
 
         ##### Get X-ray (old method)
         if self.XrayProfileHandling=='old':
