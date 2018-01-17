@@ -1,11 +1,10 @@
 from __future__ import division
 import numpy as np
 import scipy.optimize as op
-# import sigma
 from scipy.interpolate import InterpolatedUnivariateSpline
 import scipy.integrate
-# from colossus.cosmology import cosmology as DKcosmo
-# from colossus.halo import concentration
+from colossus.cosmology import cosmology as DKcosmo
+from colossus.halo import concentration
 
 class ConcentrationConversion(object):
 
