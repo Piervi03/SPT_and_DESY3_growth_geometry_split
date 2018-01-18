@@ -231,7 +231,7 @@ class MassCalibration:
                 cov = [[self.scaling['DWL_HST']**2, self.scaling['rhoSZWL']*self.scaling['Dsz']*self.scaling['DWL_HST']],
                     [self.scaling['rhoSZWL']*self.scaling['Dsz']*self.scaling['DWL_HST'], self.scaling['Dsz']**2]]
                 self.covmat['WLHST'] = cov
-                if np.linalg.det(cov)<1e-8: return 1.
+                if np.linalg.det(cov)<1e-8: return 0.
 
         if self.todo['veldisp'] and self.catalog['veldisp'][i]!=0.:
             nobs+= 1
@@ -274,7 +274,7 @@ class MassCalibration:
                     [self.scaling['rhoWLX']*self.scaling['DWL_HST']*self.scaling['Dx'], self.scaling['Dx']**2, self.scaling['rhoSZX']*self.scaling['Dsz']*self.scaling['Dx']],
                     [self.scaling['rhoSZWL']*self.scaling['Dsz']*self.scaling['DWL_HST'], self.scaling['rhoSZX']*self.scaling['Dsz']*self.scaling['Dx'], self.scaling['Dsz']**2]]
                     self.covmat[covname] = cov
-                    if np.linalg.det(cov)<1e-8: return 1.
+                    if np.linalg.det(cov)<1e-8: return 0.
                 if self.scaling['rhoWLX']==0:
                     probability = self.get_P_1obs_xi(obsnames[0], i) * self.get_P_1obs_xi(obsnames[1], i)
                 else:
