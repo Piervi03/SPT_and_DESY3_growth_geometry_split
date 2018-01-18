@@ -1,8 +1,6 @@
 from __future__ import division
 import numpy as np
 import scipy.optimize as op
-from scipy.interpolate import InterpolatedUnivariateSpline
-import scipy.integrate
 from colossus.cosmology import cosmology as DKcosmo
 from colossus.halo import concentration
 
@@ -17,8 +15,7 @@ class ConcentrationConversion(object):
                     'Ob0':cosmology['Omega_b'], 'sigma8':cosmology['sigma8'], 'ns':cosmology['ns']})
 
             elif MCrelation!='Duffy08':
-                raise ValueError('Unknown mass-concentration relation:',
-                                 MCrelation)
+                raise ValueError('Unknown mass-concentration relation:', MCrelation)
 
     def whichMCrel(self):
         print self.MCrelation
