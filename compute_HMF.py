@@ -1,8 +1,8 @@
 from __future__ import division
 import numpy as np
+import imp
 from scipy.interpolate import interp1d
 import scipy.integrate
-import imp
 from cosmosis.datablock import option_section
 import cosmo
 

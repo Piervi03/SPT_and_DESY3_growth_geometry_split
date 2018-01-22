@@ -1,12 +1,14 @@
 from __future__ import division
 import numpy as np
-import scipy.ndimage
-from cosmosis.datablock import option_section
 import os
-from astropy.table import Table
+import imp
+from multiprocessing import Pool
+import scipy.ndimage
 from scipy.stats import norm
 from scipy import interpolate
-import imp
+from astropy.table import Table
+
+from cosmosis.datablock import option_section
 import cosmo
 
 class NumberCount:

@@ -5,9 +5,9 @@ from scipy.stats import norm
 import pickle
 import imp
 import os
-import cosmo
 
 from cosmosis.datablock import option_section
+import cosmo
 
 ########################################
 ##### This class reads and stores shear data and calculates P(shear|P(M))

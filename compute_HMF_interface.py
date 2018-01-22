@@ -1,8 +1,8 @@
 from __future__ import division
 import numpy as np
+import pickle
 from cosmosis.datablock import option_section
 import compute_HMF
-import pickle
 
 class EmptyClass:
     pass

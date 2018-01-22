@@ -1,22 +1,19 @@
 from __future__ import division
 import numpy as np
+import os
+import imp
 from multiprocessing import Pool
-import cosmo, Mconversion_concentration, lensing, Xrayprofile, checkcovmat
-from scipy.stats import norm
-from scipy.stats import lognorm
-from scipy.stats import multivariate_normal
+import scipy.ndimage
+import scipy.special as ss
 from scipy import integrate
 from scipy import interpolate
 from scipy import signal
-import scipy.ndimage
-import scipy.special as ss
-import os
+from scipy.stats import norm, lognorm
+from scipy.stats import multivariate_normal
 from astropy.table import Table
-import imp
 
-
-# Cosmosis stuff
 from cosmosis.datablock import option_section
+import cosmo, Mconversion_concentration, lensing, Xrayprofile, checkcovmat
 
 cosmologyRef = {'Omega_m':.272, 'Omega_l':.728, 'h':.702, 'w0':-1}
 getpull = False

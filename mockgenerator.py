@@ -1,14 +1,13 @@
 from __future__ import division
 import numpy as np
+import os
+import sys
+import imp
 from scipy import interpolate
-import cosmo, Mconversion_concentration
-# try:
 from astropy.io import fits as pyfits
 import pickle
-# except ImportError:
-#     import pyfits
-import os, sys
-import imp
+
+import cosmo, Mconversion_concentration
 
 ##### Reference cosmology for which Mgas is measured
 cosmologyRef = {'Omega_m':.272, 'Omega_l':.728, 'h':.702, 'w0':-1}
