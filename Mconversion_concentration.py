@@ -17,9 +17,6 @@ class ConcentrationConversion(object):
             elif MCrelation!='Duffy08':
                 raise ValueError('Unknown mass-concentration relation:', MCrelation)
 
-    def whichMCrel(self):
-        print self.MCrelation
-
 
     # 200crit from Duffy et al 2008, input [M200c/h]
     def calC200(self, m, z):
