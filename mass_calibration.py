@@ -23,8 +23,8 @@ cosmologyRef = {'Omega_m':.272, 'Omega_l':.728, 'h':.702, 'w0':-1}
 getpull = False
 
 # Because multiprocessing within classes doesn't really work...
-def unwrap_self_f(arg, **kwarg):
-    return MassCalibration.clusterlike(*arg, **kwarg)
+def unwrap_self_f(arg):
+    return MassCalibration.clusterlike(*arg)
 
 ################################################################################
 class MassCalibration:

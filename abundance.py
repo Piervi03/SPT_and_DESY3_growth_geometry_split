@@ -14,8 +14,8 @@ import cosmo
 DEBUG = False
 
 # Because multiprocessing within classes doesn't really work...
-def unwrap_self_f(arg, **kwarg):
-    return NumberCount.lnlike_field(*arg, **kwarg)
+def unwrap_self_f(arg):
+    return NumberCount.lnlike_field(*arg)
 
 
 ################################################################################
