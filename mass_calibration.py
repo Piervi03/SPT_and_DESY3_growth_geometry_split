@@ -91,9 +91,9 @@ class MassCalibration:
             self.WL = lensing.SPTlensing(options, self.catalog)
 
 
-
-    # Return ln(likelihood) for the whole sample
+    ############################################################################
     def lnlike(self, block):
+        """Returns ln-likelihood for mass calibration of the whole cluster sample."""
         ##### Extract from datablock
         self.cosmology = {'Omega_m': block.get_double('cosmological_parameters', 'Omega_m'),
             'Omega_l': block.get_double('cosmological_parameters', 'Omega_lambda'),
@@ -201,9 +201,11 @@ class MassCalibration:
 
 
 
-    ################################################################################
-    # Likelihood of given cluster
+    ############################################################################
     def clusterlike(self, i):
+        """Return multi-wavelength mass-calibration likelihood (no log!) for a
+        given cluster (index) by calling get_P_1obs_xi or get_P_2obs_xi or
+        returning 1 if no follow-up data is available."""
         name = self.catalog['SPT_ID'][i]
 
         ##### Exclude one of two double entries (some clusters in SPT-SZ are at field boundaries)
@@ -289,10 +291,9 @@ class MassCalibration:
 
 
 
-    ################################################################################
-    ##### SZ and one follow-up
+    ############################################################################
     def get_P_1obs_xi(self, obsname, dataID):
-
+        """Returns P(obs|xi,z,p) for a single type of follow-up data."""
         covmat = self.covmat[obsname]
 
         ##### Get the follow-up observable, obsintr is used for setting up mass range
@@ -468,10 +469,10 @@ class MassCalibration:
 
 
 
-    ################################################################################
-    ##### SZ and two follow-ups
+    ############################################################################
     def get_P_2obs_xi(self, obsnames, dataID, covname):
-
+        """Returns P(obs1, obs2|xi,z,p) for two types of follow-up data (e.g.,
+        WL and X-ray)."""
         ##### Get observables, obsintr is used for setting up mass range
         obsmeas, obserr, obsintr = np.empty(2), np.empty(2), np.empty(2)
         for i in range(2):
@@ -638,8 +639,8 @@ class MassCalibration:
 
 
 
-    ################################################################################
-
+    ############################################################################
+    ##### Utility functions
     def xi2zeta(self, xi): return (xi**2 - 3)**.5
     def zeta2xi(self, zeta): return (zeta**2 + 3)**.5
     def dlnzeta_dxi(self, xi): return xi / (xi**2 - 3)
@@ -648,6 +649,7 @@ class MassCalibration:
 
     ####################
     def obs2mass(self, name, obs, z):
+        """Returns mass given (observable, z) using scaling relation."""
         if name=='zeta':
             Asz = self.thisSPTfieldCorrection * self.scaling['Asz']
             lnM = np.log(self.SZmPivot) + (np.log(obs) - np.log(Asz)\
@@ -684,6 +686,7 @@ class MassCalibration:
 
     ####################
     def mass2obs(self, name, mass, z):
+        """Returns observable given (mass, z) using scaling relation."""
         if name=='zeta':
             lnzeta = np.log(self.scaling['Asz']*self.thisSPTfieldCorrection)\
                 + self.scaling['Bsz'] * np.log(mass/self.SZmPivot)\
@@ -723,6 +726,7 @@ class MassCalibration:
 
     ####################
     def dlnM_dlnobs(self, name, M0_arr=None, z=None):
+        """Returns dlnM/dln(obs) for a given observable."""
         if name=='zeta': return 1/self.scaling['Bsz']
         elif name=='richness': return 1/self.scaling['Brichness']
         elif name=='Yx':
@@ -740,6 +744,8 @@ class MassCalibration:
 
     ####################
     def getcovmats(self):
+        """Write to self all possible covariance matrices between all observables
+        we're currently analyzing."""
         covmat = {}
 
         ##### one follow-up observable
