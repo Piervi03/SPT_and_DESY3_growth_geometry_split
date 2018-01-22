@@ -13,7 +13,7 @@ from scipy.stats import multivariate_normal
 from astropy.table import Table
 
 from cosmosis.datablock import option_section
-import cosmo, Mconversion_concentration, lensing, Xrayprofile, checkcovmat
+import cosmo, Mconversion_concentration, lensing, Xrayprofile, observablecovmat
 
 DEBUG = False
 if DEBUG:
@@ -106,7 +106,6 @@ class MassCalibration:
             'ns': block.get_double('cosmological_parameters', 'n_s'),
             'w0': block.get_double('cosmological_parameters', 'w'),
             'sigma8': block.get_double('cosmological_parameters', 'sigma_8')}
-        # SZ scaling relation parameters
         self.scaling = {
             # SZ
             'Asz': block.get_double('mor_parameters', 'Asz'),
@@ -154,17 +153,21 @@ class MassCalibration:
 
         ##### Setup stuff for WL
         if self.todo['WL']:
+            # Set bias and scatter for Megacam and DES from sim calibration
+            # and nuissance parameters
             self.WL.set_scaling(self.scaling)
+            # Precompute array of angular diameter distances
             self.WL.get_dAs(self.cosmology)
 
-        ##### Check observable covariance matrix
-        if not checkcovmat.isfine(self.scaling, self.todo):
+        ##### Populate and check observable covariance matrices
+        self.covmat = {}
+        if not observablecovmat.set_covmats(self.todo, self.scaling, self.covmat):
             return -np.inf
 
         ##### Set up spline interpolation for HMF
         self.HMF_interp = interpolate.interp2d(np.log(self.HMF['M_arr']), np.log(self.HMF['z_arr'][1:]), np.log(self.HMF['dNdlnM'][1:,:]), kind='cubic')
 
-        ##### Get X-ray (old method)
+        ##### Get X-ray (old method only)
         if self.XrayProfileHandling=='old':
             Xray_profile.getXray(self.catalog, self.todo, self.cosmology, self.scaling)
 
@@ -182,9 +185,6 @@ class MassCalibration:
             M200 = np.logspace(np.log10(np.amin(M200)), np.log10(np.amax(M200)), 20)
             M500 = np.array([np.array([self.MCrel.M200_to_MDelta(m, 500., z) for m in M200]) for z in z_arr])
             self.lnM200_to_lnM500 = interpolate.interp2d(np.log(M200), z_arr, np.log(M500), kind='cubic')
-
-        ##### Get all possible covariance matrices. SZ always last, in 3D WL is first
-        self.getcovmats()
 
         ##### Evaluate the individual likelihoods
         len_data = len(self.catalog['SPT_ID'])
@@ -215,7 +215,7 @@ class MassCalibration:
 
         name = self.catalog['SPT_ID'][i]
 
-        ##### Exclude one of two double entries (some clusters in SPT-SZ are at field boundaries)
+        ##### Do we actually want this guy? (some clusters in SPT-SZ are at field boundaries)
         if (name,self.catalog['field'][i]) in self.SPTdoubleCount: return 1.
         if not self.surveyCutSZ[0]<self.catalog['xi'][i]<self.surveyCutSZ[1] or not self.surveyCutRedshift[0]<self.catalog['redshift'][i]<self.surveyCutRedshift[1]: return 1
 
@@ -236,8 +236,9 @@ class MassCalibration:
                 self.scaling['DWL_HST'] = self.WLcalib['HSTsim'][name][2]+self.scaling['WLscatter']*self.WLcalib['HSTsim'][name][3]
                 cov = [[self.scaling['DWL_HST']**2, self.scaling['rhoSZWL']*self.scaling['Dsz']*self.scaling['DWL_HST']],
                     [self.scaling['rhoSZWL']*self.scaling['Dsz']*self.scaling['DWL_HST'], self.scaling['Dsz']**2]]
+                if np.linalg.det(cov)<observablecovmat.THRESHOLD:
+                    return 0.
                 self.covmat['WLHST'] = cov
-                if np.linalg.det(cov)<1e-8: return 0.
 
         if self.todo['veldisp'] and self.catalog['veldisp'][i]!=0.:
             nobs+= 1
@@ -278,8 +279,9 @@ class MassCalibration:
                     cov = [[self.scaling['DWL_HST']**2, self.scaling['rhoWLX']*self.scaling['DWL_HST']*self.scaling['Dx'], self.scaling['rhoSZWL']*self.scaling['Dsz']*self.scaling['DWL_HST']],
                     [self.scaling['rhoWLX']*self.scaling['DWL_HST']*self.scaling['Dx'], self.scaling['Dx']**2, self.scaling['rhoSZX']*self.scaling['Dsz']*self.scaling['Dx']],
                     [self.scaling['rhoSZWL']*self.scaling['Dsz']*self.scaling['DWL_HST'], self.scaling['rhoSZX']*self.scaling['Dsz']*self.scaling['Dx'], self.scaling['Dsz']**2]]
+                    if np.linalg.det(cov)<observablecovmat.THRESHOLD:
+                        return 0.
                     self.covmat[covname] = cov
-                    if np.linalg.det(cov)<1e-8: return 0.
                 if self.scaling['rhoWLX']==0:
                     probability = self.get_P_1obs_xi(obsnames[0], i) * self.get_P_1obs_xi(obsnames[1], i)
                 else:
@@ -747,52 +749,3 @@ class MassCalibration:
             if np.any(dlnobs==0.):
                 if dlnobs[-1]==0: dlnobs[-1] = dlnobs[-2]
             return dlnM/dlnobs
-
-
-    ####################
-    def getcovmats(self):
-        """Write to self all possible covariance matrices between all observables
-        we're currently analyzing."""
-        covmat = {}
-
-        ##### one follow-up observable
-        if self.todo['Yx'] or self.todo['Mgas']:
-            cov = [[self.scaling['Dx']**2, self.scaling['rhoSZX']*self.scaling['Dsz']*self.scaling['Dx']],
-            [self.scaling['rhoSZX']*self.scaling['Dsz']*self.scaling['Dx'], self.scaling['Dsz']**2]]
-            covmat['Yx'] = cov
-            covmat['Mgas'] = cov
-
-        if self.todo['veldisp']:
-            covmat['disp'] = None
-
-        if self.todo['richness']:
-            cov = [[self.scaling['Drichness']**2, self.scaling['rhoSZrichness']*self.scaling['Dsz']*self.scaling['Drichness']],
-                [self.scaling['rhoSZrichness']*self.scaling['Dsz']*self.scaling['Drichness'], self.scaling['Dsz']**2]]
-            covmat['richness'] = cov
-
-        if self.todo['WL']:
-            cov = [[self.scaling['DWL_Megacam']**2, self.scaling['rhoSZWL']*self.scaling['Dsz']*self.scaling['DWL_Megacam']],
-                [self.scaling['rhoSZWL']*self.scaling['Dsz']*self.scaling['DWL_Megacam'], self.scaling['Dsz']**2]]
-            covmat['WLMegacam'] = cov
-            cov = [[self.scaling['DWL_DES']**2, self.scaling['rhoSZWL']*self.scaling['Dsz']*self.scaling['DWL_DES']],
-                [self.scaling['rhoSZWL']*self.scaling['Dsz']*self.scaling['DWL_DES'], self.scaling['Dsz']**2]]
-            covmat['WLDES'] = cov
-
-
-        ##### two follow-up observables
-        if self.todo['Yx'] and self.todo['veldisp']:
-            covmat['Yxdisp'] = None
-
-        if (self.todo['Yx'] or self.todo['Mgas']) and self.todo['WL']:
-            # Megacam
-            cov = [[self.scaling['DWL_Megacam']**2, self.scaling['rhoWLX']*self.scaling['DWL_Megacam']*self.scaling['Dx'], self.scaling['rhoSZWL']*self.scaling['Dsz']*self.scaling['DWL_Megacam']],
-                [self.scaling['rhoWLX']*self.scaling['DWL_Megacam']*self.scaling['Dx'], self.scaling['Dx']**2, self.scaling['rhoSZX']*self.scaling['Dsz']*self.scaling['Dx']],
-                [self.scaling['rhoSZWL']*self.scaling['Dsz']*self.scaling['DWL_Megacam'], self.scaling['rhoSZX']*self.scaling['Dsz']*self.scaling['Dx'], self.scaling['Dsz']**2]]
-            covmat['XrayMegacam'] = cov
-            # DES
-            cov = [[self.scaling['DWL_DES']**2, self.scaling['rhoWLX']*self.scaling['DWL_DES']*self.scaling['Dx'], self.scaling['rhoSZWL']*self.scaling['Dsz']*self.scaling['DWL_DES']],
-                [self.scaling['rhoWLX']*self.scaling['DWL_DES']*self.scaling['Dx'], self.scaling['Dx']**2, self.scaling['rhoSZX']*self.scaling['Dsz']*self.scaling['Dx']],
-                [self.scaling['rhoSZWL']*self.scaling['Dsz']*self.scaling['DWL_DES'], self.scaling['rhoSZX']*self.scaling['Dsz']*self.scaling['Dx'], self.scaling['Dsz']**2]]
-            covmat['XrayDES'] = cov
-
-        self.covmat = covmat
