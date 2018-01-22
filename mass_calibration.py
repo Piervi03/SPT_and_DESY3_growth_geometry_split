@@ -171,8 +171,9 @@ class MassCalibration:
         if self.XrayProfileHandling=='old':
             Xray_profile.getXray(self.catalog, self.todo, self.cosmology, self.scaling)
 
-        ##### Initialize mass-concentration relation class
-        self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, self.cosmology)
+        ##### Initialize mass-concentration relation class (for WL and dispersions)
+        if self.todo['WL'] or self.todo['veldisp']:
+            self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, self.cosmology)
 
         ##### Compute interpolation table for M500-M200
         if self.todo['WL'] or self.todo['veldisp']:
