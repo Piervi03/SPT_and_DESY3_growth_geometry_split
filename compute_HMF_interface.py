@@ -4,6 +4,10 @@ import pickle
 from cosmosis.datablock import option_section
 import compute_HMF
 
+measure_time = False
+if measure_time:
+    import time
+
 class EmptyClass:
     pass
 
@@ -20,6 +24,8 @@ def setup(options):
     return HMF_calculator
 
 def execute(block, HMF_calculator):
+    if measure_time:
+        t0 = time.time()
     if HMF_calculator.recalc_HMF:
         HMF_calculator.compute_HMF(block)
         if HMF_calculator.save_HMF_to_disk:
@@ -31,6 +37,8 @@ def execute(block, HMF_calculator):
         block.put_double_array_1d('HMF', 'M_arr', HMF_calculator.HMF['M_arr'])
         block.put_double_array_1d('HMF', 'z_arr', HMF_calculator.HMF['z_arr'])
         block.put_double_array_nd('HMF', 'dNdlnM', HMF_calculator.HMF['dNdlnM'])
+    if measure_time:
+        print "Compute_HMF took", time.time()-t0
     return 0
 
 def cleanup(config):
