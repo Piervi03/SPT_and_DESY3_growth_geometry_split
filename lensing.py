@@ -192,8 +192,10 @@ class SPTlensing:
 
 
     ########################################
-    ##### Read data
     def readdata(self, catalog):
+        """Read and load weak-lensing data into `WLdata` field in `catalog` if
+        the corresponding path-variables lead to valid files on disk. Otherwise,
+        no data is read, so you better be careful."""
         # "Allocate" empty data field
         catalog['WLdata'] = [None for i in range(len(catalog['SPT_ID']))]
 
@@ -244,13 +246,11 @@ class SPTlensing:
 
 
     #######################################
-    ##### Get total bias and scatter for Megacam and DES
-    # If not used, set to fiducial number so that CheckCovMat does not return error
     def set_scaling(self, scaling):
+        """Set total (or effective) bias and scatter for Megacam and DES using
+        the simulation calibration numbers and the nuissance parameters."""
         # Megacam
-        if self.MegacamDir is None:
-            scaling['bWL_Megacam'], scaling['DWL_Megacam'] = 1, .3
-        else:
+        if self.MegacamDir is not None:
             massModelErr = (self.WLcalib['MegacamSim'][1]**2 + self.WLcalib['MegacamMcErr']**2 + self.WLcalib['MegacamCenterErr']**2)**.5
             zDistShearErr = (self.WLcalib['MegacamzDistErr']**2 + self.WLcalib['MegacamShearErr']**2 + self.WLcalib['MegacamContamCorr']**2)**.5
             # bias = bSim + bMassModel + (bN(z)+bShearCal)
@@ -258,9 +258,7 @@ class SPTlensing:
             # lognormal scatter
             scaling['DWL_Megacam'] = self.WLcalib['MegacamSim'][2]+scaling['WLscatter']*self.WLcalib['MegacamSim'][3]
         # DES
-        if self.DESDir is None:
-            scaling['bWL_DES'], scaling['DWL_DES'] = 1, .3
-        else:
+        if self.DESDir is not None:
             massModelErr = (self.WLcalib['DESsim'][1]**2 + self.WLcalib['DESmcErr']**2 + self.WLcalib['DEScenterErr']**2)**.5
             zDistShearErr = (self.WLcalib['DESzDistErr']**2 + self.WLcalib['DESshearErr']**2 + self.WLcalib['DEScontamCorr']**2)**.5
             # bias = bSim + bFitParam * err(bSim)
