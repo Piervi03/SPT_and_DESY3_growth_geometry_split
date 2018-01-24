@@ -5,17 +5,15 @@ import imp
 from multiprocessing import Pool
 import scipy.ndimage
 from scipy.stats import norm
-from scipy import interpolate
+from scipy.interpolate import RectBivariateSpline
 from astropy.table import Table
 
 from cosmosis.datablock import option_section
 import cosmo
 
-
 # Because multiprocessing within classes doesn't really work...
 def unwrap_self_f(arg):
     return NumberCount.lnlike_field(*arg)
-
 
 ################################################################################
 class NumberCount:
@@ -128,7 +126,7 @@ class NumberCount:
         Ntotal = np.sum(field_results[:,1])
 
         if __debug__:
-            print 'lnlike %.3f, Ntotal %.2f'%(lnlike, Ntotal)
+            print 'abundance lnlike %.3f, Ntotal %.2f'%(lnlike, Ntotal)
 
         return lnlike
 
@@ -157,44 +155,51 @@ class NumberCount:
         dN_dxi = scipy.ndimage.gaussian_filter1d(dN_dxi, 1/self.dxi, axis=1, mode='constant')
 
         # Set up interpolation for cluster list below
-        lndNdxi = interpolate.interp2d(np.log(self.xi_bins), np.log(self.HMF['z_arr'][1:]), np.log(dN_dxi[1:,:]), kind='cubic')
+        lndNdxi = RectBivariateSpline(np.log(self.HMF['z_arr'][1:]), np.log(self.xi_bins), np.log(dN_dxi[1:,:]))
 
         # Ntotal
         dNdz = np.array([np.sum(np.exp(
-            .5*(lndNdxi(np.log(self.xi_arr[1:]), np.log(z)) + lndNdxi(np.log(self.xi_arr[:-1]), np.log(z))))\
+            .5*(lndNdxi(np.log(z), np.log(self.xi_arr[1:])) + lndNdxi(np.log(z), np.log(self.xi_arr[:-1]))))\
             * (self.xi_arr[1:]-self.xi_arr[:-1])) for z in self.z_arr])
         Ntotal = np.trapz(dNdz, self.z_arr)
 
         # Likelihood contribution from Ntotal
-        this_lnlike = -Ntotal
+        lnlike_this_field = -Ntotal
 
         ##### confirmed clusters
         thisfield_conf = np.where((self.catalog['field']==self.SPTfieldNames[fieldidx])
             & (self.catalog['xi']>=self.surveyCutSZ[0]) & (self.catalog['xi']<=self.surveyCutSZ[1])
             & (self.catalog['redshift']>=self.surveyCutRedshift[0]) & (self.catalog['redshift']<=self.surveyCutRedshift[1]))[0]
         for i in thisfield_conf:
-            # spec-z
+            # spec-z: Evaluate dN/dxi/dz at exact location
             if self.catalog['redshift_err'][i]==0.:
-                this_lnlike+= lndNdxi(np.log(self.catalog['xi'][i]), np.log(self.catalog['redshift'][i]))[0]
-            # photo-z
+                this_lnlike = lndNdxi(np.log(self.catalog['redshift'][i]), np.log(self.catalog['xi'][i]))[0,0]
+                lnlike_this_field+= this_lnlike
+            # photo-z: \int dz dN/dxi/dz, choose limits to encompass +/- 4 sigma of photo-z error
             elif self.catalog['redshift_err'][i]>0.:
                 zlo = min((.25, self.catalog['redshift'][i]-4*self.catalog['redshift_err'][i]))
                 zhi = max((self.HMF['z_arr'][-1], self.catalog['redshift'][i]+4*self.catalog['redshift_err'][i]))
                 zarr = np.linspace(zlo, zhi, 15)
-                integrand = np.exp(lndNdxi(np.log(self.catalog['xi'][i]), np.log(zarr))[:,0]) * norm.pdf(zarr, self.catalog['redshift'][i], self.catalog['redshift_err'][i])
-                this_lnlike+= np.log(np.trapz(integrand, zarr))
+                integrand = np.exp(lndNdxi(np.log(zarr), np.log(self.catalog['xi'][i])))[:,0] * norm.pdf(zarr, self.catalog['redshift'][i], self.catalog['redshift_err'][i])
+                this_lnlike = np.log(np.trapz(integrand, zarr))
+                lnlike_this_field+= this_lnlike
 
         ##### unconfirmed candidates
         thisfield_unconf = np.where((self.catalog['field']==self.SPTfieldNames[fieldidx])
             & (self.catalog['xi']>=self.surveyCutSZ[0]) & (self.catalog['xi']<=self.surveyCutSZ[1])
             & (self.catalog['redshift']==0.) & (self.catalog['redshift_lim']<=self.surveyCutRedshift[1]))[0]
         for i in thisfield_unconf:
+            # If it's a false detection, it's drawn from dN_false/dxi
             dNdxifalse = self.SPTnFalse_beta[fieldidx] * self.SPTfieldSize[fieldidx]/2500 * self.SPTnFalse_alpha[fieldidx]\
                 * np.exp(-self.SPTnFalse_beta[fieldidx]*(self.catalog['xi'][i]-5.))
+            # If it's a true, unconfirmed cluster, it's drawn from \int_redshift_lim^inf dz dN/dxi/dz
             zarr = np.linspace(self.catalog['redshift_lim'][i], self.HMF['z_arr'][-1], 25)
-            this_lnlike+= np.log(dNdxifalse + np.trapz(np.exp(lndNdxi(np.log(self.catalog['xi'][i]), np.log(zarr))[:,0]), zarr))
+            dNdxitrue = np.trapz(np.exp(lndNdxi(np.log(zarr), np.log(self.catalog['xi'][i])))[:,0], zarr)
+            # Either way, it's drawn from one of these
+            this_lnlike = np.log(dNdxifalse + dNdxitrue)
+            lnlike_this_field+= this_lnlike
 
-        return this_lnlike, Ntotal
+        return lnlike_this_field, Ntotal
 
 
     ########## Utility functions
