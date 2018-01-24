@@ -2,8 +2,7 @@ from __future__ import division
 import numpy as np
 import mass_calibration
 
-measure_time = False
-if measure_time:
+if __debug__:
     import time
 
 def setup(options):
@@ -11,10 +10,10 @@ def setup(options):
     return masscalibration
 
 def execute(block, masscalibration):
-    if measure_time:
+    if __debug__:
         t0 = time.time()
     lnlike = masscalibration.lnlike(block)
-    if measure_time:
+    if __debug__:
         print "Mass calibration took", time.time()-t0
     block.put_double('likelihoods', 'MASS_CALIBRATION_LIKE', lnlike)
     return 0

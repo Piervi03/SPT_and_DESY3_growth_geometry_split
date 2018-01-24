@@ -11,7 +11,6 @@ from astropy.table import Table
 from cosmosis.datablock import option_section
 import cosmo
 
-DEBUG = False
 
 # Because multiprocessing within classes doesn't really work...
 def unwrap_self_f(arg):
@@ -128,7 +127,7 @@ class NumberCount:
         lnlike = np.sum(field_results[:,0])
         Ntotal = np.sum(field_results[:,1])
 
-        if DEBUG:
+        if __debug__:
             print 'lnlike %.3f, Ntotal %.2f'%(lnlike, Ntotal)
 
         return lnlike
