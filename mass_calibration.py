@@ -15,9 +15,6 @@ from astropy.table import Table
 from cosmosis.datablock import option_section
 import cosmo, Mconversion_concentration, lensing, Xrayprofile, observablecovmat
 
-if __debug__:
-    import time
-
 cosmologyRef = {'Omega_m':.272, 'Omega_l':.728, 'h':.702, 'w0':-1}
 getpull = False
 
@@ -210,9 +207,6 @@ class MassCalibration:
         """Return multi-wavelength mass-calibration likelihood (no log!) for a
         given cluster (index) by calling get_P_1obs_xi or get_P_2obs_xi or
         returning 1 if no follow-up data is available."""
-        if __debug__:
-            t0 = time.time()
-
         name = self.catalog['SPT_ID'][i]
 
         ##### Do we actually want this guy? (some clusters in SPT-SZ are at field boundaries)
@@ -293,8 +287,7 @@ class MassCalibration:
         if (probability<0) | (np.isnan(probability)):
             raise ValueError("P(obs|xi) =", probability, name)
 
-        if __debug__:
-            print name, obsnames, probability, time.time()-t0
+        # print name, obsnames, probability
         return probability
 
 
