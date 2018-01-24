@@ -125,8 +125,7 @@ class NumberCount:
         lnlike = np.sum(field_results[:,0])
         Ntotal = np.sum(field_results[:,1])
 
-        if __debug__:
-            print 'abundance lnlike %.3f, Ntotal %.2f'%(lnlike, Ntotal)
+        # print 'abundance lnlike %.3f, Ntotal %.2f'%(lnlike, Ntotal)
 
         return lnlike
 
