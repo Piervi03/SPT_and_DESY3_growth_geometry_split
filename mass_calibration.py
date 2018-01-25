@@ -98,7 +98,7 @@ class MassCalibration:
         self.cosmology = {'Omega_m': block.get_double('cosmological_parameters', 'Omega_m'),
             'Omega_l': block.get_double('cosmological_parameters', 'Omega_lambda'),
             'Omega_b': block.get_double('cosmological_parameters', 'Omega_b'),
-            'h': block.get_double('cosmological_parameters', 'hubble'),
+            'h': block.get_double('cosmological_parameters', 'hubble')/100,
             'ns': block.get_double('cosmological_parameters', 'n_s'),
             'w0': block.get_double('cosmological_parameters', 'w'),
             'sigma8': block.get_double('cosmological_parameters', 'sigma_8')}
