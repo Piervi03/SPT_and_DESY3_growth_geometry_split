@@ -88,8 +88,12 @@ class ConcentrationConversion:
             #return 6.71*(m/2.e12)**(-0.091)*(1.+z)**(-0.44) # relaxed samples
             return 5.71*(m/2.e12)**(-0.084)*(1.+z)**(-0.47) # full sample
         elif self.MCrelation=='DK15':
-            # The interpolator gives back a 2d array, but we only want 1d
-            c, = self.concentration(z, m)
+            c = self.concentration(z, m)
+            # Reshape to match input...
+            if c.shape==(1,1):
+                c = c[0][0]
+            elif c.shape[0]==1:
+                c = c[0]
             return c
         else:
             return float(self.MCrelation)
