@@ -156,10 +156,10 @@ class NumberCount:
         # Set up interpolation for cluster list below
         lndNdxi = RectBivariateSpline(np.log(self.HMF['z_arr'][1:]), np.log(self.xi_bins), np.log(dN_dxi[1:,:]))
 
-        # Ntotal
-        dNdz = np.array([np.sum(np.exp(
-            .5*(lndNdxi(np.log(z), np.log(self.xi_arr[1:])) + lndNdxi(np.log(z), np.log(self.xi_arr[:-1]))))\
-            * (self.xi_arr[1:]-self.xi_arr[:-1])) for z in self.z_arr])
+        # Ntotal (trapz except that we sum in log-space)
+        integrand = np.exp(.5*(lndNdxi(np.log(self.z_arr), np.log(self.xi_arr[1:])) + lndNdxi(np.log(self.z_arr), np.log(self.xi_arr[:-1]))))\
+             * (self.xi_arr[1:]-self.xi_arr[:-1])
+        dNdz = np.sum(integrand, axis=1)
         Ntotal = np.trapz(dNdz, self.z_arr)
 
         # Likelihood contribution from Ntotal
