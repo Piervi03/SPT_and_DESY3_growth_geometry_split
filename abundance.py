@@ -135,6 +135,8 @@ class NumberCount:
         """Returns (ln-likelihood, Ntotal) for a given SPT field (index)."""
         # dN/dln(zeta)
         dN_dlnzeta = self.dN_dlnzeta_unitSolidAng * self.SPTfieldSize[fieldidx] * (np.pi/180)**2
+        if np.any(dN_dlnzeta==0):
+            dN_dlnzeta[np.where(dN_dlnzeta==0)] = np.nextafter(0, 1)
 
         # zeta[z,M]
         zeta_m = self.mass2zeta(self.HMF['M_arr'], self.HMF['z_arr'])
@@ -152,6 +154,8 @@ class NumberCount:
 
         # Convolve with unit scatter (measurement uncertainty)
         dN_dxi = scipy.ndimage.gaussian_filter1d(dN_dxi, 1/self.dxi, axis=1, mode='constant')
+        if np.any(dN_dxi==0):
+            dN_dxi[np.where(dN_dxi==0)] = np.nextafter(0, 1)
 
         # Set up interpolation for cluster list below
         lndNdxi = RectBivariateSpline(np.log(self.HMF['z_arr'][1:]), np.log(self.xi_bins), np.log(dN_dxi[1:,:]))
