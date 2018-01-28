@@ -196,6 +196,10 @@ class MassCalibration:
             likelihoods = pool.map(unwrap_self_f, argin)
             pool.close()
 
+        # If likelihood computation failed it returned 0
+        if np.any(likelihoods<=0):
+            return -np.inf
+
         lnlike = np.sum(np.log(likelihoods))
 
         return lnlike
@@ -285,7 +289,8 @@ class MassCalibration:
             raise ValueError(name,"has",nobs,"follow-up observables. I don't know what to do!")
 
         if (probability<0) | (np.isnan(probability)):
-            raise ValueError("P(obs|xi) =", probability, name)
+            return 0
+            # raise ValueError("P(obs|xi) =", probability, name)
 
         # print name, obsnames, probability
         return probability
