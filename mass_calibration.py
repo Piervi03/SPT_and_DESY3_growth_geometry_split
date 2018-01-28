@@ -6,7 +6,7 @@ from multiprocessing import Pool
 import scipy.ndimage
 import scipy.special as ss
 from scipy import integrate
-from scipy import interpolate
+from scipy.interpolate import RectBivariateSpline
 from scipy import signal
 from scipy.stats import norm, lognorm
 from scipy.stats import multivariate_normal
@@ -160,8 +160,11 @@ class MassCalibration:
         if not observablecovmat.set_covmats(self.todo, self.scaling, self.covmat):
             return -np.inf
 
-        ##### Set up spline interpolation for HMF
-        self.HMF_interp = interpolate.interp2d(np.log(self.HMF['M_arr']), np.log(self.HMF['z_arr'][1:]), np.log(self.HMF['dNdlnM'][1:,:]), kind='cubic')
+        ##### Set up interpolation for HMF
+        HMF_in = self.HMF['dNdlnM'][1:,:]
+        if np.any(HMF_in==0):
+            HMF_in[np.where(HMF_in==0)] = np.nextafter(0, 1)
+        self.HMF_interp = RectBivariateSpline(np.log(self.HMF['z_arr'][1:]), np.log(self.HMF['M_arr']), np.log(HMF_in))
 
         ##### Get X-ray (old method only)
         if self.XrayProfileHandling=='old':
@@ -176,12 +179,12 @@ class MassCalibration:
             z_arr = np.linspace(.1, 2, 20)
             M500 = np.logspace(np.log10(self.HMF['M_arr'][0]), np.log10(self.HMF['M_arr'][-1]), 20)
             M200 = np.array([np.array([self.MCrel.MDelta_to_M200(m, 500., z) for m in M500]) for z in z_arr])
-            self.lnM500_to_lnM200 = interpolate.interp2d(np.log(M500), z_arr, np.log(M200), kind='cubic')
+            self.lnM500_to_lnM200 = RectBivariateSpline(z_arr, np.log(M500), np.log(M200))
         if self.todo['veldisp']:
             z_arr = np.linspace(.1, 2, 20)
             M200 = np.logspace(np.log10(np.amin(M200)), np.log10(np.amax(M200)), 20)
             M500 = np.array([np.array([self.MCrel.M200_to_MDelta(m, 500., z) for m in M200]) for z in z_arr])
-            self.lnM200_to_lnM500 = interpolate.interp2d(np.log(M200), z_arr, np.log(M500), kind='cubic')
+            self.lnM200_to_lnM500 = RectBivariateSpline(z_arr, np.log(M200), np.log(M500))
 
         ##### Evaluate the individual likelihoods
         len_data = len(self.catalog['SPT_ID'])
@@ -195,6 +198,10 @@ class MassCalibration:
             argin = zip([self]*len_data, range(len_data))
             likelihoods = pool.map(unwrap_self_f, argin)
             pool.close()
+
+        # If likelihood computation failed it returned 0
+        if np.any(likelihoods<=0):
+            return -np.inf
 
         lnlike = np.sum(np.log(likelihoods))
 
@@ -285,7 +292,8 @@ class MassCalibration:
             raise ValueError(name,"has",nobs,"follow-up observables. I don't know what to do!")
 
         if (probability<0) | (np.isnan(probability)):
-            raise ValueError("P(obs|xi) =", probability, name)
+            return 0
+            # raise ValueError("P(obs|xi) =", probability, name)
 
         # print name, obsnames, probability
         return probability
@@ -374,7 +382,7 @@ class MassCalibration:
 
         ##### Convert self.HMF to dN/(dlnzeta dlnobs) = dN/dlnM * dlnM/dlnzeta * dlnM/dlnobs
         # This only matter if dlnM/dlnobs is mass-dependent, as for dispersions
-        dN_dlnzeta_dlnobs = np.exp(self.HMF_interp(np.log(M_HMF_arr), np.log(self.catalog['redshift'][dataID])))
+        dN_dlnzeta_dlnobs = np.exp(self.HMF_interp(np.log(self.catalog['redshift'][dataID]), np.log(M_HMF_arr)))[0]
         if obsname=='disp':
             dN_dlnzeta_dlnobs*= self.dlnM_dlnobs(obsname, M_HMF_arr, self.catalog['redshift'][dataID])
 
@@ -565,7 +573,7 @@ class MassCalibration:
 
         ##### HMF to dN/(dlnzeta dlnobs0 dlnobs1) = dN/dlnM * dlnM/dlnzeta * dlnM/dlnobs0 * dlnM/dlnobs1
         # This only matter if dlnM/dlnobs is mass-dependent, as for dispersions
-        dN_dlnzeta_dlnobs = np.exp(self.HMF_interp(np.log(M_HMF_arr), np.log(self.catalog['redshift'][dataID])))
+        dN_dlnzeta_dlnobs = np.exp(self.HMF_interp(np.log(self.catalog['redshift'][dataID]), np.log(M_HMF_arr)))[0]
         if 'disp' in obsnames:
             dN_dlnzeta_dlnobs*= self.dlnM_dlnobs('disp', M_HMF_arr, self.catalog['redshift'][dataID])
 
@@ -672,7 +680,7 @@ class MassCalibration:
         elif name=='disp':
             h70z = self.cosmology['h']/.7*cosmo.Ez(z, self.cosmology)
             M200c = 1e15*self.cosmology['h'] * (obs/self.scaling['Adisp']/h70z**self.scaling['Cdisp'])**self.scaling['Bdisp']
-            return np.exp(self.lnM200_to_lnM500(np.log(M200c), z))
+            return np.exp(self.lnM200_to_lnM500(z, np.log(M200c)))
         elif name=='richness':
             return self.richmPivot* (obs/self.scaling['Arichness']
                 /(cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology))**self.scaling['Crichness'])**(1/self.scaling['Brichness'])
@@ -710,7 +718,7 @@ class MassCalibration:
             return np.exp(lnMgas)
         elif name=='disp':
             h70z = self.cosmology['h']/.7*cosmo.Ez(z, self.cosmology)
-            M200c = np.exp(self.lnM500_to_lnM200(np.log(mass), z))
+            M200c = np.exp(self.lnM500_to_lnM200(z, np.log(mass)))
             if len(M200c)==1: M200c = M200c[0]
             return self.scaling['Adisp'] * (M200c/1e15/self.cosmology['h'])**(1/self.scaling['Bdisp']) * h70z**self.scaling['Cdisp']
         elif name=='richness':

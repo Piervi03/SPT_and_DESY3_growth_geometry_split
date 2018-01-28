@@ -227,7 +227,7 @@ class MassToObs:
             return np.exp(lnMgas)
         elif name=='disp':
             h70z = self.cosmology['h']/.7*cosmo.Ez(z, self.cosmology)
-            M200c = np.exp(lnM500_to_lnM200(np.log(mass), z))
+            M200c = np.exp(lnM500_to_lnM200(z, np.log(mass)))
             if len(M200c)==1: M200c = M200c[0]
             return self.scaling['Adisp'] * (M200c/1e15/self.cosmology['h'])**(1/self.scaling['Bdisp']) * h70z**self.scaling['Cdisp']
         elif name=='richness':
