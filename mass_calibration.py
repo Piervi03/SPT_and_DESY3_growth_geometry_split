@@ -200,7 +200,7 @@ class MassCalibration:
             pool.close()
 
         # If likelihood computation failed it returned 0
-        if np.any(likelihoods<=0):
+        if np.count_nonzero(likelihoods)<len_data:
             return -np.inf
 
         lnlike = np.sum(np.log(likelihoods))
