@@ -44,7 +44,7 @@ class SPTlensing:
         self.get_beta(cosmology)
 
         ##### M200 and scale radius, wrt critical density, everything in h units
-        M200c = np.exp(lnM500_to_lnM200(np.log(mArr), self.zcluster))
+        M200c = np.exp(lnM500_to_lnM200(self.zcluster, np.log(mArr)))[0]
         r200c = (3.*M200c/4./np.pi/200./self.rho_c_z)**(1./3.)
         c200c = MCrel.calC200(M200c, self.zcluster)
         self.delta_c = 200./3. * c200c**3. / (np.log(1.+c200c) - c200c/(1.+c200c))
