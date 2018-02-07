@@ -27,16 +27,17 @@ class HMFCalculator:
         """Compute Tinker HMF, apply redshift volume, and add to block."""
         ##### Setup
         # Only need cosmo for E(z)-type stuff
-        cosmology = {'Omega_m': block.get_double('cosmological_parameters', 'Omega_m'),
+        cosmology = {
+            'Omega_m': block.get_double('cosmological_parameters', 'Omega_m'),
+            'Omega_nu': block.get_double('cosmological_parameters', 'Omega_nu'),
             'Omega_l': block.get_double('cosmological_parameters', 'omega_lambda'),
             'w0': block.get_double('cosmological_parameters', 'w')}
+        rho_m = (cosmology['Omega_m'] - cosmology['Omega_nu']) * cosmo.RHOCRIT
         # Data arrays
         M_arr = np.logspace(13, 16, 301)
         z_arr = block.get_double_array_1d('matter_power_lin', 'z')
         k_arr = block.get_double_array_1d('matter_power_lin', 'k_h')
         Pk = block.get_double_array_nd('matter_power_lin', 'p_k')
-        # cosmological parameters
-        rho_m = cosmology['Omega_m'] * cosmo.RHOCRIT
         # Mean overdensity at each redshift
         Deltamean = self.Deltacrit / cosmo.Omega_m_z(z_arr, cosmology)
 
