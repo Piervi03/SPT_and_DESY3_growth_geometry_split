@@ -7,8 +7,17 @@ attribution: [Sebastian Bocquet]
 rules:
 cite:
 
-inputs:
-    cosmological_parameters:
+params:
+  recalc_HMF: (bool) re-compute HMF at each step. Set to False if you fixed
+  cosmology and want to save some time (default is True)
+  save_HMF_to_disk: (bool) Save HMF.pkl to disk (default is False)
+  Deltacrit: (float) Critical density wrt which to compute HMF (default 500.)
 
+inputs:
+  cosmological_parameters:
+    omega_m: (float) matter density fraction of critical
+    omega_lambda: (float) dark energy density fraction of critical
+    omega_nu: (float) neutrino density fraction of cricical
+    w0: (float) dark energy equation of state
 outputs:
-    
+  HMF: halo mass function
