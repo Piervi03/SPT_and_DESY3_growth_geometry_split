@@ -3,7 +3,7 @@ import numpy as np
 import os
 import sys
 import imp
-from scipy import interpolate
+from scipy.interpolate import RectBivariateSpline
 from astropy.io import fits as pyfits
 import pickle
 
@@ -35,7 +35,7 @@ def main():
 
     # Set up HMF interpolation
     dlnm = np.log(HMF['M_arr'][1]/HMF['M_arr'][0])
-    HMF['dNdM_V'] = interpolate.interp2d(np.log(HMF['M_arr']), np.log(HMF['z_arr'][1:]), np.log(HMF['dNdlnM'][1:,:]*dlnm*(np.pi/180)**2), kind='cubic')
+    HMF['dNdM_V'] = RectBivariateSpline(np.log(HMF['z_arr'][1:]), np.log(HMF['M_arr']), np.log(HMF['dNdlnM'][1:,:]*dlnm*(np.pi/180)**2))
     dz = .01
     z_arr = np.linspace(configMod.surveyCutRedshift[0], configMod.surveyCutRedshift[1], int((configMod.surveyCutRedshift[1]-configMod.surveyCutRedshift[0])/dz+1))
     dz = z_arr[1]-z_arr[0]
@@ -161,11 +161,10 @@ def main():
 
     ##### Save catalog file
     # create numpy rec array
-    data_arr = [names, fieldnames, mock[:,2], mock[:,1], np.zeros(nCluster), redshiftLim, Mgas, Xerrarr, mock[:,0], mock[:,3], XVPflag]
     names_arr = ['SPT_ID', 'field', 'xi', 'redshift', 'redshift_err', 'redshift_lim', 'Mg_MM', 'lnMg_err_MM', 'M_true', 'Mgas', 'XVP']
     format_arr = ['12a', '14a', 'f', 'f', 'f', 'f', '(2,80)f', 'f', 'f', 'f', 'd']
+    data_arr = [names, fieldnames, mock[:,2], mock[:,1], np.zeros(nCluster), redshiftLim, Mgas, Xerrarr, mock[:,0], mock[:,3], XVPflag]
     arr = np.rec.array(data_arr, names=names_arr, formats=format_arr)
-
     # Save to fits
     hdu = pyfits.BinTableHDU(data=arr)
     hdu.writeto('mockSPT2500d_'+sys.argv[1]+'.fits')
@@ -182,10 +181,8 @@ def main():
     # Save everything to file
     massfile = open('mockSPT2500d_masses_'+sys.argv[1]+'.txt','w')
     massfile.write('# name\t\tredshift\tM200cWL [Msun]')
-
     for i in range(19):
         massfile.write('\n'+names[MegacamIdx[i]]+'\t'+str(mock[MegacamIdx[i]][1])+'\t%.3e'%(mock[MegacamIdx[i]][4]/cosmology['h']))
-
     massfile.close()
 
 
@@ -200,10 +197,8 @@ class MassToObs:
         self.cosmology = cosmology
         self.scaling = scaling
         self.thisSPTfieldCorrection = None
-
         self.SZmPivot = configMod.SZmPivot
         self.XraymPivot = configMod.XraymPivot
-        # self.SZmPivot = configMod.self.SZmPivot
 
     def __call__(self, name, mass, z):
         if name=='zeta':
