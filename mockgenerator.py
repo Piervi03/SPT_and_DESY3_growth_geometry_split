@@ -51,7 +51,7 @@ def main():
     for fieldidx,field in enumerate(SPTdata.SPTfieldNames):
         mass2obs.thisSPTfieldCorrection = SPTdata.SPTfieldCorrection[SPTdata.SPTfieldNames.index(field)]
 
-        massfunc = np.exp(HMF['dNdM_V'](np.log(HMF['M_arr']), np.log(z_arr))) * SPTdata.SPTfieldSize[fieldidx] * dz
+        massfunc = np.exp(HMF['dNdM_V'](np.log(z_arr), np.log(HMF['M_arr']))) * SPTdata.SPTfieldSize[fieldidx] * dz
 
         # Poisson realization
         N = np.random.poisson(massfunc)
