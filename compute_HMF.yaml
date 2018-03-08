@@ -1,11 +1,14 @@
 name: compute_HMF
 version: 0
 purpose: "Compute the Tinker halo mass function for (critical) spherical overdensity"
-url:
 interface: compute_HMF_interface.py
 attribution: [Sebastian Bocquet]
-rules:
 cite:
+  - "Tinker et al. 2008, https://arxiv.org/abs/0803.2706"
+
+assumptions:
+  - nuwCDM cosmology with w(z) = w_0 + w_a z/(1+z)
+  - spatial flatness
 
 params:
   recalc_HMF: (bool) re-compute HMF at each step. Set to False if you fixed

@@ -1,14 +1,16 @@
 name: mass_calibration
 version: 0
 purpose: Compute likelihood of mass calibration for SPT-SZ 2500d clusters
-url:
 interface: mass_calibration_interface.py
 attribution: [Sebastian Bocquet]
-rules:
 cite:
+  - "Dietrich et al. 2017, https://arxiv.org/abs/1711.05344"
+  - "Schrabback et al. 2018, https://arxiv.org/abs/1611.03866"
+  - "de Haan et al. 2016, https://arxiv.org/abs/1603.06522"
+  - "Bocquet et al. 2015, https://arxiv.org/abs/1407.2942"
 
 assumptions:
-  - wCDM cosmology with wa = 0
+  - wCDM cosmology with w(z) = w_0 + w_a z/(1+z)
   - spatial flatness
   - massive neutrinos are included by providing the corresponding HMF
 

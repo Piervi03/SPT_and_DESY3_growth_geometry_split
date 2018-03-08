@@ -1,14 +1,15 @@
 name: abundance
 version: 0
 purpose: Compute likelihood of SPT-SZ 2500d cluster abundance
-url:
 interface: abundance_interface.py
 attribution: [Sebastian Bocquet]
-rules:
 cite:
+  - "de Haan et al. 2016, https://arxiv.org/abs/1603.06522"
+  - "Bleem et al. 2015, https://arxiv.org/abs/1409.0850"
+  - "Bocquet et al. 2015, https://arxiv.org/abs/1407.2942"
 
 assumptions:
-  - wCDM cosmology with wa = 0
+  - wCDM cosmology with w(z) = w_0 + w_a z/(1+z)
   - spatial flatness
   - massive neutrinos are included by providing the corresponding HMF
 
