@@ -10,7 +10,7 @@ import pickle
 import cosmo, Mconversion_concentration
 
 ##### Reference cosmology for which Mgas is measured
-cosmologyRef = {'Omega_m':.272, 'Omega_l':.728, 'h':.702, 'w0':-1}
+cosmologyRef = {'Omega_m':.272, 'Omega_l':.728, 'h':.702, 'w0':-1, 'wa':0}
 
 def main():
     ##### General setup

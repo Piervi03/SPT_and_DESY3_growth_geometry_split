@@ -26,6 +26,7 @@ inputs:
     omega_m: (float) matter density fraction of critical
     omega_lambda: (float) dark energy density fraction of critical
     w0: (float) dark energy equation of state
+    wa: (float) dark energy equation of state evolution
   mor_parameters:
     SZ scaling relation parameters
   HMF:

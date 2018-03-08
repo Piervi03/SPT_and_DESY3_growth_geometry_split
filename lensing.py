@@ -104,7 +104,7 @@ class SPTlensing:
             g_2d = np.array(magcorr) * gamma_2d/(1-kappa_2d) * betaCorr
 
             # Only consider 500<r/kpc/1500 in reference cosmology
-            cosmoRef = {'Omega_m':.3, 'Omega_l':.7, 'h':.7, 'w0':-1.}
+            cosmoRef = {'Omega_m':.3, 'Omega_l':.7, 'h':.7, 'w0':-1., 'wa':0}
             DlRef = cosmo.dA(self.zcluster, cosmoRef)
             rPhysRef = self.WLdata['r_deg'] * DlRef * np.pi/180. /cosmoRef['h']
             rInclude = np.where((rPhysRef>.5)&(rPhysRef<1.5))[0]
