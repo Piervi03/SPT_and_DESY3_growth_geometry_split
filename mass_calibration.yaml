@@ -41,6 +41,7 @@ inputs:
     omega_lambda: (float) dark energy density fraction of critical
     h: (float) Hubble constant
     w0: (float) dark energy equation of state
+    wa: (float) dark energy equation of state evolution
     # These are only needed for DK15 c-M relation
     omega_b: (float)
     ns: (float)

@@ -31,7 +31,8 @@ class HMFCalculator:
             'Omega_m': block.get_double('cosmological_parameters', 'Omega_m'),
             'Omega_nu': block.get_double('cosmological_parameters', 'Omega_nu'),
             'Omega_l': block.get_double('cosmological_parameters', 'omega_lambda'),
-            'w0': block.get_double('cosmological_parameters', 'w')}
+            'w0': block.get_double('cosmological_parameters', 'w'),
+            'wa': block.get_double('cosmological_parameters', 'wa')}
         rho_m = (cosmology['Omega_m'] - cosmology['Omega_nu']) * cosmo.RHOCRIT
         # Data arrays
         M_arr = np.logspace(13, 16, 301)

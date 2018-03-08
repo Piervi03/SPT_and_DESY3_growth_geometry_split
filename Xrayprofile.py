@@ -20,7 +20,7 @@ class XrayProfile:
 
         ##### Reference cosmology for which Mgas is measured
         # Never ever change these!
-        self.cosmologyRef = {'Omega_m':.272, 'Omega_l':.728, 'h':.702, 'w0':-1}
+        self.cosmologyRef = {'Omega_m':.272, 'Omega_l':.728, 'h':.702, 'w0':-1, 'wa':0}
         # Fiducial scaling relation to get r_500fiducial
         # Maybe re-adjust if very different from run output
         self.scalingRef = {'Ax':.12, 'Bx':1.2, 'Cx':0.}

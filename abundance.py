@@ -57,7 +57,8 @@ class NumberCount:
         # Only need cosmo for E(z)-type stuff
         self.cosmology = {'Omega_m': block.get_double('cosmological_parameters', 'Omega_m'),
             'Omega_l': block.get_double('cosmological_parameters', 'omega_lambda'),
-            'w0': block.get_double('cosmological_parameters', 'w')}
+            'w0': block.get_double('cosmological_parameters', 'w'),
+            'wa': block.get_double('cosmological_parameters', 'wa')}
         # SZ scaling relation parameters
         self.Asz = block.get_double('mor_parameters', 'Asz')
         self.Bsz = block.get_double('mor_parameters', 'Bsz')

@@ -15,7 +15,7 @@ from astropy.table import Table
 from cosmosis.datablock import option_section
 import cosmo, Mconversion_concentration, lensing, Xrayprofile, observablecovmat
 
-cosmologyRef = {'Omega_m':.272, 'Omega_l':.728, 'h':.702, 'w0':-1}
+cosmologyRef = {'Omega_m':.272, 'Omega_l':.728, 'h':.702, 'w0':-1, 'wa':0}
 getpull = False
 
 # Because multiprocessing within classes doesn't really work...
@@ -101,6 +101,7 @@ class MassCalibration:
             'h': block.get_double('cosmological_parameters', 'hubble')/100,
             'ns': block.get_double('cosmological_parameters', 'n_s'),
             'w0': block.get_double('cosmological_parameters', 'w'),
+            'wa': block.get_double('cosmological_parameters', 'wa'),
             'sigma8': block.get_double('cosmological_parameters', 'sigma_8')}
         self.scaling = {
             # SZ

@@ -13,7 +13,7 @@ RHOCRIT = 2.77528233987e11
 
 def Ez(z, cosmology):
     """Return the growth factor."""
-    return (cosmology['Omega_m']*(1+z)**3 + cosmology['Omega_l']*(1+z)**(3*(1+cosmology['w0'])))**.5
+    return (cosmology['Omega_m']*(1+z)**3 + cosmology['Omega_l']*(1+z)**(3*(1+cosmology['w0']+cosmology['wa']))*np.exp(-3*cosmology['wa']*z/(1+z)))**.5
 
 def Omega_m_z(z, cosmology):
     """Return Omega_m(z)."""

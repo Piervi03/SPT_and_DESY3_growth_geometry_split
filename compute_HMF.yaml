@@ -19,5 +19,6 @@ inputs:
     omega_lambda: (float) dark energy density fraction of critical
     omega_nu: (float) neutrino density fraction of cricical
     w0: (float) dark energy equation of state
+    wa: (float) dark energy equation of state evolution
 outputs:
   HMF: halo mass function
