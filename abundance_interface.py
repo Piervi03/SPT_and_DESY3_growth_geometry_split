@@ -8,6 +8,8 @@ def setup(options):
 
 def execute(block, number_count):
     lnlike = float(number_count.lnlike(block))
+    if np.isneginf(lnlike):
+        return 1
     block.put_double('likelihoods', 'ABUNDANCE_LIKE', lnlike)
     return 0
 
