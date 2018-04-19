@@ -3,11 +3,17 @@ import numpy as np
 import pickle
 from cosmosis.datablock import option_section
 import compute_HMF
+import os
 
 class EmptyClass:
     pass
 
 def setup(options):
+    # Print repository status
+    path_to_repo = os.path.dirname(__file__)
+    os.system("git --git-dir=%s/.git --work-tree=%s status"%(path_to_repo, path_to_repo))
+    os.system("git --git-dir=%s/.git --work-tree=%s "%(path_to_repo, path_to_repo)+"show -s --format=%h")
+    # Proceed with actual setup
     recalc_HMF = options.get_bool(option_section, 'recalc_HMF', default=True)
     save_HMF_to_disk = options.get_bool(option_section, 'save_HMF_to_disk', default=False)
     if recalc_HMF:
