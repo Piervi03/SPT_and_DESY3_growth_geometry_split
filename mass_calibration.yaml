@@ -32,7 +32,6 @@ params:
   surveyCutRedshift: (list of two float) lower and upper limit in redshift
   NPROC: (int) number of python multiprocessing threads. 0 for no,
   multiprocessing. Set to 0, 2, or 4.
-XrayProfileHandling: (string) `modelMgasPL` (default), `fixed`, `old`
   SPTdatafile: (path) file with survey details
   SPTcatalogfile: (path) catalog fits file
   WLsimcalibfile: (path) WL simulation calibration

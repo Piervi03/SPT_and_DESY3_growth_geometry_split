@@ -43,8 +43,6 @@ class MassCalibration:
         self.surveyCutSZ = options.get_double_array_1d(option_section, 'surveyCutSZ')
         self.surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
         self.NPROC = options.get_int(option_section, 'NPROC')
-        self.XrayProfileHandling = options.get_string(option_section, 'XrayProfileHandling')
-        assert self.XrayProfileHandling in ('fixed', 'old', 'modelMgasPL'), "invalid XrayProfileHandling"
         ##### SPT survey
         # Data
         SPTdatafile = options.get_string(option_section, 'SPTdatafile')
@@ -56,25 +54,17 @@ class MassCalibration:
         if self.todo['Mgas'] or self.todo['Yx']:
             Xray_profile = Xrayprofile.XrayProfile(options)
             # Using real data or simulated profiles
-            if self.XrayProfileHandling!='fixed':
-                if self.Xdata=='SPT_XVP':
-                    self.catalog['Mg'] = self.catalog['Mg_MM']
-                    self.catalog['lnMg_err'] = self.catalog['lnMg_err_MM']
-                    if self.todo['Yx']:
-                        self.catalog['Tx'] = self.catalog['Tx_MM']
-                        self.catalog['lnYx_err'] = self.catalog['lnYx_err_MM']
-                elif self.Xdata=='WtG':
-                    if self.todo['Mgas']:
-                        self.catalog['Mg'] = self.catalog['Mg_AM']
-                        self.catalog['lnMg_err'] = self.catalog['lnMg_err_AM']
-            # Used for mock tests
-            else:
+            if self.Xdata=='SPT_XVP':
+                self.catalog['Mg'] = self.catalog['Mg_MM']
+                self.catalog['lnMg_err'] = self.catalog['lnMg_err_MM']
                 if self.todo['Yx']:
+                    self.catalog['Tx'] = self.catalog['Tx_MM']
                     self.catalog['lnYx_err'] = self.catalog['lnYx_err_MM']
-                elif todo['Mgas']:
-                    self.catalog['lnMg_err'] = self.catalog['lnMg_err_MM']
-            if self.XrayProfileHandling!='old':
-                Xray_profile.setRef(self.catalog)
+            elif self.Xdata=='WtG':
+                if self.todo['Mgas']:
+                    self.catalog['Mg'] = self.catalog['Mg_AM']
+                    self.catalog['lnMg_err'] = self.catalog['lnMg_err_AM']
+            Xray_profile.setRef(self.catalog)
 
         # Survey specs
         self.SPTfieldNames = SPTdata.SPTfieldNames
@@ -166,10 +156,6 @@ class MassCalibration:
         if np.any(HMF_in==0):
             HMF_in[np.where(HMF_in==0)] = np.nextafter(0, 1)
         self.HMF_interp = RectBivariateSpline(np.log(self.HMF['z_arr'][1:]), np.log(self.HMF['M_arr']), np.log(HMF_in))
-
-        ##### Get X-ray (old method only)
-        if self.XrayProfileHandling=='old':
-            Xray_profile.getXray(self.catalog, self.todo, self.cosmology, self.scaling)
 
         ##### Initialize mass-concentration relation class (for WL and dispersions)
         if self.todo['WL'] or self.todo['veldisp']:
@@ -362,7 +348,7 @@ class MassCalibration:
         obsArr = self.mass2obs(obsname, M_obsArr, self.catalog['redshift'][dataID])
 
         ##### Add radial dependence for X-ray observables
-        if obsname in ('Mgas','Yx') and self.XrayProfileHandling=='modelMgasPL':
+        if obsname in ('Mgas','Yx'):
             # Angular diameter distances in current and reference cosmology [Mpc]
             dA = cosmo.dA(self.catalog['redshift'][dataID], self.cosmology)/self.cosmology['h']
             dAref = cosmo.dA(self.catalog['redshift'][dataID], cosmologyRef)/cosmologyRef['h']
@@ -372,7 +358,11 @@ class MassCalibration:
             # r500 in reference cosmology [kpc]
             r500ref = r500 * dAref/dA
             # Xray observable at rFid
-            obsFid = obsArr * (self.catalog['XrayRef'][dataID][0]/r500ref)**self.scaling['slope_MgR']
+            nonzero = np.nonzero(self.catalog['Mg'][dataID][0])[0]
+            obs_at_r500ref = np.interp(r500ref, self.catalog['Mg'][dataID][0,nonzero], self.catalog['Mg'][dataID][1,nonzero])
+            if obsname=='Yx':
+                obs_at_r500ref*= 1e-14*self.catalog['Tx'][dataID]
+            obsFid = obsArr * self.catalog['XrayRef'][dataID][1]/obs_at_r500ref
             # X-ray observable at rFid, corrected to reference cosmology
             obsArr = obsFid * (dAref/dA)**2.5
 
@@ -456,10 +446,6 @@ class MassCalibration:
             else:
                 # Get likelihood
                 likeli = np.trapz(dP_dobs*lognorm.pdf(obsArr, scale=obsmeas, s=obserr), obsArr)
-
-                # In old analysis, account for changing measurement
-                if self.XrayProfileHandling=='old':
-                    likeli*= obsmeas
 
                 if getpull:
                     integrand = dP_dobs[None,:] * lognorm.pdf(obsArr[:,None], scale=obsArr[None,:], s=obserr)
@@ -555,7 +541,7 @@ class MassCalibration:
         for i in range(2):
             obsArrTemp = self.mass2obs(obsnames[i], M_obsArr, self.catalog['redshift'][dataID])
             ##### Add radial dependence for X-ray observables
-            if obsnames[i] in ('Mgas','Yx') and self.XrayProfileHandling=='modelMgasPL':
+            if obsnames[i] in ('Mgas','Yx'):
                 # Angular diameter distances in current and reference cosmology [Mpc]
                 dA = cosmo.dA(self.catalog['redshift'][dataID], self.cosmology)/self.cosmology['h']
                 dAref = cosmo.dA(self.catalog['redshift'][dataID], cosmologyRef)/cosmologyRef['h']
@@ -565,7 +551,11 @@ class MassCalibration:
                 # r500 in reference cosmology [kpc]
                 r500ref = r500 * dAref/dA
                 # Xray observable at rFid
-                obsFid = obsArrTemp * (self.catalog['XrayRef'][dataID][0]/r500ref)**self.scaling['slope_MgR']
+                nonzero = np.nonzero(self.catalog['Mg'][dataID][0])[0]
+                obs_at_r500ref = np.interp(r500ref, self.catalog['Mg'][dataID][0,nonzero], self.catalog['Mg'][dataID][1,nonzero])
+                if obsname=='Yx':
+                    obs_at_r500ref*= 1e-14*self.catalog['Tx'][dataID]
+                obsFid = obsArrTemp * self.catalog['XrayRef'][dataID][1]/obs_at_r500ref
                 # X-ray observable at rFid, corrected to reference cosmology
                 obsArrTemp = obsFid * (dAref/dA)**2.5
             obsArr.append( obsArrTemp )
@@ -634,9 +624,6 @@ class MassCalibration:
         # Normalize (in principe, multiply with dlnX/dlnXfid, but this is mass-independent)
         dP_dobs1/= np.trapz(dP_dobs1, obsArr[1])
         likeli1 = np.trapz(dP_dobs1*lognorm.pdf(obsArr[1], scale=obsmeas[1], s=obserr[1]), obsArr[1])
-
-        if self.XrayProfileHandling=='old':
-            likeli1*= obsmeas[1]
 
         #np.savetxt(self.catalog['SPT_ID'][dataID]+'_3d'+obsnames[0],np.transpose((obsArr[0], dP_dobs0)))
         #np.savetxt(self.catalog['SPT_ID'][dataID]+'_3d'+obsnames[1],np.transpose((obsArr[1], dP_dobs1)))
