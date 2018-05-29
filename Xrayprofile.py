@@ -17,6 +17,9 @@ class XrayProfile:
         self.XraymPivot = options.get_double(option_section, 'XraymPivot')
         self.XraySample = SPTdata.XraySample
 
+        ##### Reference cosmology for which Mgas is measured
+        self.cosmologyRef = {'Omega_m':.272, 'Omega_l':.728, 'h':.702, 'w0':-1, 'wa':0}
+
 
     ########################################
     def setRef(self, catalog):
