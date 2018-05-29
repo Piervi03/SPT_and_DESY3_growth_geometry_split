@@ -552,7 +552,7 @@ class MassCalibration:
                 # Xray observable at rFid
                 nonzero = np.nonzero(self.catalog['Mg'][dataID][0])[0]
                 obs_at_r500ref = np.interp(r500ref, self.catalog['Mg'][dataID][0,nonzero], self.catalog['Mg'][dataID][1,nonzero])
-                if obsname=='Yx':
+                if obsnames[i]=='Yx':
                     obs_at_r500ref*= 1e-14*self.catalog['Tx'][dataID]
                 obsFid = obsArrTemp * self.catalog['XrayRef'][dataID][1]/obs_at_r500ref
                 # X-ray observable at rFid, corrected to reference cosmology
