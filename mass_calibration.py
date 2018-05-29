@@ -109,7 +109,6 @@ class MassCalibration:
             'Cx': block.get_double('mor_parameters', 'Cx'),
             'Dx': block.get_double('mor_parameters', 'Dx'),
             'Ex': block.get_double('mor_parameters', 'Ex'),
-            'slope_MgR': block.get_double('mor_parameters', 'slope_MgR'),
             # WL
             'WLbias': block.get_double('mor_parameters', 'WLbias'),
             'WLscatter': block.get_double('mor_parameters', 'WLscatter'),
@@ -728,9 +727,9 @@ class MassCalibration:
         if name=='zeta': return 1/self.scaling['Bsz']
         elif name=='richness': return 1/self.scaling['Brichness']
         elif name=='Yx':
-            if self.YXPARAM=='SPT_XVP': return self.scaling['Bx'] / (1-self.scaling['slope_MgR']/3)
-            elif self.YXPARAM=='Munich': return 1/ (self.scaling['Bx'] - self.scaling['slope_MgR']/3)
-        elif name=='Mgas': return 1/ (self.scaling['Bx'] - self.scaling['slope_MgR']/3)
+            if self.YXPARAM=='SPT_XVP': return self.scaling['Bx']
+            elif self.YXPARAM=='Munich': return 1/self.scaling['Bx']
+        elif name=='Mgas': return 1/self.scaling['Bx']
         elif (name=='WLMegacam')|(name=='WLHST')|(name=='WLDES'): return 1.
         elif name=='disp':
             dlnM = np.log(1.01)
