@@ -456,7 +456,7 @@ class MassCalibration:
             ##### X-ray
             else:
                 # Get likelihood
-                likeli = np.trapz(dP_dobs*lognorm.pdf(obsArr, scale=obsmeas, s=obserr), obsArr)
+                likeli = np.trapz(dP_dobs*lognorm.pdf(obsmeas, scale=obsArr, s=obserr), obsArr)
 
                 # In old analysis, account for changing measurement
                 if self.XrayProfileHandling=='old':
@@ -634,7 +634,7 @@ class MassCalibration:
 
         # Normalize (in principe, multiply with dlnX/dlnXfid, but this is mass-independent)
         dP_dobs1/= np.trapz(dP_dobs1, obsArr[1])
-        likeli1 = np.trapz(dP_dobs1*lognorm.pdf(obsArr[1], scale=obsmeas[1], s=obserr[1]), obsArr[1])
+        likeli1 = np.trapz(dP_dobs1*lognorm.pdf(obsmeas[1], scale=obsArr[1], s=obserr[1]), obsArr[1])
 
         if self.XrayProfileHandling=='old':
             likeli1*= obsmeas[1]
