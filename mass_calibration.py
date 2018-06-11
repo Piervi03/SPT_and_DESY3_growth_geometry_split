@@ -157,8 +157,9 @@ class MassCalibration:
             self.WL.get_dAs(self.cosmology)
 
         ##### Populate and check observable covariance matrices
-        self.covmat = {}
+        self.covmat = {'invertible': True}
         if not observablecovmat.set_covmats(self.todo, self.scaling, self.covmat):
+            self.covmat['invertible'] = False
             return -np.inf
 
         ##### Set up interpolation for HMF
