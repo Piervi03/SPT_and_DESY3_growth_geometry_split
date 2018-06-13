@@ -35,8 +35,9 @@ class NumberCount:
         self.SPTnFalse_alpha = SPTdata.SPTnFalse_alpha
         self.SPTnFalse_beta = SPTdata.SPTnFalse_beta
         ##### Various observable arrays
-        # Lin spaced for convo with unit scatter
-        self.xi_bins = np.linspace(2.7, 50, 474)
+        # Lin spaced for convo with unit scatter (+3 sigma margin)
+        Nxi = int((self.surveyCutSZ[1]+3 - 2.7)/.1 + 1)
+        self.xi_bins = np.linspace(2.7, self.surveyCutSZ[1]+3, Nxi)
         self.dxi = self.xi_bins[1] - self.xi_bins[0]
         # ln(zeta(xi_bins))
         self.ln_zeta_xi_arr = np.log(self.xi2zeta(self.xi_bins))
