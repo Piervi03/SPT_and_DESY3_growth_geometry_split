@@ -1,6 +1,6 @@
 SPTdatafile = 'SPTcluster_data.py'
 
-random_seed = 1
+random_seed = 0
 
 # We mainly need the cosmology for E(z) and h
 # (and for the DK15 c-M relation)
@@ -19,7 +19,7 @@ scaling = {'Asz': 4., 'Bsz': 1.34, 'Csz': .49, 'Dsz': .2,
            'Adisp':939., 'Bdisp':2.91, 'Cdisp':.33, 'Ddisp0':.2, 'DdispN':3.,
            'Alambda': 70., 'Blambda': 1., 'Clambda': 1., 'Dlambda': .2,
            'Ax': 6.5, 'Bx': .57, 'Cx': -.4, 'Dx': .12, 'Ex':0,
-           'slope_MgR':1.16, 'slope_MgR_std': .016,
+           'slope_MgR': 1.16, 'slope_MgR_std': .016,
            'rhoSZlambda': 0., 'rhoSZdisp': 0., 'rhoSZX': 0.,
            'rhoSZWL': 0., 'rhoWLX': 0., 'rhoXdisp': 0.}
 
