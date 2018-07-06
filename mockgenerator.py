@@ -27,9 +27,11 @@ def main():
     MCrel = Mconversion_concentration.ConcentrationConversion(configMod.mcType, cosmology)
     mass2obs = MassToObs(cosmology, scaling, configMod)
 
-    cov = [[scaling['DWL_Megacam']**2, scaling['rhoWLX']*scaling['DWL_Megacam']*scaling['Dx'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_Megacam']],
-        [scaling['rhoWLX']*scaling['DWL_Megacam']*scaling['Dx'], scaling['Dx']**2, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx']],
-        [scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_Megacam'], scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2]]
+    # [WL, X-ray, SZ, richness]
+    cov = [[scaling['DWL_Megacam']**2, scaling['rhoWLX']*scaling['DWL_Megacam']*scaling['Dx'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_Megacam'], scaling['rhoWLrichness']*scaling['DWL_Megacam']*scaling['Drichness']],
+        [scaling['rhoWLX']*scaling['DWL_Megacam']*scaling['Dx'], scaling['Dx']**2, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['rhoXrichness']*scaling['Dx']*scaling['Drichness']],
+        [scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_Megacam'], scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2, scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness']],
+        [scaling['rhoWLrichness']*scaling['DWL_Megacam']*scaling['Drichness'], scaling['rhoXrichness']*scaling['Dx']*scaling['Drichness'], scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness'], scaling['Drichness']**2]]
 
     # Read HMF
     HMF = pickle.load(open('HMF.pkl', 'rb'))
@@ -62,7 +64,7 @@ def main():
                 if N[i,j]==0:
                     continue
                 # draw (Mwl,Yx,zeta)|M
-                obs_0 = [mass2obs(name, M, z) for name in ('WLMegacam', Xray_obs, 'zeta')]
+                obs_0 = [mass2obs(name, M, z) for name in ('WLMegacam', Xray_obs, 'zeta', 'richness')]
                 obs = np.exp(np.random.multivariate_normal(np.log(obs_0), cov, N[i,j]))
                 for k in range(N[i,j]):
                     # Apply P(zeta)
@@ -74,8 +76,10 @@ def main():
                             Mg = np.random.lognormal(np.log(obs[k,1]), sigma=configMod.Xerr)
                             # Convert WL mass to 200c
                             M200h_WL = MCrel.MDelta_to_M200(obs[k,0],500.,z)
+                            # Observed richness
+                            richness_obs = np.random.normal(obs[k,3], configMod.richness_err)
 
-                            mock.append((M,z,xi,Mg,M200h_WL))
+                            mock.append((M, z, xi, Mg, M200h_WL, richness_obs))
                             fieldnames.append(field)
 
         # False detections
@@ -83,7 +87,7 @@ def main():
         for i in range(len(dNdxiFalse)):
             N = np.random.poisson(dNdxiFalse[i])
             for k in range(N):
-                mock.append((0.,0.,xiArrBin[i],0.,0.))
+                mock.append((0., 0., xiArrBin[i], 0., 0., 0.))
                 fieldnames.append(field)
 
 
@@ -147,10 +151,7 @@ def main():
 
 
     ##### Bookkeeping of names
-    names = []
-    for i in range(nCluster):
-        names.append('cluster'+str(i))
-    names = np.array(names)
+    names = np.array(['cluster%d'%i for i in range(nCluster)])
     XraySample = names[np.where(mock[:,3]!=0.)[0]]
     print XraySample
 
@@ -158,15 +159,20 @@ def main():
     redshiftLim = np.zeros(nCluster)
     redshiftLim[mock[:,1]==0.] = 1.4
 
-
     # M500 estimate, neede for defining X-ray observable
-    M500_noh = np.random.lognormal(mock[:,0]/cosmology['h'], scaling['Dsz']/scaling['Bsz'])
+    M500_noh = np.random.lognormal(np.log(mock[:,0]/cosmology['h']), scaling['Dsz']/scaling['Bsz'])
 
     ##### Save catalog file
     # create numpy rec array
-    names_arr = ['SPT_ID', 'field', 'xi', 'redshift', 'redshift_err', 'redshift_lim', 'Mg_MM', 'lnMg_err_MM', 'lnYx_err_MM', 'M_true', 'Tx_MM', 'M500', 'Mwl_200']
-    format_arr = ['12a', '14a', 'f', 'f', 'f', 'f', '(2,80)f', 'f', 'f', 'f', 'f', 'f', 'f']
-    data_arr = [names, fieldnames, mock[:,2], mock[:,1], np.zeros(nCluster), redshiftLim, Mgas, Xerrarr, Xerrarr, mock[:,0], 1e14*np.ones(nCluster), M500_noh, mock[:,4]]
+    names_arr = ['SPT_ID', 'field', 'xi', 'redshift', 'redshift_err', 'redshift_lim',
+                 'Mg_MM', 'lnMg_err_MM', 'lnYx_err_MM',
+                 'M_true', 'Tx_MM', 'M500', 'Mwl_200',
+                 'richness', 'richness_err']
+    format_arr = ['12a', '14a', 'f', 'f', 'f', 'f', '(2,80)f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f']
+    data_arr = [names, fieldnames, mock[:,2], mock[:,1], np.zeros(nCluster), redshiftLim,
+                Mgas, Xerrarr, Xerrarr, mock[:,0], 1e14*np.ones(nCluster),
+                M500_noh, mock[:,4],
+                mock[:,5], configMod.richness_err*np.ones(nCluster)]
     arr = np.rec.array(data_arr, names=names_arr, formats=format_arr)
     # Save to fits
     hdu = pyfits.BinTableHDU(data=arr)
@@ -187,6 +193,7 @@ class MassToObs:
         self.thisSPTfieldCorrection = None
         self.SZmPivot = configMod.SZmPivot
         self.XraymPivot = configMod.XraymPivot
+        self.richmPivot = configMod.richmPivot
         self.YXPARAM = configMod.YXPARAM
 
     def __call__(self, name, mass, z):
@@ -215,7 +222,7 @@ class MassToObs:
             if len(M200c)==1: M200c = M200c[0]
             return self.scaling['Adisp'] * (M200c/1e15/self.cosmology['h'])**(1/self.scaling['Bdisp']) * h70z**self.scaling['Cdisp']
         elif name=='richness':
-            return self.scaling['Arichness'] * (mass/richmPivot)**self.scaling['Brichness']\
+            return self.scaling['Arichness'] * (mass/self.richmPivot)**self.scaling['Brichness']\
                 * (cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology))**self.scaling['Crichness']
         elif name=='WLMegacam':
             return self.scaling['bWL_Megacam'] * mass
