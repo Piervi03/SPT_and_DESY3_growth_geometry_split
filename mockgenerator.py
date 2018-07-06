@@ -22,6 +22,7 @@ def main():
     scaling = configMod.scaling
     mcType = configMod.mcType
     np.random.seed(configMod.random_seed)
+    Xray_obs = configMod.Xray_obs
     # Initialize c(M) calculator
     MCrel = Mconversion_concentration.ConcentrationConversion(configMod.mcType, cosmology)
     mass2obs = MassToObs(cosmology, scaling, configMod)
@@ -61,7 +62,7 @@ def main():
                 if N[i,j]==0:
                     continue
                 # draw (Mwl,Yx,zeta)|M
-                obs_0 = [mass2obs(name, M, z) for name in ('WLMegacam', 'Mgas', 'zeta')]
+                obs_0 = [mass2obs(name, M, z) for name in ('WLMegacam', Xray_obs, 'zeta')]
                 obs = np.exp(np.random.multivariate_normal(np.log(obs_0), cov, N[i,j]))
                 for k in range(N[i,j]):
                     # Apply P(zeta)
@@ -100,9 +101,6 @@ def main():
     Xerrarr = configMod.Xerr*np.ones(nCluster)
     Xerrarr[XVP[:-configMod.nXrayCluster]] = 0.
 
-    XVPflag = np.ones(nCluster)
-    XVPflag[XVP[:-configMod.nXrayCluster]] = 0
-
 
     ##### Create X-ray gas mass profiles
     # For maximal confusion, this part is in decent units, with factors of h
@@ -139,7 +137,7 @@ def main():
             Micmr500 = np.interp(r500, rArr, Micm)
             Micm*= mock[i,3]/Micmr500
         elif configMod.profile_shape=='PL':
-            Micm = mock[i,3] * (rArr/r500)**scaling['slope_MgR']
+            Micm = mock[i,3] * (rArr/r500)**(scaling['slope_MgR'] + scaling['slope_MgR_std']*np.random.randn())
 
         # Scale back to ref cosmology
         Micmref = Micm * (dAref/dA)**2.5
@@ -153,37 +151,27 @@ def main():
     for i in range(nCluster):
         names.append('cluster'+str(i))
     names = np.array(names)
+    XraySample = names[np.where(mock[:,3]!=0.)[0]]
+    print XraySample
 
     # False detections
     redshiftLim = np.zeros(nCluster)
     redshiftLim[mock[:,1]==0.] = 1.4
 
 
+    # M500 estimate, neede for defining X-ray observable
+    M500_noh = np.random.lognormal(mock[:,0]/cosmology['h'], scaling['Dsz']/scaling['Bsz'])
+
     ##### Save catalog file
     # create numpy rec array
-    names_arr = ['SPT_ID', 'field', 'xi', 'redshift', 'redshift_err', 'redshift_lim', 'Mg_MM', 'lnMg_err_MM', 'M_true', 'Mgas', 'XVP']
-    format_arr = ['12a', '14a', 'f', 'f', 'f', 'f', '(2,80)f', 'f', 'f', 'f', 'd']
-    data_arr = [names, fieldnames, mock[:,2], mock[:,1], np.zeros(nCluster), redshiftLim, Mgas, Xerrarr, mock[:,0], mock[:,3], XVPflag]
+    names_arr = ['SPT_ID', 'field', 'xi', 'redshift', 'redshift_err', 'redshift_lim', 'Mg_MM', 'lnMg_err_MM', 'lnYx_err_MM', 'M_true', 'Tx_MM', 'M500', 'Mwl_200']
+    format_arr = ['12a', '14a', 'f', 'f', 'f', 'f', '(2,80)f', 'f', 'f', 'f', 'f', 'f', 'f']
+    data_arr = [names, fieldnames, mock[:,2], mock[:,1], np.zeros(nCluster), redshiftLim, Mgas, Xerrarr, Xerrarr, mock[:,0], 1e14*np.ones(nCluster), M500_noh, mock[:,4]]
     arr = np.rec.array(data_arr, names=names_arr, formats=format_arr)
     # Save to fits
     hdu = pyfits.BinTableHDU(data=arr)
     hdu.writeto('mockSPT2500d_'+sys.argv[1]+'.fits')
 
-
-    ##### WL follow-up
-    # Select 19 highest xi in 0.3<z<0.6
-    idx = np.argsort(mock[:,2])
-    MegacamIdx = []
-    for i in reversed(range(nCluster)):
-        if (mock[idx[i],1]>=0.3)&(mock[idx[i],1]<=0.6):
-            MegacamIdx.append(idx[i])
-
-    # Save everything to file
-    massfile = open('mockSPT2500d_masses_'+sys.argv[1]+'.txt','w')
-    massfile.write('# name\t\tredshift\tM200cWL [Msun]')
-    for i in range(19):
-        massfile.write('\n'+names[MegacamIdx[i]]+'\t'+str(mock[MegacamIdx[i]][1])+'\t%.3e'%(mock[MegacamIdx[i]][4]/cosmology['h']))
-    massfile.close()
 
 
 ################################################################################
@@ -199,6 +187,7 @@ class MassToObs:
         self.thisSPTfieldCorrection = None
         self.SZmPivot = configMod.SZmPivot
         self.XraymPivot = configMod.XraymPivot
+        self.YXPARAM = configMod.YXPARAM
 
     def __call__(self, name, mass, z):
         if name=='zeta':
@@ -208,11 +197,11 @@ class MassToObs:
                 + self.scaling['Esz'] * np.log(mass/self.SZmPivot)*np.log(cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology))
             return np.exp(lnzeta)
         elif name=='Yx':
-            if YXPARAM=='SPT_XVP':
+            if self.YXPARAM=='SPT_XVP':
                 return 3.*(mass*1e-14/(self.scaling['Ax'] * self.cosmology['h']**1.5
                     * (self.cosmology['h']/.72)**(2.5*self.scaling['Bx']-1.5)
                     * cosmo.Ez(z, self.cosmology)**self.scaling['Cx']))**(1/self.scaling['Bx'])
-            elif YXPARAM=='Munich':
+            elif self.YXPARAM=='Munich':
                 return self.scaling['Ax']* (mass/self.cosmology['h']**1.5/self.XraymPivot)**self.scaling['Bx']\
                     * (cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology))**self.scaling['Cx']
         elif name=='Mgas':
