@@ -8,7 +8,7 @@ import scipy.special as ss
 from scipy import integrate
 from scipy.interpolate import RectBivariateSpline
 from scipy import signal
-from scipy.stats import norm, lognorm
+from scipy.stats import norm
 from scipy.stats import multivariate_normal
 from astropy.table import Table
 
@@ -445,10 +445,10 @@ class MassCalibration:
             ##### X-ray
             else:
                 # Get likelihood
-                likeli = np.trapz(dP_dobs*lognorm.pdf(obsmeas, scale=obsArr, s=obserr), obsArr)
+                likeli = np.trapz(dP_dobs*norm.pdf(obsmeas, obsArr, obserr), obsArr)
 
                 if getpull:
-                    integrand = dP_dobs[None,:] * lognorm.pdf(obsArr[:,None], scale=obsArr[None,:], s=obserr)
+                    integrand = dP_dobs[None,:] * norm.pdf(obsArr[:,None], obsArr[None,:], obserr)
                     dP_dobs_obs = np.trapz(integrand, obsArr, axis=1)
                     dP_dobs_obs/= np.trapz(dP_dobs_obs,obsArr)
                     cumtrapz = integrate.cumtrapz(dP_dobs_obs,obsArr)
@@ -623,7 +623,7 @@ class MassCalibration:
 
         # Normalize (in principe, multiply with dlnX/dlnXfid, but this is mass-independent)
         dP_dobs1/= np.trapz(dP_dobs1, obsArr[1])
-        likeli1 = np.trapz(dP_dobs1*lognorm.pdf(obsmeas[1], scale=obsArr[1], s=obserr[1]), obsArr[1])
+        likeli1 = np.trapz(dP_dobs1*norm.pdf(obsmeas[1], obsArr[1], obserr[1]), obsArr[1])
 
         #np.savetxt(self.catalog['SPT_ID'][dataID]+'_3d'+obsnames[0],np.transpose((obsArr[0], dP_dobs0)))
         #np.savetxt(self.catalog['SPT_ID'][dataID]+'_3d'+obsnames[1],np.transpose((obsArr[1], dP_dobs1)))
