@@ -13,7 +13,7 @@ from scipy.stats import multivariate_normal
 from astropy.table import Table
 
 from cosmosis.datablock import option_section
-import cosmo, Mconversion_concentration, lensing, Xrayprofile, observablecovmat
+import cosmo, Mconversion_concentration, lensing, observablecovmat
 
 cosmologyRef = {'Omega_m':.272, 'Omega_l':.728, 'h':.702, 'w0':-1, 'wa':0}
 getpull = False
@@ -52,19 +52,17 @@ class MassCalibration:
         self.catalog = Table.read(SPTcatalogfile)
         ###### X-ray data analysis mess
         if self.todo['Mgas'] or self.todo['Yx']:
-            Xray_profile = Xrayprofile.XrayProfile(options)
             # Using real data or simulated profiles
             if self.Xdata=='SPT_XVP':
                 self.catalog['Mg'] = self.catalog['Mg_MM']
-                self.catalog['lnMg_err'] = self.catalog['lnMg_err_MM']
+                self.catalog['Mg_err'] = self.catalog['Mg_err_MM']
                 if self.todo['Yx']:
                     self.catalog['Tx'] = self.catalog['Tx_MM']
-                    self.catalog['lnYx_err'] = self.catalog['lnYx_err_MM']
+                    self.catalog['Yx_err'] = self.catalog['Yx_err_MM']
             elif self.Xdata=='WtG':
                 if self.todo['Mgas']:
                     self.catalog['Mg'] = self.catalog['Mg_AM']
-                    self.catalog['lnMg_err'] = self.catalog['lnMg_err_AM']
-            Xray_profile.setRef(self.catalog)
+                    self.catalog['Mg_err'] = self.catalog['Mg_err_AM']
 
         # Survey specs
         self.SPTfieldNames = SPTdata.SPTfieldNames
@@ -295,9 +293,9 @@ class MassCalibration:
 
         ##### Get the follow-up observable, obsintr is used for setting up mass range
         if obsname=='Yx':
-            obsmeas, obsintr, obserr = self.catalog['XrayRef'][dataID][1], self.scaling['Dx'], self.catalog['lnYx_err'][dataID]
+            obsmeas, obsintr, obserr = self.catalog['Yx_fid_MM'][dataID], self.scaling['Dx'], self.catalog['Yx_err'][dataID]
         elif obsname=='Mgas':
-            obsmeas, obsintr, obserr = self.catalog['XrayRef'][dataID][1], self.scaling['Dx'], self.catalog['lnMg_err'][dataID]
+            obsmeas, obsintr, obserr = self.catalog['Mg_fid_MM'][dataID], self.scaling['Dx'], self.catalog['Mg_err'][dataID]
         elif obsname=='disp':
             Dsigma = self.scaling['Ddisp0'] + self.scaling['DdispN']/self.catalog['Ngal'][dataID]
             cov = [[Dsigma**2, self.scaling['rhoSZdisp']*self.scaling['Dsz']*Dsigma],
@@ -362,7 +360,7 @@ class MassCalibration:
             obs_at_r500ref = np.interp(r500ref, self.catalog['Mg'][dataID][0,nonzero], self.catalog['Mg'][dataID][1,nonzero])
             if obsname=='Yx':
                 obs_at_r500ref*= 1e-14*self.catalog['Tx'][dataID]
-            obsFid = obsArr * self.catalog['XrayRef'][dataID][1]/obs_at_r500ref
+            obsFid = obsArr * obsmeas/obs_at_r500ref
             # X-ray observable at rFid, corrected to reference cosmology
             obsArr = obsFid * (dAref/dA)**2.5
 
@@ -474,9 +472,9 @@ class MassCalibration:
         obsmeas, obserr, obsintr = np.empty(2), np.empty(2), np.empty(2)
         for i in range(2):
             if obsnames[i]=='Yx':
-                obsmeas[i], obsintr[i], obserr[i] = self.catalog['XrayRef'][dataID][1], self.scaling['Dx'], self.catalog['lnYx_err'][dataID]
+                obsmeas[i], obsintr[i], obserr[i] = self.catalog['Yx_fid_MM'][dataID], self.scaling['Dx'], self.catalog['Yx_err'][dataID]
             elif obsnames[i]=='Mgas':
-                obsmeas[i], obsintr[i], obserr[i] = self.catalog['XrayRef'][dataID][1], self.scaling['Dx'], self.catalog['lnMg_err'][dataID]
+                obsmeas[i], obsintr[i], obserr[i] = self.catalog['Mg_fid_MM'][dataID], self.scaling['Dx'], self.catalog['Mg_err'][dataID]
             elif obsnames[i]=='disp':
                 Dsigma = self.scaling['Ddisp0'] + self.scaling['DdispN']/self.catalog['Ngal'][dataID]
                 obsmeas[i], obserr[i], obsintr[i] = self.catalog['veldisp'][dataID], Dsigma, Dsigma
@@ -555,7 +553,7 @@ class MassCalibration:
                 obs_at_r500ref = np.interp(r500ref, self.catalog['Mg'][dataID][0,nonzero], self.catalog['Mg'][dataID][1,nonzero])
                 if obsnames[i]=='Yx':
                     obs_at_r500ref*= 1e-14*self.catalog['Tx'][dataID]
-                obsFid = obsArrTemp * self.catalog['XrayRef'][dataID][1]/obs_at_r500ref
+                obsFid = obsArrTemp * obsmeas[i]/obs_at_r500ref
                 # X-ray observable at rFid, corrected to reference cosmology
                 obsArrTemp = obsFid * (dAref/dA)**2.5
             obsArr.append( obsArrTemp )
