@@ -91,6 +91,7 @@ class MassCalibration:
             'Cx': block.get_double('mor_parameters', 'Cx'),
             'Dx': block.get_double('mor_parameters', 'Dx'),
             'Ex': block.get_double('mor_parameters', 'Ex'),
+            'dlnMg_dlnr': block.get_double('mor_parameters', 'dlnMg_dlnr'),
             # WL
             'WLbias': block.get_double('mor_parameters', 'WLbias'),
             'WLscatter': block.get_double('mor_parameters', 'WLscatter'),
@@ -336,12 +337,8 @@ class MassCalibration:
             r500 = 1000 * (3*M_obsArr/(4*np.pi*500*rho_c_z))**(1/3) / self.cosmology['h']
             # r500 in reference cosmology [kpc]
             r500ref = r500 * dAref/dA
-            # Xray observable at rFid
-            nonzero = np.nonzero(self.catalog['Mg'][dataID][0])[0]
-            obs_at_r500ref = np.interp(r500ref, self.catalog['Mg'][dataID][0,nonzero], self.catalog['Mg'][dataID][1,nonzero])
-            if obsname=='Yx':
-                obs_at_r500ref*= 1e-14*self.catalog['Tx'][dataID]
-            obsFid = obsArr * obsmeas/obs_at_r500ref
+            # Xray observable at fiducial r500
+            obsFid = obsArr * (self.catalog['r500'][dataID]/r500ref)**self.scaling['dlnMg_dlnr']
             # X-ray observable at rFid, corrected to reference cosmology
             obsArr = obsFid * (dAref/dA)**2.5
 
@@ -530,11 +527,7 @@ class MassCalibration:
                 # r500 in reference cosmology [kpc]
                 r500ref = r500 * dAref/dA
                 # Xray observable at rFid
-                nonzero = np.nonzero(self.catalog['Mg'][dataID][0])[0]
-                obs_at_r500ref = np.interp(r500ref, self.catalog['Mg'][dataID][0,nonzero], self.catalog['Mg'][dataID][1,nonzero])
-                if obsnames[i]=='Yx':
-                    obs_at_r500ref*= 1e-14*self.catalog['Tx'][dataID]
-                obsFid = obsArrTemp * obsmeas[i]/obs_at_r500ref
+                obsFid = obsArrTemp * (self.catalog['r500'][dataID]/r500ref)**self.scaling['dlnMg_dlnr']
                 # X-ray observable at rFid, corrected to reference cosmology
                 obsArrTemp = obsFid * (dAref/dA)**2.5
             obsArr.append( obsArrTemp )
