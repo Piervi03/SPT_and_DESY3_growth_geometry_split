@@ -53,7 +53,6 @@ class MassCalibration:
         self.SPTfieldNames = SPTdata.SPTfieldNames
         self.SPTfieldCorrection = SPTdata.SPTfieldCorrection
         self.SPTdoubleCount = SPTdata.SPTdoubleCount
-        self.XraySample = SPTdata.XraySample
         ##### WL simulation calibration
         WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
         WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
@@ -214,12 +213,12 @@ class MassCalibration:
         if self.todo['veldisp'] and self.catalog['veldisp'][i]!=0.:
             nobs+= 1
             obsnames.append('disp')
-        if self.todo['Yx'] and name in self.XraySample:
-                nobs+= 1
-                obsnames.append('Yx')
-        if self.todo['Mgas'] and name in self.XraySample:
-                nobs+= 1
-                obsnames.append('Mgas')
+        if self.todo['Yx'] and self.catalog['Mg_fid'][i]!=0:
+            nobs+= 1
+            obsnames.append('Yx')
+        if self.todo['Mgas'] and self.catalog['Mg_fid'][i]!=0:
+            nobs+= 1
+            obsnames.append('Mgas')
         if self.todo['richness'] and self.catalog['richness'][i]!=0.:
             nobs+= 1
             obsnames.append('richness')
@@ -234,9 +233,6 @@ class MassCalibration:
             probability = self.get_P_1obs_xi(obsnames[0], i)
 
         elif nobs==2:
-            # probability = self.get_P_1obs_xi(obsnames[0], i)
-            # probability*= self.get_P_1obs_xi(obsnames[1], i)
-
             if 'disp' in obsnames:
                 if self.scaling['rhoXdisp']==0:
                     probability = self.get_P_1obs_xi(obsnames[0], i)*self.get_P_1obs_xi(obsnames[1], i)
