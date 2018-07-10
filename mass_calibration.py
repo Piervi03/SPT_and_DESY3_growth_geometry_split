@@ -38,7 +38,6 @@ class MassCalibration:
         self.XraymPivot = options.get_double(option_section, 'XraymPivot')
         self.richmPivot = options.get_double(option_section, 'richmPivot')
         self.YXPARAM = options.get_string(option_section, 'YXPARAM')
-        self.Xdata = options.get_string(option_section, 'Xdata')
         self.mcType = options.get_string(option_section, 'mcType')
         self.surveyCutSZ = options.get_double_array_1d(option_section, 'surveyCutSZ')
         self.surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
@@ -50,20 +49,6 @@ class MassCalibration:
         SPTcatalogfile = options.get_string(option_section, 'SPTcatalogfile')
         assert os.path.isfile(SPTcatalogfile), "SPT catalog file does not exist"
         self.catalog = Table.read(SPTcatalogfile)
-        ###### X-ray data analysis mess
-        if self.todo['Mgas'] or self.todo['Yx']:
-            # Using real data or simulated profiles
-            if self.Xdata=='SPT_XVP':
-                self.catalog['Mg'] = self.catalog['Mg_MM']
-                self.catalog['Mg_err'] = self.catalog['Mg_err_MM']
-                if self.todo['Yx']:
-                    self.catalog['Tx'] = self.catalog['Tx_MM']
-                    self.catalog['Yx_err'] = self.catalog['Yx_err_MM']
-            elif self.Xdata=='WtG':
-                if self.todo['Mgas']:
-                    self.catalog['Mg'] = self.catalog['Mg_AM']
-                    self.catalog['Mg_err'] = self.catalog['Mg_err_AM']
-
         # Survey specs
         self.SPTfieldNames = SPTdata.SPTfieldNames
         self.SPTfieldCorrection = SPTdata.SPTfieldCorrection
@@ -293,9 +278,9 @@ class MassCalibration:
 
         ##### Get the follow-up observable, obsintr is used for setting up mass range
         if obsname=='Yx':
-            obsmeas, obsintr, obserr = self.catalog['Yx_fid_MM'][dataID], self.scaling['Dx'], self.catalog['Yx_err'][dataID]
+            obsmeas, obsintr, obserr = self.catalog['Yx_fid'][dataID], self.scaling['Dx'], self.catalog['Yx_err'][dataID]
         elif obsname=='Mgas':
-            obsmeas, obsintr, obserr = self.catalog['Mg_fid_MM'][dataID], self.scaling['Dx'], self.catalog['Mg_err'][dataID]
+            obsmeas, obsintr, obserr = self.catalog['Mg_fid'][dataID], self.scaling['Dx'], self.catalog['Mg_err'][dataID]
         elif obsname=='disp':
             Dsigma = self.scaling['Ddisp0'] + self.scaling['DdispN']/self.catalog['Ngal'][dataID]
             cov = [[Dsigma**2, self.scaling['rhoSZdisp']*self.scaling['Dsz']*Dsigma],
@@ -472,9 +457,9 @@ class MassCalibration:
         obsmeas, obserr, obsintr = np.empty(2), np.empty(2), np.empty(2)
         for i in range(2):
             if obsnames[i]=='Yx':
-                obsmeas[i], obsintr[i], obserr[i] = self.catalog['Yx_fid_MM'][dataID], self.scaling['Dx'], self.catalog['Yx_err'][dataID]
+                obsmeas[i], obsintr[i], obserr[i] = self.catalog['Yx_fid'][dataID], self.scaling['Dx'], self.catalog['Yx_err'][dataID]
             elif obsnames[i]=='Mgas':
-                obsmeas[i], obsintr[i], obserr[i] = self.catalog['Mg_fid_MM'][dataID], self.scaling['Dx'], self.catalog['Mg_err'][dataID]
+                obsmeas[i], obsintr[i], obserr[i] = self.catalog['Mg_fid'][dataID], self.scaling['Dx'], self.catalog['Mg_err'][dataID]
             elif obsnames[i]=='disp':
                 Dsigma = self.scaling['Ddisp0'] + self.scaling['DdispN']/self.catalog['Ngal'][dataID]
                 obsmeas[i], obserr[i], obsintr[i] = self.catalog['veldisp'][dataID], Dsigma, Dsigma
