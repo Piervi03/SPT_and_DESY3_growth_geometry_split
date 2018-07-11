@@ -313,9 +313,9 @@ class MassCalibration:
         M_obsth_minmax = self.obs2mass(obsname, obsthminmax, self.catalog['redshift'][dataID])
         # obs: measurement
         if obsname=='richness':
-            obsmeasminmax = np.amin((.1,obsmeas-3*obserr)), obsmeas+3*obserr
+            obsmeasminmax = np.amax((.1,obsmeas-3*obserr)), obsmeas+3*obserr
         elif obsname in ('Mgas', 'Yx'):
-            obsmeasminmax = obsmeas-3*obserr, obsmeas+3*obserr
+            obsmeasminmax = np.amax((.1, obsmeas-3*obserr)), obsmeas+3*obserr
         else:
             obsmeasminmax = np.exp(np.log(obsmeas)-4*obserr), np.exp(np.log(obsmeas)+3*obserr)
         M_obsmeas_minmax = self.obs2mass(obsname, np.array(obsmeasminmax), self.catalog['redshift'][dataID])
@@ -501,9 +501,9 @@ class MassCalibration:
             obsthminmax = np.exp(np.array((lnobs0-5*intrscatter, lnobs0+3.5*intrscatter)))
             # obs: measurement
             if obsnames[i]=='richness':
-                obsmeasminmax = np.amin((.1,obsmeas[i]-3*obserr[i])), obsmeas[i]+3*obserr[i]
+                obsmeasminmax = np.amax((.1, obsmeas[i]-3*obserr[i])), obsmeas[i]+3*obserr[i]
             elif obsnames[i] in ('Mgas', 'Yx'):
-                obsmeasminmax = obsmeas[i]-3*obserr[i], obsmeas[i]+3*obserr[i]
+                obsmeasminmax = np.amax((.1, obsmeas[i]-3*obserr[i])), obsmeas[i]+3*obserr[i]
             else:
                 obsmeasminmax = np.exp(np.log(obsmeas[i])-4*obserr[i]), np.exp(np.log(obsmeas[i])+3*obserr[i])
             # put together
