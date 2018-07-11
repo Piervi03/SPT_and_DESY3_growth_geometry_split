@@ -8,12 +8,12 @@ import scipy.special as ss
 from scipy import integrate
 from scipy.interpolate import RectBivariateSpline
 from scipy import signal
-from scipy.stats import norm, lognorm
+from scipy.stats import norm
 from scipy.stats import multivariate_normal
 from astropy.table import Table
 
 from cosmosis.datablock import option_section
-import cosmo, Mconversion_concentration, lensing, Xrayprofile, observablecovmat
+import cosmo, Mconversion_concentration, lensing, observablecovmat
 
 cosmologyRef = {'Omega_m':.272, 'Omega_l':.728, 'h':.702, 'w0':-1, 'wa':0}
 getpull = False
@@ -38,7 +38,6 @@ class MassCalibration:
         self.XraymPivot = options.get_double(option_section, 'XraymPivot')
         self.richmPivot = options.get_double(option_section, 'richmPivot')
         self.YXPARAM = options.get_string(option_section, 'YXPARAM')
-        self.Xdata = options.get_string(option_section, 'Xdata')
         self.mcType = options.get_string(option_section, 'mcType')
         self.surveyCutSZ = options.get_double_array_1d(option_section, 'surveyCutSZ')
         self.surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
@@ -50,27 +49,10 @@ class MassCalibration:
         SPTcatalogfile = options.get_string(option_section, 'SPTcatalogfile')
         assert os.path.isfile(SPTcatalogfile), "SPT catalog file does not exist"
         self.catalog = Table.read(SPTcatalogfile)
-        ###### X-ray data analysis mess
-        if self.todo['Mgas'] or self.todo['Yx']:
-            Xray_profile = Xrayprofile.XrayProfile(options)
-            # Using real data or simulated profiles
-            if self.Xdata=='SPT_XVP':
-                self.catalog['Mg'] = self.catalog['Mg_MM']
-                self.catalog['lnMg_err'] = self.catalog['lnMg_err_MM']
-                if self.todo['Yx']:
-                    self.catalog['Tx'] = self.catalog['Tx_MM']
-                    self.catalog['lnYx_err'] = self.catalog['lnYx_err_MM']
-            elif self.Xdata=='WtG':
-                if self.todo['Mgas']:
-                    self.catalog['Mg'] = self.catalog['Mg_AM']
-                    self.catalog['lnMg_err'] = self.catalog['lnMg_err_AM']
-            Xray_profile.setRef(self.catalog)
-
         # Survey specs
         self.SPTfieldNames = SPTdata.SPTfieldNames
         self.SPTfieldCorrection = SPTdata.SPTfieldCorrection
         self.SPTdoubleCount = SPTdata.SPTdoubleCount
-        self.XraySample = SPTdata.XraySample
         ##### WL simulation calibration
         WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
         WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
@@ -231,12 +213,12 @@ class MassCalibration:
         if self.todo['veldisp'] and self.catalog['veldisp'][i]!=0.:
             nobs+= 1
             obsnames.append('disp')
-        if self.todo['Yx'] and name in self.XraySample:
-                nobs+= 1
-                obsnames.append('Yx')
-        if self.todo['Mgas'] and name in self.XraySample:
-                nobs+= 1
-                obsnames.append('Mgas')
+        if self.todo['Yx'] and self.catalog['Mg_fid'][i]!=0:
+            nobs+= 1
+            obsnames.append('Yx')
+        if self.todo['Mgas'] and self.catalog['Mg_fid'][i]!=0:
+            nobs+= 1
+            obsnames.append('Mgas')
         if self.todo['richness'] and self.catalog['richness'][i]!=0.:
             nobs+= 1
             obsnames.append('richness')
@@ -251,9 +233,6 @@ class MassCalibration:
             probability = self.get_P_1obs_xi(obsnames[0], i)
 
         elif nobs==2:
-            # probability = self.get_P_1obs_xi(obsnames[0], i)
-            # probability*= self.get_P_1obs_xi(obsnames[1], i)
-
             if 'disp' in obsnames:
                 if self.scaling['rhoXdisp']==0:
                     probability = self.get_P_1obs_xi(obsnames[0], i)*self.get_P_1obs_xi(obsnames[1], i)
@@ -295,9 +274,9 @@ class MassCalibration:
 
         ##### Get the follow-up observable, obsintr is used for setting up mass range
         if obsname=='Yx':
-            obsmeas, obsintr, obserr = self.catalog['XrayRef'][dataID][1], self.scaling['Dx'], self.catalog['lnYx_err'][dataID]
+            obsmeas, obsintr, obserr = self.catalog['Yx_fid'][dataID], self.scaling['Dx'], self.catalog['Yx_err'][dataID]
         elif obsname=='Mgas':
-            obsmeas, obsintr, obserr = self.catalog['XrayRef'][dataID][1], self.scaling['Dx'], self.catalog['lnMg_err'][dataID]
+            obsmeas, obsintr, obserr = self.catalog['Mg_fid'][dataID], self.scaling['Dx'], self.catalog['Mg_err'][dataID]
         elif obsname=='disp':
             Dsigma = self.scaling['Ddisp0'] + self.scaling['DdispN']/self.catalog['Ngal'][dataID]
             cov = [[Dsigma**2, self.scaling['rhoSZdisp']*self.scaling['Dsz']*Dsigma],
@@ -362,7 +341,7 @@ class MassCalibration:
             obs_at_r500ref = np.interp(r500ref, self.catalog['Mg'][dataID][0,nonzero], self.catalog['Mg'][dataID][1,nonzero])
             if obsname=='Yx':
                 obs_at_r500ref*= 1e-14*self.catalog['Tx'][dataID]
-            obsFid = obsArr * self.catalog['XrayRef'][dataID][1]/obs_at_r500ref
+            obsFid = obsArr * obsmeas/obs_at_r500ref
             # X-ray observable at rFid, corrected to reference cosmology
             obsArr = obsFid * (dAref/dA)**2.5
 
@@ -445,10 +424,10 @@ class MassCalibration:
             ##### X-ray
             else:
                 # Get likelihood
-                likeli = np.trapz(dP_dobs*lognorm.pdf(obsmeas, scale=obsArr, s=obserr), obsArr)
+                likeli = np.trapz(dP_dobs*norm.pdf(obsmeas, obsArr, obserr), obsArr)
 
                 if getpull:
-                    integrand = dP_dobs[None,:] * lognorm.pdf(obsArr[:,None], scale=obsArr[None,:], s=obserr)
+                    integrand = dP_dobs[None,:] * norm.pdf(obsArr[:,None], obsArr[None,:], obserr)
                     dP_dobs_obs = np.trapz(integrand, obsArr, axis=1)
                     dP_dobs_obs/= np.trapz(dP_dobs_obs,obsArr)
                     cumtrapz = integrate.cumtrapz(dP_dobs_obs,obsArr)
@@ -474,9 +453,9 @@ class MassCalibration:
         obsmeas, obserr, obsintr = np.empty(2), np.empty(2), np.empty(2)
         for i in range(2):
             if obsnames[i]=='Yx':
-                obsmeas[i], obsintr[i], obserr[i] = self.catalog['XrayRef'][dataID][1], self.scaling['Dx'], self.catalog['lnYx_err'][dataID]
+                obsmeas[i], obsintr[i], obserr[i] = self.catalog['Yx_fid'][dataID], self.scaling['Dx'], self.catalog['Yx_err'][dataID]
             elif obsnames[i]=='Mgas':
-                obsmeas[i], obsintr[i], obserr[i] = self.catalog['XrayRef'][dataID][1], self.scaling['Dx'], self.catalog['lnMg_err'][dataID]
+                obsmeas[i], obsintr[i], obserr[i] = self.catalog['Mg_fid'][dataID], self.scaling['Dx'], self.catalog['Mg_err'][dataID]
             elif obsnames[i]=='disp':
                 Dsigma = self.scaling['Ddisp0'] + self.scaling['DdispN']/self.catalog['Ngal'][dataID]
                 obsmeas[i], obserr[i], obsintr[i] = self.catalog['veldisp'][dataID], Dsigma, Dsigma
@@ -555,7 +534,7 @@ class MassCalibration:
                 obs_at_r500ref = np.interp(r500ref, self.catalog['Mg'][dataID][0,nonzero], self.catalog['Mg'][dataID][1,nonzero])
                 if obsnames[i]=='Yx':
                     obs_at_r500ref*= 1e-14*self.catalog['Tx'][dataID]
-                obsFid = obsArrTemp * self.catalog['XrayRef'][dataID][1]/obs_at_r500ref
+                obsFid = obsArrTemp * obsmeas[i]/obs_at_r500ref
                 # X-ray observable at rFid, corrected to reference cosmology
                 obsArrTemp = obsFid * (dAref/dA)**2.5
             obsArr.append( obsArrTemp )
@@ -623,7 +602,7 @@ class MassCalibration:
 
         # Normalize (in principe, multiply with dlnX/dlnXfid, but this is mass-independent)
         dP_dobs1/= np.trapz(dP_dobs1, obsArr[1])
-        likeli1 = np.trapz(dP_dobs1*lognorm.pdf(obsmeas[1], scale=obsArr[1], s=obserr[1]), obsArr[1])
+        likeli1 = np.trapz(dP_dobs1*norm.pdf(obsmeas[1], obsArr[1], obserr[1]), obsArr[1])
 
         #np.savetxt(self.catalog['SPT_ID'][dataID]+'_3d'+obsnames[0],np.transpose((obsArr[0], dP_dobs0)))
         #np.savetxt(self.catalog['SPT_ID'][dataID]+'_3d'+obsnames[1],np.transpose((obsArr[1], dP_dobs1)))
