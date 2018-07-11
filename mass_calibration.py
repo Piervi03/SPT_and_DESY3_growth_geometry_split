@@ -91,6 +91,7 @@ class MassCalibration:
             'Cx': block.get_double('mor_parameters', 'Cx'),
             'Dx': block.get_double('mor_parameters', 'Dx'),
             'Ex': block.get_double('mor_parameters', 'Ex'),
+            'dlnMg_dlnr': block.get_double('mor_parameters', 'dlnMg_dlnr'),
             # WL
             'WLbias': block.get_double('mor_parameters', 'WLbias'),
             'WLscatter': block.get_double('mor_parameters', 'WLscatter'),
@@ -336,14 +337,10 @@ class MassCalibration:
             r500 = 1000 * (3*M_obsArr/(4*np.pi*500*rho_c_z))**(1/3) / self.cosmology['h']
             # r500 in reference cosmology [kpc]
             r500ref = r500 * dAref/dA
-            # Xray observable at rFid
-            nonzero = np.nonzero(self.catalog['Mg'][dataID][0])[0]
-            obs_at_r500ref = np.interp(r500ref, self.catalog['Mg'][dataID][0,nonzero], self.catalog['Mg'][dataID][1,nonzero])
-            if obsname=='Yx':
-                obs_at_r500ref*= 1e-14*self.catalog['Tx'][dataID]
-            obsFid = obsArr * obsmeas/obs_at_r500ref
-            # X-ray observable at rFid, corrected to reference cosmology
-            obsArr = obsFid * (dAref/dA)**2.5
+            # Xray observable at fiducial r500...
+            obsArr*= (self.catalog['r500'][dataID]/r500ref)**self.scaling['dlnMg_dlnr']
+            # ... corrected to reference cosmology
+            obsArr*= (dAref/dA)**2.5
 
         lnobsArr = np.log(obsArr)
 
@@ -529,14 +526,10 @@ class MassCalibration:
                 r500 = 1000 * (3*M_obsArr/(4*np.pi*500*rho_c_z))**(1/3) / self.cosmology['h']
                 # r500 in reference cosmology [kpc]
                 r500ref = r500 * dAref/dA
-                # Xray observable at rFid
-                nonzero = np.nonzero(self.catalog['Mg'][dataID][0])[0]
-                obs_at_r500ref = np.interp(r500ref, self.catalog['Mg'][dataID][0,nonzero], self.catalog['Mg'][dataID][1,nonzero])
-                if obsnames[i]=='Yx':
-                    obs_at_r500ref*= 1e-14*self.catalog['Tx'][dataID]
-                obsFid = obsArrTemp * obsmeas[i]/obs_at_r500ref
-                # X-ray observable at rFid, corrected to reference cosmology
-                obsArrTemp = obsFid * (dAref/dA)**2.5
+                # Xray observable at rFid...
+                obsArrTemp*= (self.catalog['r500'][dataID]/r500ref)**self.scaling['dlnMg_dlnr']
+                # ... corrected to reference cosmology
+                obsArrTemp*= (dAref/dA)**2.5
             obsArr.append( obsArrTemp )
             lnobsArr.append( np.log(obsArrTemp) )
 
@@ -707,9 +700,9 @@ class MassCalibration:
         if name=='zeta': return 1/self.scaling['Bsz']
         elif name=='richness': return 1/self.scaling['Brichness']
         elif name=='Yx':
-            if self.YXPARAM=='SPT_XVP': return self.scaling['Bx']
-            elif self.YXPARAM=='Munich': return 1/self.scaling['Bx']
-        elif name=='Mgas': return 1/self.scaling['Bx']
+            if self.YXPARAM=='SPT_XVP': return 1/(1/self.scaling['Bx'] - self.scaling['dlnMg_dlnr']/3)
+            elif self.YXPARAM=='Munich': return 1/(self.scaling['Bx'] - self.scaling['dlnMg_dlnr']/3)
+        elif name=='Mgas': return 1/(self.scaling['Bx'] - self.scaling['dlnMg_dlnr']/3)
         elif (name=='WLMegacam')|(name=='WLHST')|(name=='WLDES'): return 1.
         elif name=='disp':
             dlnM = np.log(1.01)
