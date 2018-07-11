@@ -21,14 +21,14 @@ WLcalibration = {
     'HSTzDistErr': .04,
     # Megacam
     'MegacamSim': (.938, .028, .214, .04),
-    'MegacamMcErr': .03,
+    'MegacamMcErr': .015,
     'MegacamCenterErr': .03,
     'MegacamShearErr': .025,
-    'MegacamzDistErr': .02,
+    'MegacamzDistErr': .012,
     'MegacamContamCorr': .009,
     # DES
     'DESsim': (.938, .028, .214, .04),
-    'DESmcErr': .03,
+    'DESmcErr': .015,
     'DEScenterErr': .03,
     'DESshearErr': .025,
     'DESzDistErr': .02,
