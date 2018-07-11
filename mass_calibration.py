@@ -312,9 +312,13 @@ class MassCalibration:
         obsthminmax = np.exp(np.array([lnobs0-5.*intrscatter, lnobs0+3.5*intrscatter]))
         M_obsth_minmax = self.obs2mass(obsname, obsthminmax, self.catalog['redshift'][dataID])
         # obs: measurement
-        if obsname=='richness': lnobsmeasminmax = np.log(np.amin((.1,obsmeas-3*obserr))), np.log(obsmeas+3*obserr)
-        else: lnobsmeasminmax = np.log(obsmeas)-4*obserr, np.log(obsmeas)+3*obserr
-        M_obsmeas_minmax = self.obs2mass(obsname, np.exp(np.array(lnobsmeasminmax)), self.catalog['redshift'][dataID])
+        if obsname=='richness':
+            obsmeasminmax = np.amin((.1,obsmeas-3*obserr)), obsmeas+3*obserr
+        elif obsname in ('Mgas', 'Yx'):
+            obsmeasminmax = obsmeas-3*obserr, obsmeas+3*obserr
+        else:
+            obsmeasminmax = np.exp(np.log(obsmeas)-4*obserr), np.exp(np.log(obsmeas)+3*obserr)
+        M_obsmeas_minmax = self.obs2mass(obsname, np.array(obsmeasminmax), self.catalog['redshift'][dataID])
 
         ##### Define grid in mass
         Mmin, Mmax = min(M_xi_minmax[0], M_obsth_minmax[0], M_obsmeas_minmax[0]), max(M_xi_minmax[1], M_obsth_minmax[1], M_obsmeas_minmax[1])
@@ -496,8 +500,12 @@ class MassCalibration:
             intrscatter = (SZscatterobs**2 + obsintr[i]**2)**.5
             obsthminmax = np.exp(np.array((lnobs0-5*intrscatter, lnobs0+3.5*intrscatter)))
             # obs: measurement
-            if obsnames[i]=='richness': obsmeasminmax = np.amin((.1,obsmeas[i]-3*obserr[i])), obsmeas[i]+3*obserr[i]
-            else: obsmeasminmax = np.exp(np.log(obsmeas[i])-4*obserr[i]), np.exp(np.log(obsmeas[i])+3*obserr[i])
+            if obsnames[i]=='richness':
+                obsmeasminmax = np.amin((.1,obsmeas[i]-3*obserr[i])), obsmeas[i]+3*obserr[i]
+            elif obsnames[i] in ('Mgas', 'Yx'):
+                obsmeasminmax = obsmeas[i]-3*obserr[i], obsmeas[i]+3*obserr[i]
+            else:
+                obsmeasminmax = np.exp(np.log(obsmeas[i])-4*obserr[i]), np.exp(np.log(obsmeas[i])+3*obserr[i])
             # put together
             obsminmax = np.array((min(obsthminmax[0],obsmeasminmax[0]), max(obsthminmax[1],obsmeasminmax[1])))
             M_obsminmax.append(self.obs2mass(obsnames[i], obsminmax, self.catalog['redshift'][dataID]))
