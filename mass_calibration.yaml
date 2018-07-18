@@ -26,7 +26,6 @@ params:
   richmPivot: (float) pivot point of richness mor relation [Msun/h]
   YXPARAM: (string) form of the X-ray scaling relation (`SPT_XVP`, `Munich`,
   or `WtG`)
-  Xdata: (string) X-ray data reduction (`SPT_XVP`, `WtG`)
   mcType: (string) `Duffy08` or `DK15`
   surveyCutSZ: (list of two float) lower and upper limit in xi
   surveyCutRedshift: (list of two float) lower and upper limit in redshift
