@@ -3,16 +3,10 @@ import numpy as np
 import scipy.integrate
 
 DIST_H = 2997.92458
-
-#G = 6.67408e-11
-#pc_m = 3.0857e16
-#Msun = 1.98855e30
-#H = 100e3/pc_m/1e6
-# 3*H**2/8/np.pi/G/Msun*pc_m**3*1e18
 RHOCRIT = 2.77528233987e11
 
 def Ez(z, cosmology):
-    """Return the growth factor."""
+    """Return the dimensionless Hubble parameter."""
     return (cosmology['Omega_m']*(1+z)**3 + cosmology['Omega_l']*(1+z)**(3*(1+cosmology['w0']+cosmology['wa']))*np.exp(-3*cosmology['wa']*z/(1+z)))**.5
 
 def Omega_m_z(z, cosmology):
