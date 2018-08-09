@@ -287,13 +287,13 @@ class MassCalibration:
         elif obsname=='richness':
             obsmeas, obserr, obsintr = self.catalog['richness'][dataID], self.catalog['richness_err'][dataID], (self.scaling['Drichness']**2 + 1/((1-self.scaling['Drichness'])*self.catalog['richness'][dataID]))**.5
         elif obsname=='WLMegacam':
-            LSSnoise = self.scaling['MegacamScatterLSS']
+            LSSnoise = self.WLcalib['Megacam_LSS'][0] + self.scaling['MegacamScatterLSS'] * self.WLcalib['Megacam_LSS'][1]
             obsmeas, obserr, obsintr = .8*self.scaling['bWL_Megacam']*self.obs2mass('zeta', self.xi2zeta(self.catalog['xi'][dataID]), self.catalog['redshift'][dataID]), .3, self.scaling['DWL_Megacam']
         elif obsname=='WLHST':
-            LSSnoise = self.scaling['HSTscatterLSS']
+            LSSnoise = self.WLcalib['HST_LSS'][0] + self.scaling['HSTscatterLSS'] * self.WLcalib['HST_LSS'][1]
             obsmeas, obserr, obsintr = .8*self.scaling['bWL_HST']*self.obs2mass('zeta', self.xi2zeta(self.catalog['xi'][dataID]), self.catalog['redshift'][dataID]), .3, self.scaling['DWL_HST']
         elif obsname=='WLDES':
-            LSSnoise = self.scaling['DESscatterLSS']
+            LSSnoise = self.WLcalib['DES_LSS'][0] + self.scaling['DESscatterLSS'] * self.WLcalib['DES_LSS'][1]
             obsmeas, obserr, obsintr = .8*self.scaling['bWL_DES']*self.obs2mass('zeta', self.xi2zeta(self.catalog['xi'][dataID]), self.catalog['redshift'][dataID]), .3, self.scaling['DWL_DES']
 
         ##### Define reasonable mass range
@@ -463,13 +463,13 @@ class MassCalibration:
             elif obsnames[i]=='richness':
                 obsmeas[i], obserr[i], obsintr[i] = self.catalog['richness'][dataID], self.catalog['richness_err'][dataID], (self.scaling['Drichness']**2 + 1/((1-self.scaling['Drichness'])*self.catalog['richness'][dataID]))**.5
             elif obsnames[i]=='WLMegacam':
-                LSSnoise = self.scaling['MegacamScatterLSS']
+                LSSnoise = self.WLcalib['Megacam_LSS'][0] + self.scaling['MegacamScatterLSS'] * self.WLcalib['Megacam_LSS'][1]
                 obsmeas[i], obserr[i], obsintr[i] = .8*self.scaling['bWL_Megacam']*self.obs2mass('zeta', self.xi2zeta(self.catalog['xi'][dataID]), self.catalog['redshift'][dataID]), .3, self.scaling['DWL_Megacam']
             elif obsnames[i]=='WLHST':
-                LSSnoise = self.scaling['HSTscatterLSS']
+                LSSnoise = self.WLcalib['HST_LSS'][0] + self.scaling['HSTscatterLSS'] * self.WLcalib['HST_LSS'][1]
                 obsmeas[i], obserr[i], obsintr[i] = .8*self.scaling['bWL_HST']*self.obs2mass('zeta', self.xi2zeta(self.catalog['xi'][dataID]), self.catalog['redshift'][dataID]), .3, self.scaling['DWL_HST']
             elif obsnames[i]=='WLDES':
-                LSSnoise = self.scaling['DESscatterLSS']
+                LSSnoise = self.WLcalib['DES_LSS'][0] + self.scaling['DESscatterLSS'] * self.WLcalib['DES_LSS'][1]
                 obsmeas[i], obserr[i], obsintr[i] = .8*self.scaling['bWL_DES']*self.obs2mass('zeta', self.xi2zeta(self.catalog['xi'][dataID]), self.catalog['redshift'][dataID]), .3, self.scaling['DWL_DES']
 
         ##### Special case for dispersions
