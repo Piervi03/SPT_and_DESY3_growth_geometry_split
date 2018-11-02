@@ -19,6 +19,7 @@ WLcalibration = {
     'HSTcenterErr': .04,
     'HSTshearErr': .06,
     'HSTzDistErr': .04,
+    'HST_LSS': (5.6e13, 7e12),
     # Megacam
     'MegacamSim': (.938, .028, .214, .04),
     'MegacamMcErr': .015,
@@ -26,11 +27,13 @@ WLcalibration = {
     'MegacamShearErr': .025,
     'MegacamzDistErr': .012,
     'MegacamContamCorr': .009,
+    'Megacam_LSS': (6.3e13, 7e12),
     # DES
     'DESsim': (.938, .028, .214, .04),
     'DESmcErr': .015,
     'DEScenterErr': .03,
     'DESshearErr': .025,
     'DESzDistErr': .02,
-    'DEScontamCorr': .009
+    'DEScontamCorr': .009,
+    'DES_LSS': (6.3e13, 7e12)
 }
