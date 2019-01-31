@@ -23,17 +23,14 @@ class NumberCount:
         self.SZmPivot = options.get_double(option_section, 'SZmPivot')
         self.surveyCutSZ = options.get_double_array_1d(option_section, 'surveyCutSZ')
         self.surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
-        ##### SPT survey
-        SPTdatafile = options.get_string(option_section, 'SPTdatafile')
-        SPTdata = imp.load_source('SPTdata', SPTdatafile)
+        # SPT survey
+        SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
+        assert os.path.isfile(SPT_survey_fields), "SPT survey table does not exist"
+        self.SPT_survey = Table.read(SPT_survey_fields)
+        # Cluster catalog
         SPTcatalogfile = options.get_string(option_section, 'SPTcatalogfile')
         assert os.path.isfile(SPTcatalogfile), "SPT catalog file does not exist"
         self.catalog = Table.read(SPTcatalogfile)
-        self.SPTfieldNames = SPTdata.SPTfieldNames
-        self.SPTfieldCorrection = SPTdata.SPTfieldCorrection
-        self.SPTfieldSize = SPTdata.SPTfieldSize
-        self.SPTnFalse_alpha = SPTdata.SPTnFalse_alpha
-        self.SPTnFalse_beta = SPTdata.SPTnFalse_beta
         ##### Various observable arrays
         # Lin spaced for convo with unit scatter (+3 sigma margin)
         Nxi = int((self.surveyCutSZ[1]+3 - 2.7)/.1 + 1)
@@ -115,7 +112,7 @@ class NumberCount:
                 self.dN_dlnzeta_unitSolidAng[i] = np.trapz(integrand, lnzetaArr, axis=1)
 
         ##### Evaluate (log)-likelihood for each SPT field (optional multiprocessing)
-        num_fields = len(self.SPTfieldNames)
+        num_fields = len(self.SPT_survey)
         if self.NPROC==0:
             field_results = [self.lnlike_field(fieldidx) for fieldidx in range(num_fields)]
         else:
@@ -136,7 +133,7 @@ class NumberCount:
     def lnlike_field(self, fieldidx):
         """Returns (ln-likelihood, Ntotal) for a given SPT field (index)."""
         # dN/dln(zeta)
-        dN_dlnzeta = self.dN_dlnzeta_unitSolidAng * self.SPTfieldSize[fieldidx] * (np.pi/180)**2
+        dN_dlnzeta = self.dN_dlnzeta_unitSolidAng * self.SPT_survey['area'][fieldidx] * (np.pi/180)**2
         if np.any(dN_dlnzeta==0):
             dN_dlnzeta[np.where(dN_dlnzeta==0)] = np.nextafter(0, 1)
 
@@ -144,7 +141,7 @@ class NumberCount:
         zeta_m = self.mass2zeta(self.HMF['M_arr'], self.HMF['z_arr'])
 
         # Apply field scaling factor
-        zeta_m*= self.SPTfieldCorrection[fieldidx]
+        zeta_m*= self.SPT_survey['gamma'][fieldidx]
 
         # dN/dxi = dN/dlnzeta dlnzeta/dxi (unconvolved)
         # Unfortunately, the zeta_m table is not regular
@@ -172,7 +169,7 @@ class NumberCount:
         lnlike_this_field = -Ntotal
 
         ##### confirmed clusters
-        thisfield_conf = np.where((self.catalog['field']==self.SPTfieldNames[fieldidx])
+        thisfield_conf = np.where((self.catalog['field']==self.SPT_survey['field'][fieldidx])
             & (self.catalog['xi']>=self.surveyCutSZ[0]) & (self.catalog['xi']<=self.surveyCutSZ[1])
             & (self.catalog['redshift']>=self.surveyCutRedshift[0]) & (self.catalog['redshift']<=self.surveyCutRedshift[1]))[0]
         for i in thisfield_conf:
@@ -190,13 +187,13 @@ class NumberCount:
                 lnlike_this_field+= this_lnlike
 
         ##### unconfirmed candidates
-        thisfield_unconf = np.where((self.catalog['field']==self.SPTfieldNames[fieldidx])
+        thisfield_unconf = np.where((self.catalog['field']==self.SPT_survey['field'][fieldidx])
             & (self.catalog['xi']>=self.surveyCutSZ[0]) & (self.catalog['xi']<=self.surveyCutSZ[1])
             & (self.catalog['redshift']==0.) & (self.catalog['redshift_lim']<=self.surveyCutRedshift[1]))[0]
         for i in thisfield_unconf:
             # If it's a false detection, it's drawn from dN_false/dxi
-            dNdxifalse = self.SPTnFalse_beta[fieldidx] * self.SPTfieldSize[fieldidx]/2500 * self.SPTnFalse_alpha[fieldidx]\
-                * np.exp(-self.SPTnFalse_beta[fieldidx]*(self.catalog['xi'][i]-5.))
+            dNdxifalse = self.SPT_survey['beta'][fieldidx] * self.SPT_survey['area'][fieldidx]/2500 * self.SPT_survey['alpha'][fieldidx]\
+                * np.exp(-self.SPT_survey['beta'][fieldidx]*(self.catalog['xi'][i]-5.))
             # If it's a true, unconfirmed cluster, it's drawn from \int_redshift_lim^inf dz dN/dxi/dz
             zarr = np.linspace(self.catalog['redshift_lim'][i], self.HMF['z_arr'][-1], 25)
             dNdxitrue = np.trapz(np.exp(lndNdxi(np.log(zarr), np.log(self.catalog['xi'][i])))[:,0], zarr)

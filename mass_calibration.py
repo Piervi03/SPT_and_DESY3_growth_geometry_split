@@ -42,17 +42,18 @@ class MassCalibration:
         self.surveyCutSZ = options.get_double_array_1d(option_section, 'surveyCutSZ')
         self.surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
         self.NPROC = options.get_int(option_section, 'NPROC')
-        ##### SPT survey
-        # Data
-        SPTdatafile = options.get_string(option_section, 'SPTdatafile')
-        SPTdata = imp.load_source('SPTdata', SPTdatafile)
+        # SPT survey
+        SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
+        assert os.path.isfile(SPT_survey_fields), "SPT survey table does not exist"
+        self.SPT_survey = Table.read(SPT_survey_fields)
+        # Double counted clusters
+        SPT_doublecounts = options.get_string(option_section, 'SPT_doublecounts')
+        SPTdata = imp.load_source('SPTdata', SPT_doublecounts)
+        self.SPTdoubleCount = SPTdata.SPTdoubleCount
+        # Cluster catalog
         SPTcatalogfile = options.get_string(option_section, 'SPTcatalogfile')
         assert os.path.isfile(SPTcatalogfile), "SPT catalog file does not exist"
         self.catalog = Table.read(SPTcatalogfile)
-        # Survey specs
-        self.SPTfieldNames = SPTdata.SPTfieldNames
-        self.SPTfieldCorrection = SPTdata.SPTfieldCorrection
-        self.SPTdoubleCount = SPTdata.SPTdoubleCount
         ##### WL simulation calibration
         WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
         WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
@@ -227,7 +228,7 @@ class MassCalibration:
             return 1.
 
         ##### Set SPT field scaling factor
-        self.thisSPTfieldCorrection = self.SPTfieldCorrection[self.SPTfieldNames.index(self.catalog['field'][i])]
+        self.thisSPT_survey['gamma'] = self.SPT_survey['gamma'][self.SPT_survey['field'].index(self.catalog['field'][i])]
 
         #####
         if nobs==1:
@@ -629,7 +630,7 @@ class MassCalibration:
     def obs2mass(self, name, obs, z):
         """Returns mass given (observable, z) using scaling relation."""
         if name=='zeta':
-            Asz = self.thisSPTfieldCorrection * self.scaling['Asz']
+            Asz = self.thisSPT_survey['gamma'] * self.scaling['Asz']
             lnM = np.log(self.SZmPivot) + (np.log(obs) - np.log(Asz)\
                 - self.scaling['Csz']*np.log(cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology)))/(self.scaling['Bsz']\
                 + self.scaling['Esz']*np.log(cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology)))
@@ -666,7 +667,7 @@ class MassCalibration:
     def mass2obs(self, name, mass, z):
         """Returns observable given (mass, z) using scaling relation."""
         if name=='zeta':
-            lnzeta = np.log(self.scaling['Asz']*self.thisSPTfieldCorrection)\
+            lnzeta = np.log(self.scaling['Asz']*self.thisSPT_survey['gamma'])\
                 + self.scaling['Bsz'] * np.log(mass/self.SZmPivot)\
                 + self.scaling['Csz'] * np.log(cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology))\
                 + self.scaling['Esz'] * np.log(mass/self.SZmPivot)*np.log(cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology))
