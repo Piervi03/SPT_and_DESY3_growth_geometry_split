@@ -26,7 +26,7 @@ class NumberCount:
         # SPT survey
         SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
         assert os.path.isfile(SPT_survey_fields), "SPT survey table does not exist"
-        self.SPT_survey = Table.read(SPT_survey_fields)
+        self.SPT_survey = Table.read(SPT_survey_fields, format='ascii.commented_header')
         # Cluster catalog
         SPTcatalogfile = options.get_string(option_section, 'SPTcatalogfile')
         assert os.path.isfile(SPTcatalogfile), "SPT catalog file does not exist"

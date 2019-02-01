@@ -45,7 +45,7 @@ class MassCalibration:
         # SPT survey
         SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
         assert os.path.isfile(SPT_survey_fields), "SPT survey table does not exist"
-        self.SPT_survey = Table.read(SPT_survey_fields)
+        self.SPT_survey = Table.read(SPT_survey_fields, format='ascii.commented_header')
         # Double counted clusters
         SPT_doublecounts = options.get_string(option_section, 'SPT_doublecounts')
         SPTdata = imp.load_source('SPTdata', SPT_doublecounts)
@@ -228,7 +228,7 @@ class MassCalibration:
             return 1.
 
         ##### Set SPT field scaling factor
-        self.thisSPT_survey['gamma'] = self.SPT_survey['gamma'][self.SPT_survey['field'].index(self.catalog['field'][i])]
+        self.thisSPTfield_gamma = self.SPT_survey['gamma'][self.SPT_survey['field']==self.catalog['field'][i]]
 
         #####
         if nobs==1:
@@ -630,7 +630,7 @@ class MassCalibration:
     def obs2mass(self, name, obs, z):
         """Returns mass given (observable, z) using scaling relation."""
         if name=='zeta':
-            Asz = self.thisSPT_survey['gamma'] * self.scaling['Asz']
+            Asz = self.thisSPTfield_gamma * self.scaling['Asz']
             lnM = np.log(self.SZmPivot) + (np.log(obs) - np.log(Asz)\
                 - self.scaling['Csz']*np.log(cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology)))/(self.scaling['Bsz']\
                 + self.scaling['Esz']*np.log(cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology)))
@@ -667,7 +667,7 @@ class MassCalibration:
     def mass2obs(self, name, mass, z):
         """Returns observable given (mass, z) using scaling relation."""
         if name=='zeta':
-            lnzeta = np.log(self.scaling['Asz']*self.thisSPT_survey['gamma'])\
+            lnzeta = np.log(self.scaling['Asz']*self.thisSPTfield_gamma)\
                 + self.scaling['Bsz'] * np.log(mass/self.SZmPivot)\
                 + self.scaling['Csz'] * np.log(cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology))\
                 + self.scaling['Esz'] * np.log(mass/self.SZmPivot)*np.log(cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology))
