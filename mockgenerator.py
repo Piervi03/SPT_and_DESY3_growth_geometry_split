@@ -5,6 +5,7 @@ import sys
 import imp
 from scipy.interpolate import RectBivariateSpline
 from astropy.io import fits as pyfits
+from astropy.table import Table
 import pickle
 
 import cosmo, Mconversion_concentration
@@ -17,7 +18,7 @@ def main():
     # Input parameters and settings1
     configMod = imp.load_source('configMod', sys.argv[1])
     # SPT survey information
-    SPT_survey = Table.read('SPT_SZ_pol_survey.txt', format='ascii.commented_header')
+    SPT_survey = Table.read('data/SPT_survey.txt', format='ascii.commented_header')
     cosmology = configMod.cosmology
     scaling = configMod.scaling
     mcType = configMod.mcType
