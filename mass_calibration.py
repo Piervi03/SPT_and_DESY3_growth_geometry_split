@@ -102,6 +102,11 @@ class MassCalibration:
             'MegacamScatterLSS': block.get_double('mor_parameters', 'MegacamScatterLSS'),
             'DESbias': block.get_double('mor_parameters', 'DESbias'),
             'DESscatterLSS': block.get_double('mor_parameters', 'DESscatterLSS'),
+            # Richness
+            'Arichness': block.get_double('mor_parameters', 'Arichness'),
+            'Brichness': block.get_double('mor_parameters', 'Brichness'),
+            'Crichness': block.get_double('mor_parameters', 'Crichness'),
+            'Drichness': block.get_double('mor_parameters', 'Drichness'),
             # dispersion
             'Adisp': block.get_double('mor_parameters', 'Adisp'),
             'Bdisp': block.get_double('mor_parameters', 'Bdisp'),
@@ -112,6 +117,7 @@ class MassCalibration:
             'rhoSZWL': block.get_double('mor_parameters', 'rhoSZWL'),
             'rhoWLX': block.get_double('mor_parameters', 'rhoWLX'),
             'rhoSZX': block.get_double('mor_parameters', 'rhoSZX'),
+            'rhoSZrichness': block.get_double('mor_parameters', 'rhoSZrichness'),
             'rhoXdisp': block.get_double('mor_parameters', 'rhoXdisp'),
             'rhoSZdisp': block.get_double('mor_parameters', 'rhoSZdisp'),
             }
