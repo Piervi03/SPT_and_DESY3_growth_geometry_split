@@ -17,7 +17,7 @@ def main():
     # Input parameters and settings1
     configMod = imp.load_source('configMod', sys.argv[1])
     # SPT survey information
-    SPTdata = imp.load_source('SPTdata', configMod.SPTdatafile)
+    SPT_survey = Table.read('SPT_SZ_pol_survey.txt', format='ascii.commented_header')
     cosmology = configMod.cosmology
     scaling = configMod.scaling
     mcType = configMod.mcType
@@ -51,10 +51,10 @@ def main():
     dxi = xiArrEdge[1]-xiArrEdge[0]
 
 
-    for fieldidx,field in enumerate(SPTdata.SPTfieldNames):
-        mass2obs.thisSPTfieldCorrection = SPTdata.SPTfieldCorrection[SPTdata.SPTfieldNames.index(field)]
+    for fieldidx,field in enumerate(SPT_survey['field']):
+        mass2obs.thisSPTfieldCorrection = SPT_survey['gamma'][fieldidx]
 
-        massfunc = np.exp(HMF['dNdM_V'](np.log(z_arr), np.log(HMF['M_arr']))) * SPTdata.SPTfieldSize[fieldidx] * dz
+        massfunc = np.exp(HMF['dNdM_V'](np.log(z_arr), np.log(HMF['M_arr']))) * SPT_survey['area'][fieldidx] * dz
 
         # Poisson realization
         N = np.random.poisson(massfunc)
@@ -83,7 +83,7 @@ def main():
                             fieldnames.append(field)
 
         # False detections
-        dNdxiFalse = SPTdata.SPTnFalse_beta[fieldidx] * SPTdata.SPTfieldSize[fieldidx]/2500. * SPTdata.SPTnFalse_alpha[fieldidx] * np.exp(-SPTdata.SPTnFalse_beta[fieldidx]*(xiArrBin-5.)) * dxi
+        dNdxiFalse = SPT_survey['beta'][fieldidx] * SPT_survey['area'][fieldidx]/2500. * SPT_survey['alpha'][fieldidx] * np.exp(-SPT_survey['beta'][fieldidx]*(xiArrBin-5.)) * dxi
         for i in range(len(dNdxiFalse)):
             N = np.random.poisson(dNdxiFalse[i])
             for k in range(N):
