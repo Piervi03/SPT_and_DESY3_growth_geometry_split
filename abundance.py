@@ -133,7 +133,7 @@ class NumberCount:
     def lnlike_field(self, fieldidx):
         """Returns (ln-likelihood, Ntotal) for a given SPT field (index)."""
         # dN/dln(zeta)
-        dN_dlnzeta = self.dN_dlnzeta_unitSolidAng * self.SPT_survey['area'][fieldidx] * (np.pi/180)**2
+        dN_dlnzeta = self.dN_dlnzeta_unitSolidAng * self.SPT_survey['AREA'][fieldidx] * (np.pi/180)**2
         if np.any(dN_dlnzeta==0):
             dN_dlnzeta[np.where(dN_dlnzeta==0)] = np.nextafter(0, 1)
 
@@ -141,7 +141,7 @@ class NumberCount:
         zeta_m = self.mass2zeta(self.HMF['M_arr'], self.HMF['z_arr'])
 
         # Apply field scaling factor
-        zeta_m*= self.SPT_survey['gamma'][fieldidx]
+        zeta_m*= self.SPT_survey['GAMMA'][fieldidx]
 
         # dN/dxi = dN/dlnzeta dlnzeta/dxi (unconvolved)
         # Unfortunately, the zeta_m table is not regular
@@ -169,34 +169,34 @@ class NumberCount:
         lnlike_this_field = -Ntotal
 
         ##### confirmed clusters
-        thisfield_conf = np.where((self.catalog['field']==self.SPT_survey['field'][fieldidx])
-            & (self.catalog['xi']>=self.surveyCutSZ[0]) & (self.catalog['xi']<=self.surveyCutSZ[1])
-            & (self.catalog['redshift']>=self.surveyCutRedshift[0]) & (self.catalog['redshift']<=self.surveyCutRedshift[1]))[0]
+        thisfield_conf = np.where((self.catalog['FIELD']==self.SPT_survey['FIELD'][fieldidx])
+            & (self.catalog['XI']>=self.surveyCutSZ[0]) & (self.catalog['XI']<=self.surveyCutSZ[1])
+            & (self.catalog['REDSHIFT']>=self.surveyCutRedshift[0]) & (self.catalog['REDSHIFT']<=self.surveyCutRedshift[1]))[0]
         for i in thisfield_conf:
             # spec-z: Evaluate dN/dxi/dz at exact location
-            if self.catalog['redshift_err'][i]==0.:
-                this_lnlike = lndNdxi(np.log(self.catalog['redshift'][i]), np.log(self.catalog['xi'][i]))[0,0]
+            if self.catalog['REDSHIFT_UNC'][i]==0.:
+                this_lnlike = lndNdxi(np.log(self.catalog['REDSHIFT'][i]), np.log(self.catalog['XI'][i]))[0,0]
                 lnlike_this_field+= this_lnlike
             # photo-z: \int dz dN/dxi/dz, choose limits to encompass +/- 4 sigma of photo-z error
-            elif self.catalog['redshift_err'][i]>0.:
-                zlo = min((.25, self.catalog['redshift'][i]-4*self.catalog['redshift_err'][i]))
-                zhi = max((self.HMF['z_arr'][-1], self.catalog['redshift'][i]+4*self.catalog['redshift_err'][i]))
+            elif self.catalog['REDSHIFT_UNC'][i]>0.:
+                zlo = min((.25, self.catalog['REDSHIFT'][i]-4*self.catalog['REDSHIFT_UNC'][i]))
+                zhi = max((self.HMF['z_arr'][-1], self.catalog['REDSHIFT'][i]+4*self.catalog['REDSHIFT_UNC'][i]))
                 zarr = np.linspace(zlo, zhi, 15)
-                integrand = np.exp(lndNdxi(np.log(zarr), np.log(self.catalog['xi'][i])))[:,0] * norm.pdf(zarr, self.catalog['redshift'][i], self.catalog['redshift_err'][i])
+                integrand = np.exp(lndNdxi(np.log(zarr), np.log(self.catalog['XI'][i])))[:,0] * norm.pdf(zarr, self.catalog['REDSHIFT'][i], self.catalog['REDSHIFT_UNC'][i])
                 this_lnlike = np.log(np.trapz(integrand, zarr))
                 lnlike_this_field+= this_lnlike
 
         ##### unconfirmed candidates
-        thisfield_unconf = np.where((self.catalog['field']==self.SPT_survey['field'][fieldidx])
-            & (self.catalog['xi']>=self.surveyCutSZ[0]) & (self.catalog['xi']<=self.surveyCutSZ[1])
-            & (self.catalog['redshift']==0.) & (self.catalog['redshift_lim']<=self.surveyCutRedshift[1]))[0]
+        thisfield_unconf = np.where((self.catalog['FIELD']==self.SPT_survey['FIELD'][fieldidx])
+            & (self.catalog['XI']>=self.surveyCutSZ[0]) & (self.catalog['XI']<=self.surveyCutSZ[1])
+            & (self.catalog['REDSHIFT']==0.) & (self.catalog['REDSHIFT_LIMIT']<=self.surveyCutRedshift[1]))[0]
         for i in thisfield_unconf:
             # If it's a false detection, it's drawn from dN_false/dxi
-            dNdxifalse = self.SPT_survey['beta'][fieldidx] * self.SPT_survey['area'][fieldidx]/2500 * self.SPT_survey['alpha'][fieldidx]\
-                * np.exp(-self.SPT_survey['beta'][fieldidx]*(self.catalog['xi'][i]-5.))
+            dNdxifalse = self.SPT_survey['BETA'][fieldidx] * self.SPT_survey['AREA'][fieldidx]/2500 * self.SPT_survey['ALPHA'][fieldidx]\
+                * np.exp(-self.SPT_survey['BETA'][fieldidx]*(self.catalog['XI'][i]-5.))
             # If it's a true, unconfirmed cluster, it's drawn from \int_redshift_lim^inf dz dN/dxi/dz
-            zarr = np.linspace(self.catalog['redshift_lim'][i], self.HMF['z_arr'][-1], 25)
-            dNdxitrue = np.trapz(np.exp(lndNdxi(np.log(zarr), np.log(self.catalog['xi'][i])))[:,0], zarr)
+            zarr = np.linspace(self.catalog['REDSHIFT_LIMIT'][i], self.HMF['z_arr'][-1], 25)
+            dNdxitrue = np.trapz(np.exp(lndNdxi(np.log(zarr), np.log(self.catalog['XI'][i])))[:,0], zarr)
             # Either way, it's drawn from one of these
             this_lnlike = np.log(dNdxifalse + dNdxitrue)
             lnlike_this_field+= this_lnlike

@@ -194,8 +194,8 @@ class MassCalibration:
         name = self.catalog['SPT_ID'][i]
 
         ##### Do we actually want this guy? (some clusters in SPT-SZ are at field boundaries)
-        if (name,self.catalog['field'][i]) in self.SPTdoubleCount: return 1.
-        if not self.surveyCutSZ[0]<self.catalog['xi'][i]<self.surveyCutSZ[1] or not self.surveyCutRedshift[0]<self.catalog['redshift'][i]<self.surveyCutRedshift[1]: return 1
+        if (name,self.catalog['FIELD'][i]) in self.SPTdoubleCount: return 1.
+        if not self.surveyCutSZ[0]<self.catalog['XI'][i]<self.surveyCutSZ[1] or not self.surveyCutRedshift[0]<self.catalog['REDSHIFT'][i]<self.surveyCutRedshift[1]: return 1
 
         ##### Check if follow-up is available
         nobs = 0
@@ -234,7 +234,7 @@ class MassCalibration:
             return 1.
 
         ##### Set SPT field scaling factor
-        self.thisSPTfield_gamma = self.SPT_survey['gamma'][self.SPT_survey['field']==self.catalog['field'][i]]
+        self.thisSPTfield_gamma = self.SPT_survey['GAMMA'][self.SPT_survey['FIELD']==self.catalog['FIELD'][i]]
 
         #####
         if nobs==1:
@@ -295,29 +295,29 @@ class MassCalibration:
             obsmeas, obserr, obsintr = self.catalog['richness'][dataID], self.catalog['richness_err'][dataID], (self.scaling['Drichness']**2 + 1/((1-self.scaling['Drichness'])*self.catalog['richness'][dataID]))**.5
         elif obsname=='WLMegacam':
             LSSnoise = self.WLcalib['Megacam_LSS'][0] + self.scaling['MegacamScatterLSS'] * self.WLcalib['Megacam_LSS'][1]
-            obsmeas, obserr, obsintr = .8*self.scaling['bWL_Megacam']*self.obs2mass('zeta', self.xi2zeta(self.catalog['xi'][dataID]), self.catalog['redshift'][dataID]), .3, self.scaling['DWL_Megacam']
+            obsmeas, obserr, obsintr = .8*self.scaling['bWL_Megacam']*self.obs2mass('zeta', self.xi2zeta(self.catalog['XI'][dataID]), self.catalog['REDSHIFT'][dataID]), .3, self.scaling['DWL_Megacam']
         elif obsname=='WLHST':
             LSSnoise = self.WLcalib['HST_LSS'][0] + self.scaling['HSTscatterLSS'] * self.WLcalib['HST_LSS'][1]
-            obsmeas, obserr, obsintr = .8*self.scaling['bWL_HST']*self.obs2mass('zeta', self.xi2zeta(self.catalog['xi'][dataID]), self.catalog['redshift'][dataID]), .3, self.scaling['DWL_HST']
+            obsmeas, obserr, obsintr = .8*self.scaling['bWL_HST']*self.obs2mass('zeta', self.xi2zeta(self.catalog['XI'][dataID]), self.catalog['REDSHIFT'][dataID]), .3, self.scaling['DWL_HST']
         elif obsname=='WLDES':
             LSSnoise = self.WLcalib['DES_LSS'][0] + self.scaling['DESscatterLSS'] * self.WLcalib['DES_LSS'][1]
-            obsmeas, obserr, obsintr = .8*self.scaling['bWL_DES']*self.obs2mass('zeta', self.xi2zeta(self.catalog['xi'][dataID]), self.catalog['redshift'][dataID]), .3, self.scaling['DWL_DES']
+            obsmeas, obserr, obsintr = .8*self.scaling['bWL_DES']*self.obs2mass('zeta', self.xi2zeta(self.catalog['XI'][dataID]), self.catalog['REDSHIFT'][dataID]), .3, self.scaling['DWL_DES']
 
         ##### Define reasonable mass range
         # xi -> M(xi)
-        xi_minmax = np.array([max(2.6,self.catalog['xi'][dataID]-5), self.catalog['xi'][dataID]+3])
-        M_xi_minmax = self.obs2mass('zeta', self.xi2zeta(xi_minmax), self.catalog['redshift'][dataID])
+        xi_minmax = np.array([max(2.6,self.catalog['XI'][dataID]-5), self.catalog['XI'][dataID]+3])
+        M_xi_minmax = self.obs2mass('zeta', self.xi2zeta(xi_minmax), self.catalog['REDSHIFT'][dataID])
         if M_xi_minmax[0]>self.HMF['M_arr'][-1]:
             print "cluster mass exceeds HMF mass range", self.catalog['SPT_ID'][dataID],\
                 M_xi_minmax[0], self.HMF['M_arr'][-1]
             return 0
 
         # obs: prediction
-        lnobs0 = np.log(self.mass2obs(obsname, self.obs2mass('zeta', self.xi2zeta(self.catalog['xi'][dataID]), self.catalog['redshift'][dataID]), self.catalog['redshift'][dataID]))
-        SZscatterobs = self.dlnM_dlnobs('zeta') / self.dlnM_dlnobs(obsname, self.SZmPivot, self.catalog['redshift'][dataID]) * self.scaling['Dsz']
+        lnobs0 = np.log(self.mass2obs(obsname, self.obs2mass('zeta', self.xi2zeta(self.catalog['XI'][dataID]), self.catalog['REDSHIFT'][dataID]), self.catalog['REDSHIFT'][dataID]))
+        SZscatterobs = self.dlnM_dlnobs('zeta') / self.dlnM_dlnobs(obsname, self.SZmPivot, self.catalog['REDSHIFT'][dataID]) * self.scaling['Dsz']
         intrscatter = (SZscatterobs**2 + obsintr**2)**.5
         obsthminmax = np.exp(np.array([lnobs0-5.*intrscatter, lnobs0+3.5*intrscatter]))
-        M_obsth_minmax = self.obs2mass(obsname, obsthminmax, self.catalog['redshift'][dataID])
+        M_obsth_minmax = self.obs2mass(obsname, obsthminmax, self.catalog['REDSHIFT'][dataID])
         # obs: measurement
         if obsname=='richness':
             obsmeasminmax = np.amax((.1,obsmeas-3*obserr)), obsmeas+3*obserr
@@ -325,7 +325,7 @@ class MassCalibration:
             obsmeasminmax = np.amax((.1, obsmeas-3*obserr)), obsmeas+3*obserr
         else:
             obsmeasminmax = np.exp(np.log(obsmeas)-4*obserr), np.exp(np.log(obsmeas)+3*obserr)
-        M_obsmeas_minmax = self.obs2mass(obsname, np.array(obsmeasminmax), self.catalog['redshift'][dataID])
+        M_obsmeas_minmax = self.obs2mass(obsname, np.array(obsmeasminmax), self.catalog['REDSHIFT'][dataID])
 
         ##### Define grid in mass
         Mmin, Mmax = min(M_xi_minmax[0], M_obsth_minmax[0], M_obsmeas_minmax[0]), max(M_xi_minmax[1], M_obsth_minmax[1], M_obsmeas_minmax[1])
@@ -334,17 +334,17 @@ class MassCalibration:
         M_obsArr = np.logspace(np.log10(Mmin), np.log10(Mmax), lenObs)
 
         ##### Observable arrays
-        lnzeta_arr = np.log(self.mass2obs('zeta', M_obsArr, self.catalog['redshift'][dataID]))
+        lnzeta_arr = np.log(self.mass2obs('zeta', M_obsArr, self.catalog['REDSHIFT'][dataID]))
         xi_arr = self.zeta2xi(np.exp(lnzeta_arr))
-        obsArr = self.mass2obs(obsname, M_obsArr, self.catalog['redshift'][dataID])
+        obsArr = self.mass2obs(obsname, M_obsArr, self.catalog['REDSHIFT'][dataID])
 
         ##### Add radial dependence for X-ray observables
         if obsname in ('Mgas','Yx'):
             # Angular diameter distances in current and reference cosmology [Mpc]
-            dA = cosmo.dA(self.catalog['redshift'][dataID], self.cosmology)/self.cosmology['h']
-            dAref = cosmo.dA(self.catalog['redshift'][dataID], cosmologyRef)/cosmologyRef['h']
+            dA = cosmo.dA(self.catalog['REDSHIFT'][dataID], self.cosmology)/self.cosmology['h']
+            dAref = cosmo.dA(self.catalog['REDSHIFT'][dataID], cosmologyRef)/cosmologyRef['h']
             # R500 [kpc]
-            rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.catalog['redshift'][dataID], self.cosmology)**2
+            rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.catalog['REDSHIFT'][dataID], self.cosmology)**2
             r500 = 1000 * (3*M_obsArr/(4*np.pi*500*rho_c_z))**(1/3) / self.cosmology['h']
             # r500 in reference cosmology [kpc]
             r500ref = r500 * dAref/dA
@@ -360,9 +360,9 @@ class MassCalibration:
 
         ##### Convert self.HMF to dN/(dlnzeta dlnobs) = dN/dlnM * dlnM/dlnzeta * dlnM/dlnobs
         # This only matter if dlnM/dlnobs is mass-dependent, as for dispersions
-        dN_dlnzeta_dlnobs = np.exp(self.HMF_interp(np.log(self.catalog['redshift'][dataID]), np.log(M_HMF_arr)))[0]
+        dN_dlnzeta_dlnobs = np.exp(self.HMF_interp(np.log(self.catalog['REDSHIFT'][dataID]), np.log(M_HMF_arr)))[0]
         if obsname=='disp':
-            dN_dlnzeta_dlnobs*= self.dlnM_dlnobs(obsname, M_HMF_arr, self.catalog['redshift'][dataID])
+            dN_dlnzeta_dlnobs*= self.dlnM_dlnobs(obsname, M_HMF_arr, self.catalog['REDSHIFT'][dataID])
 
         ##### HMF on 2D observable grid
         HMF_2d_in = np.zeros((lenObs, lenObs))
@@ -392,7 +392,7 @@ class MassCalibration:
         HMF_2d*= self.dlnzeta_dxi(xi_arr)[None,:]
 
         #### Convolve with xi measurement error [lnobs]
-        dP_dlnobs = np.trapz(HMF_2d * norm.pdf(self.catalog['xi'][dataID], xi_arr[None,:], 1.), xi_arr, axis=1)
+        dP_dlnobs = np.trapz(HMF_2d * norm.pdf(self.catalog['XI'][dataID], xi_arr[None,:], 1.), xi_arr, axis=1)
 
 
         ##### Evaluate likelihood
@@ -440,7 +440,7 @@ class MassCalibration:
                     dP_dobs_obs/= np.trapz(dP_dobs_obs,obsArr)
                     cumtrapz = integrate.cumtrapz(dP_dobs_obs,obsArr)
                     perc = np.interp(obsmeas, obsArr[1:], cumtrapz)
-                    print self.catalog['SPT_ID'][dataID], '%.4f %.4f %.4f %.4e'%(self.catalog['xi'][dataID], self.catalog['redshift'][dataID], obsmeas, 2**.5 * ss.erfinv(2*perc-1))
+                    print self.catalog['SPT_ID'][dataID], '%.4f %.4f %.4f %.4e'%(self.catalog['XI'][dataID], self.catalog['REDSHIFT'][dataID], obsmeas, 2**.5 * ss.erfinv(2*perc-1))
 
         if ((likeli<0)|(np.isnan(likeli))):
             print self.catalog['SPT_ID'][dataID], obsname, likeli
@@ -471,13 +471,13 @@ class MassCalibration:
                 obsmeas[i], obserr[i], obsintr[i] = self.catalog['richness'][dataID], self.catalog['richness_err'][dataID], (self.scaling['Drichness']**2 + 1/((1-self.scaling['Drichness'])*self.catalog['richness'][dataID]))**.5
             elif obsnames[i]=='WLMegacam':
                 LSSnoise = self.WLcalib['Megacam_LSS'][0] + self.scaling['MegacamScatterLSS'] * self.WLcalib['Megacam_LSS'][1]
-                obsmeas[i], obserr[i], obsintr[i] = .8*self.scaling['bWL_Megacam']*self.obs2mass('zeta', self.xi2zeta(self.catalog['xi'][dataID]), self.catalog['redshift'][dataID]), .3, self.scaling['DWL_Megacam']
+                obsmeas[i], obserr[i], obsintr[i] = .8*self.scaling['bWL_Megacam']*self.obs2mass('zeta', self.xi2zeta(self.catalog['XI'][dataID]), self.catalog['REDSHIFT'][dataID]), .3, self.scaling['DWL_Megacam']
             elif obsnames[i]=='WLHST':
                 LSSnoise = self.WLcalib['HST_LSS'][0] + self.scaling['HSTscatterLSS'] * self.WLcalib['HST_LSS'][1]
-                obsmeas[i], obserr[i], obsintr[i] = .8*self.scaling['bWL_HST']*self.obs2mass('zeta', self.xi2zeta(self.catalog['xi'][dataID]), self.catalog['redshift'][dataID]), .3, self.scaling['DWL_HST']
+                obsmeas[i], obserr[i], obsintr[i] = .8*self.scaling['bWL_HST']*self.obs2mass('zeta', self.xi2zeta(self.catalog['XI'][dataID]), self.catalog['REDSHIFT'][dataID]), .3, self.scaling['DWL_HST']
             elif obsnames[i]=='WLDES':
                 LSSnoise = self.WLcalib['DES_LSS'][0] + self.scaling['DESscatterLSS'] * self.WLcalib['DES_LSS'][1]
-                obsmeas[i], obserr[i], obsintr[i] = .8*self.scaling['bWL_DES']*self.obs2mass('zeta', self.xi2zeta(self.catalog['xi'][dataID]), self.catalog['redshift'][dataID]), .3, self.scaling['DWL_DES']
+                obsmeas[i], obserr[i], obsintr[i] = .8*self.scaling['bWL_DES']*self.obs2mass('zeta', self.xi2zeta(self.catalog['XI'][dataID]), self.catalog['REDSHIFT'][dataID]), .3, self.scaling['DWL_DES']
 
         ##### Special case for dispersions
         if ('Yx' in obsnames) and ('disp' in obsnames):
@@ -491,8 +491,8 @@ class MassCalibration:
 
         ##### Define reasonable mass range
         # xi -> M(xi)
-        xi_minmax = np.array((np.amax((2.6,self.catalog['xi'][dataID]-5)), self.catalog['xi'][dataID]+3))
-        M_xi_minmax = self.obs2mass('zeta', self.xi2zeta(xi_minmax), self.catalog['redshift'][dataID])
+        xi_minmax = np.array((np.amax((2.6,self.catalog['XI'][dataID]-5)), self.catalog['XI'][dataID]+3))
+        M_xi_minmax = self.obs2mass('zeta', self.xi2zeta(xi_minmax), self.catalog['REDSHIFT'][dataID])
         if M_xi_minmax[0]>self.HMF['M_arr'][-1]:
             print "cluster mass exceeds HMF mass range", self.catalog['SPT_ID'][dataID],\
                 M_xi_minmax[0], self.HMF['M_arr'][-1]
@@ -501,7 +501,7 @@ class MassCalibration:
         M_obsminmax = []
         for i in range(2):
             # obs: prediction
-            lnobs0 = np.log(self.mass2obs(obsnames[i], self.obs2mass('zeta', self.xi2zeta(self.catalog['xi'][dataID]), self.catalog['redshift'][dataID]), self.catalog['redshift'][dataID]))
+            lnobs0 = np.log(self.mass2obs(obsnames[i], self.obs2mass('zeta', self.xi2zeta(self.catalog['XI'][dataID]), self.catalog['REDSHIFT'][dataID]), self.catalog['REDSHIFT'][dataID]))
             if obsnames[i]=='disp': SZscatterobs = self.dlnM_dlnobs('zeta')/3.*self.scaling['Dsz']
             else: SZscatterobs = self.dlnM_dlnobs('zeta')/self.dlnM_dlnobs(obsnames[i])*self.scaling['Dsz']
             intrscatter = (SZscatterobs**2 + obsintr[i]**2)**.5
@@ -515,7 +515,7 @@ class MassCalibration:
                 obsmeasminmax = np.exp(np.log(obsmeas[i])-4*obserr[i]), np.exp(np.log(obsmeas[i])+3*obserr[i])
             # put together
             obsminmax = np.array((min(obsthminmax[0],obsmeasminmax[0]), max(obsthminmax[1],obsmeasminmax[1])))
-            M_obsminmax.append(self.obs2mass(obsnames[i], obsminmax, self.catalog['redshift'][dataID]))
+            M_obsminmax.append(self.obs2mass(obsnames[i], obsminmax, self.catalog['REDSHIFT'][dataID]))
 
         ##### Define grid in mass
         Mmin, Mmax = min(M_xi_minmax[0],M_obsminmax[0][0],M_obsminmax[1][0]), max(M_xi_minmax[1],M_obsminmax[0][1],M_obsminmax[1][1])
@@ -526,18 +526,18 @@ class MassCalibration:
 
 
         ##### Observable arrays
-        lnzeta_arr = np.log(self.mass2obs('zeta', M_obsArr, self.catalog['redshift'][dataID]))
+        lnzeta_arr = np.log(self.mass2obs('zeta', M_obsArr, self.catalog['REDSHIFT'][dataID]))
         xi_arr = self.zeta2xi(np.exp(lnzeta_arr))
         obsArr, lnobsArr = [], []
         for i in range(2):
-            obsArrTemp = self.mass2obs(obsnames[i], M_obsArr, self.catalog['redshift'][dataID])
+            obsArrTemp = self.mass2obs(obsnames[i], M_obsArr, self.catalog['REDSHIFT'][dataID])
             ##### Add radial dependence for X-ray observables
             if obsnames[i] in ('Mgas','Yx'):
                 # Angular diameter distances in current and reference cosmology [Mpc]
-                dA = cosmo.dA(self.catalog['redshift'][dataID], self.cosmology)/self.cosmology['h']
-                dAref = cosmo.dA(self.catalog['redshift'][dataID], cosmologyRef)/cosmologyRef['h']
+                dA = cosmo.dA(self.catalog['REDSHIFT'][dataID], self.cosmology)/self.cosmology['h']
+                dAref = cosmo.dA(self.catalog['REDSHIFT'][dataID], cosmologyRef)/cosmologyRef['h']
                 # R500 [kpc]
-                rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.catalog['redshift'][dataID], self.cosmology)**2
+                rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.catalog['REDSHIFT'][dataID], self.cosmology)**2
                 r500 = 1000 * (3*M_obsArr/(4*np.pi*500*rho_c_z))**(1/3) / self.cosmology['h']
                 # r500 in reference cosmology [kpc]
                 r500ref = r500 * dAref/dA
@@ -551,9 +551,9 @@ class MassCalibration:
 
         ##### HMF to dN/(dlnzeta dlnobs0 dlnobs1) = dN/dlnM * dlnM/dlnzeta * dlnM/dlnobs0 * dlnM/dlnobs1
         # This only matter if dlnM/dlnobs is mass-dependent, as for dispersions
-        dN_dlnzeta_dlnobs = np.exp(self.HMF_interp(np.log(self.catalog['redshift'][dataID]), np.log(M_HMF_arr)))[0]
+        dN_dlnzeta_dlnobs = np.exp(self.HMF_interp(np.log(self.catalog['REDSHIFT'][dataID]), np.log(M_HMF_arr)))[0]
         if 'disp' in obsnames:
-            dN_dlnzeta_dlnobs*= self.dlnM_dlnobs('disp', M_HMF_arr, self.catalog['redshift'][dataID])
+            dN_dlnzeta_dlnobs*= self.dlnM_dlnobs('disp', M_HMF_arr, self.catalog['REDSHIFT'][dataID])
 
         ##### HMF on 3D observable grid [lnobs0,lnobs1,lnzeta]
         HMF_3d_in = np.zeros((lenObs, lenObs, lenObs))
@@ -584,7 +584,7 @@ class MassCalibration:
         HMF_3d*= self.dlnzeta_dxi(xi_arr)[None,None,:]
 
         #### Convolve with xi measurement error [lnobs0][lnobs1]
-        dP_dlnobs = np.trapz(HMF_3d * norm.pdf(self.catalog['xi'][dataID], xi_arr[None,None,:], 1.), xi_arr, axis=2)
+        dP_dlnobs = np.trapz(HMF_3d * norm.pdf(self.catalog['XI'][dataID], xi_arr[None,None,:], 1.), xi_arr, axis=2)
 
         ##### Go to linear space [obs0][obs1]
         dP_dobs01 = dP_dlnobs/obsArr[0][:,None]/obsArr[1][None,:]
