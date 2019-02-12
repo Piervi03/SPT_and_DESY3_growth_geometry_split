@@ -1,4 +1,4 @@
-# field area alpha beta gamma
+# FIELD AREA ALPHA BETA GAMMA
 ra0h50dec-50 156.243 20.76 5.11 1.1357954
 ra1hdec-42.5 108.625 18.41 5.55 1.1916442
 ra1hdec-60 145.888 17.25 4.38 1.1754438
