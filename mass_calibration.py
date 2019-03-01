@@ -13,10 +13,12 @@ from scipy.stats import multivariate_normal
 from astropy.table import Table
 
 from cosmosis.datablock import option_section
-import cosmo, lensing, Mconversion_concentration, observablecovmat, scaling_relations
+import cosmo, lensing, Mconversion_concentration, scaling_relations
 
 cosmologyRef = {'Omega_m':.272, 'Omega_l':.728, 'h':.702, 'w0':-1, 'wa':0}
 getpull = False
+
+THRESHOLD = 1e-8
 
 # Because multiprocessing within classes doesn't really work...
 def unwrap_self_f(arg):
@@ -83,7 +85,7 @@ class MassCalibration:
         for p in ['Ax', 'Bx', 'Cx', 'Dx', 'Ex', 'dlnMg_dlnr']:
             self.scaling[p] = block.get_double('mor_parameters', p)
         # WL
-        for p in ['WLbias', 'WLscatter', 'HSTbias', 'HSTscatterLSS', 'MegacamBias', 'MegacamScatterLSS', 'DESbias', 'DESscatterLSS']:
+        for p in ['WLbias', 'WLscatter', 'HSTbias', 'HSTscatterLSS', 'MegacamScatterLSS', 'DESscatterLSS']:
             self.scaling[p] = block.get_double('mor_parameters', p)
         # Richness
         for p in ['Arichness', 'Brichness', 'Crichness', 'Drichness']:
@@ -92,8 +94,12 @@ class MassCalibration:
         for p in ['Adisp', 'Bdisp', 'Cdisp', 'Ddisp0', 'DdispN']:
             self.scaling[p] = block.get_double('mor_parameters', p)
         # Correlation coefficients
-        for p in ['rhoSZWL', 'rhoSZX', 'rhoWLX', 'rhoSZrichness', 'rhoXdisp', 'rhoSZdisp']:
+        for p in ['rhoSZWL', 'rhoWLX', 'rhoXdisp']:
             self.scaling[p] = block.get_double('mor_parameters', p)
+        # Covariance matrices
+        self.covmat = {}
+        for c in ['cov_X_SZ', 'cov_Megacam_SZ', 'cov_DES_SZ', 'cov_rich_SZ', 'cov_Megacam_X_SZ', 'cov_DES_X_SZ']:
+            self.covmat[c] = block.get_double_array_nd('scaling', c)
 
         # Halo mass function
         self.HMF = {
@@ -104,9 +110,6 @@ class MassCalibration:
 
         ##### Setup stuff for WL
         if self.todo['WL']:
-            # Set bias and scatter for Megacam and DES from sim calibration
-            # and nuissance parameters
-            self.WL.set_scaling(self.scaling)
             # Precompute array of angular diameter distances
             self.WL.get_dAs(self.cosmology)
 
@@ -186,12 +189,12 @@ class MassCalibration:
                 # bias = bSim + bMassModel + (bN(z)+bShearCal)
                 self.scaling['bWL_HST'] = self.WLcalib['HSTsim'][name][0] + self.scaling['WLbias']*self.catalog['WLdata'][i]['massModelErr'] + self.scaling['HSTbias']*self.catalog['WLdata'][i]['zDistShearErr']
                 # lognormal scatter
-                self.scaling['DWL_HST'] = self.WLcalib['HSTsim'][name][2]+self.scaling['WLscatter']*self.WLcalib['HSTsim'][name][3]
+                self.scaling['DWL_HST'] = self.WLcalib['HSTsim'][name][2] + self.scaling['WLscatter']*self.WLcalib['HSTsim'][name][3]
                 cov = [[self.scaling['DWL_HST']**2, self.scaling['rhoSZWL']*self.scaling['Dsz']*self.scaling['DWL_HST']],
                     [self.scaling['rhoSZWL']*self.scaling['Dsz']*self.scaling['DWL_HST'], self.scaling['Dsz']**2]]
-                if np.linalg.det(cov)<observablecovmat.THRESHOLD:
+                if np.linalg.det(cov)<THRESHOLD:
                     return 0.
-                self.covmat['WLHST'] = cov
+                self.covmat['cov_HST_SZ'] = cov
 
         if self.todo['veldisp'] and self.catalog['veldisp'][i]!=0.:
             nobs+= 1
@@ -213,29 +216,41 @@ class MassCalibration:
 
         #####
         if nobs==1:
-            probability = self.get_P_1obs_xi(obsnames[0], i)
+            if obsnames[0] in ('Yx', 'Mgas'):
+                covmat = self.covmat['cov_X_SZ']
+            elif obsnames[0]=='WLMegacam':
+                covmat = self.covmat['cov_Megacam_SZ']
+            elif obsnames[0]=='WLDES':
+                covmat = self.covmat['cov_DES_SZ']
+            elif obsnames[0]=='richness':
+                covmat = self.covmat['cov_rich_SZ']
+            elif obsnames[0]=='WLHST':
+                covmat = self.covmat['cov_HST_SZ']
+            probability = self.get_P_1obs_xi(obsnames[0], i, covmat)
 
         elif nobs==2:
             if 'disp' in obsnames:
                 if self.scaling['rhoXdisp']==0:
-                    probability = self.get_P_1obs_xi(obsnames[0], i)*self.get_P_1obs_xi(obsnames[1], i)
+                    probability = self.get_P_1obs_xi(obsnames[0], i) * self.get_P_1obs_xi(obsnames[1], i)
                 else:
                     probability = self.get_P_2obs_xi(obsnames[:2], i, 'Yxdisp')
             else:
-                if 'WLMegacam' in obsnames: covname = 'XrayMegacam'
-                elif 'WLDES' in obsnames: covname = 'XrayDES'
+                if 'WLMegacam' in obsnames:
+                    covmat = self.covmat['cov_Megacam_X_SZ']
+                elif 'WLDES' in obsnames:
+                    covmat = self.covmat['cov_DES_X_SZ']
                 elif 'WLHST' in obsnames:
-                    covname = 'XrayHST'
+                    covname = 'cov_HST_X_SZ'
                     cov = [[self.scaling['DWL_HST']**2, self.scaling['rhoWLX']*self.scaling['DWL_HST']*self.scaling['Dx'], self.scaling['rhoSZWL']*self.scaling['Dsz']*self.scaling['DWL_HST']],
                     [self.scaling['rhoWLX']*self.scaling['DWL_HST']*self.scaling['Dx'], self.scaling['Dx']**2, self.scaling['rhoSZX']*self.scaling['Dsz']*self.scaling['Dx']],
                     [self.scaling['rhoSZWL']*self.scaling['Dsz']*self.scaling['DWL_HST'], self.scaling['rhoSZX']*self.scaling['Dsz']*self.scaling['Dx'], self.scaling['Dsz']**2]]
-                    if np.linalg.det(cov)<observablecovmat.THRESHOLD:
+                    if np.linalg.det(cov)<THRESHOLD:
                         return 0.
-                    self.covmat[covname] = cov
+                    self.covmat[cov_HST_X_SZ] = cov
                 if self.scaling['rhoWLX']==0:
                     probability = self.get_P_1obs_xi(obsnames[0], i) * self.get_P_1obs_xi(obsnames[1], i)
                 else:
-                    probability = self.get_P_2obs_xi(obsnames[:2], i, covname)
+                    probability = self.get_P_2obs_xi(obsnames[:2], i, covmat)
 
         else:
             raise ValueError(name,"has",nobs,"follow-up observables. I don't know what to do!")
@@ -251,9 +266,8 @@ class MassCalibration:
 
 
     ############################################################################
-    def get_P_1obs_xi(self, obsname, dataID):
+    def get_P_1obs_xi(self, obsname, dataID, covmat):
         """Returns P(obs|xi,z,p) for a single type of follow-up data."""
-        covmat = self.covmat[obsname]
 
         ##### Get the follow-up observable, obsintr is used for setting up mass range
         if obsname=='Yx':
@@ -429,7 +443,7 @@ class MassCalibration:
 
 
     ############################################################################
-    def get_P_2obs_xi(self, obsnames, dataID, covname):
+    def get_P_2obs_xi(self, obsnames, dataID, covmat):
         """Returns P(obs1, obs2|xi,z,p) for two types of follow-up data (e.g.,
         WL and X-ray)."""
         ##### Get observables, obsintr is used for setting up mass range
@@ -460,8 +474,6 @@ class MassCalibration:
                 [self.scaling['rhoXdisp']*Dsigma*self.scaling['Dx'], self.scaling['Dx']**2, self.scaling['rhoSZX']*self.scaling['Dsz']*self.scaling['Dx']],
                 [self.scaling['rhoSZdisp']*self.scaling['Dsz']*Dsigma, self.scaling['rhoSZX']*self.scaling['Dsz']*self.scaling['Dx'], self.scaling['Dsz']**2]]
             covmat = cov
-        else:
-            covmat = self.covmat[covname]
 
 
         ##### Define reasonable mass range
