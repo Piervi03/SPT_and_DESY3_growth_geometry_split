@@ -10,6 +10,7 @@ from astropy.table import Table
 
 from cosmosis.datablock import option_section
 import cosmo
+import scaling_relations
 
 # Because multiprocessing within classes doesn't really work...
 def unwrap_self_f(arg):
@@ -20,9 +21,9 @@ class NumberCount:
     def __init__(self, options):
         ##### Global variables
         self.NPROC = options.get_int(option_section, 'NPROC')
-        self.SZmPivot = options.get_double(option_section, 'SZmPivot')
         self.surveyCutSZ = options.get_double_array_1d(option_section, 'surveyCutSZ')
         self.surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
+        self.scaling = {'SZmPivot': options.get_double(option_section, 'SZmPivot')}
         # SPT survey
         SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
         assert os.path.isfile(SPT_survey_fields), "SPT survey table does not exist"
@@ -37,9 +38,9 @@ class NumberCount:
         self.xi_bins = np.linspace(2.7, self.surveyCutSZ[1]+3, Nxi)
         self.dxi = self.xi_bins[1] - self.xi_bins[0]
         # ln(zeta(xi_bins))
-        self.ln_zeta_xi_arr = np.log(self.xi2zeta(self.xi_bins))
+        self.ln_zeta_xi_arr = np.log(scaling_relations.xi2zeta(self.xi_bins))
         # dlnzeta/dxi (xi_bins)
-        self.dlnzeta_dxi_arr = self.dlnzeta_dxi(self.xi_bins)
+        self.dlnzeta_dxi_arr = scaling_relations.dlnzeta_dxi(self.xi_bins)
         # Arrays over which we'll integrate (survey cuts applied)
         Nxi = int(np.log10(self.surveyCutSZ[1]/self.surveyCutSZ[0])/.005 + 1)
         self.xi_arr = np.logspace(np.log10(self.surveyCutSZ[0]), np.log10(self.surveyCutSZ[1]), Nxi)
@@ -53,44 +54,39 @@ class NumberCount:
     def lnlike(self, block):
         """Return ln-likelihood for SPT cluster abundance."""
         # Only need cosmo for E(z)-type stuff
-        self.cosmology = {'Omega_m': block.get_double('cosmological_parameters', 'Omega_m'),
+        self.cosmology = {
+            'Omega_m': block.get_double('cosmological_parameters', 'Omega_m'),
             'Omega_l': block.get_double('cosmological_parameters', 'omega_lambda'),
             'w0': block.get_double('cosmological_parameters', 'w'),
             'wa': block.get_double('cosmological_parameters', 'wa')}
         # SZ scaling relation parameters
-        self.Asz = block.get_double('mor_parameters', 'Asz')
-        self.Bsz = block.get_double('mor_parameters', 'Bsz')
-        self.Csz = block.get_double('mor_parameters', 'Csz')
-        self.Dsz = block.get_double('mor_parameters', 'Dsz')
-        # Advanced SZ scaling parameters
-        self.Bsz2 = block.get_double('mor_parameters', 'Bsz2')
-        self.Csz2 = block.get_double('mor_parameters', 'Csz2')
-        self.Esz = block.get_double('mor_parameters', 'Esz')
-        self.DszM = block.get_double('mor_parameters', 'DszM')
+        for p in ['Asz', 'Bsz', 'Csz', 'Dsz', 'Bsz2', 'Csz2', 'Esz', 'DszM']:
+            self.scaling[p] = block.get_double('mor_parameters', p)
         # Halo mass function
-        self.HMF = {'M_arr': block.get_double_array_1d('HMF', 'M_arr'),
+        self.HMF = {
+            'M_arr': block.get_double_array_1d('HMF', 'M_arr'),
             'z_arr': block.get_double_array_1d('HMF', 'z_arr'),
             'dNdlnM': block.get_double_array_nd('HMF', 'dNdlnM')}
         self.HMF['len_z'] = len(self.HMF['z_arr'])
 
         ##### Convert HMF to dN/dln(zeta) = dN/dlog10(M) * dlog10(M)/dln(zeta)
-        if ((self.Bsz2!=0.)|(self.Csz2!=0)|(self.Esz!=0.)|(self.DszM!=0.)):
-            lnzetaM = np.log(self.mass2zeta(self.HMF['M_arr'], self.HMF['z_arr']))
+        if ((self.scaling['Bsz2']!=0.)|(self.scaling['Csz2']!=0)|(self.scaling['Esz']!=0.)|(self.scaling['DszM']!=0.)):
+            lnzetaM = np.log(scaling_relations.mass2obs('zeta', self.HMF['M_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling, self.cosmology))
 
         # dln(M)/dln(zeta)
-        if ((self.Bsz2==0.)&(self.Esz==0.)):
-            dlnM_dlnzeta = 1/self.Bsz
+        if ((self.scaling['Bsz2']==0.)&(self.scaling['Esz']==0.)):
+            dlnM_dlnzeta = 1/self.scaling['Bsz']
         else:
             lnEz_E0p6 = np.log(cosmo.Ez(self.HMF['z_arr'], self.cosmology)/cosmo.Ez(.6, self.cosmology))
-            lnmassRatio = np.log(self.HMF['M_arr']/self.SZmPivot)
-            bLin = self.Bsz + self.Esz*lnEz_E0p6
-            cEff = self.Csz*lnEz_E0p6 + self.Csz2*lnEz_E0p6**2
+            lnmassRatio = np.log(self.HMF['M_arr']/self.scaling['SZmPivot'])
+            bLin = self.scaling['Bsz'] + self.scaling['Esz']*lnEz_E0p6
+            cEff = self.scaling['Csz']*lnEz_E0p6 + self.scaling['Csz2']*lnEz_E0p6**2
             # [z,M]
-            dlnzeta_dlnmRatio = bLin[:,None] + 2*self.Bsz2*lnmassRatio[None,:]
+            dlnzeta_dlnmRatio = bLin[:,None] + 2*self.scaling['Bsz2']*lnmassRatio[None,:]
             if np.any(dlnzeta_dlnmRatio<=0.):
                 return -np.inf
             # [z,M]
-            sqrtTerm = bLin[:,None]**2 - 4.*self.Bsz2* (cEff[:,None] + np.log(self.Asz) - lnzetaM)
+            sqrtTerm = bLin[:,None]**2 - 4.*self.scaling['Bsz2']* (cEff[:,None] + np.log(self.scaling['Asz']) - lnzetaM)
             if np.any(sqrtTerm<0.):
                 return -np.inf
             dlnM_dlnzeta = sqrtTerm**-.5
@@ -98,12 +94,12 @@ class NumberCount:
         dN_dlnzeta_noScatter = self.HMF['dNdlnM'] * dlnM_dlnzeta
 
         # Concolve with intrinsic scatter
-        if((self.Bsz2==0.)&(self.Csz2==0)&(self.Esz==0.)&(self.DszM==0)):
-            dlnzeta = self.Bsz*np.log(self.HMF['M_arr'][1]/self.HMF['M_arr'][0])
-            Nbin = self.Dsz / dlnzeta
+        if((self.scaling['Bsz2']==0.)&(self.scaling['Csz2']==0)&(self.scaling['Esz']==0.)&(self.scaling['DszM']==0)):
+            dlnzeta = self.scaling['Bsz']*np.log(self.HMF['M_arr'][1]/self.HMF['M_arr'][0])
+            Nbin = self.scaling['Dsz'] / dlnzeta
             self.dN_dlnzeta_unitSolidAng = scipy.ndimage.gaussian_filter1d(dN_dlnzeta_noScatter, Nbin, axis=1, mode='constant')
         else:
-            scatter = (self.Dsz**2 + self.DszM**2*(self.HMF['M_arr']/3e14)**(2*scaling['DszMslope']))**.5
+            scatter = (self.scaling['Dsz']**2 + self.scaling['DszM']**2*(self.HMF['M_arr']/3e14)**(2*scaling['DszMslope']))**.5
             scatter[np.where(scatter<.01)[0]] = .01
             self.dN_dlnzeta_unitSolidAng = np.empty((self.HMF['len_z'],self.HMF['len_M']))
             for i in range(self.HMF['len_z']):
@@ -138,7 +134,7 @@ class NumberCount:
             dN_dlnzeta[np.where(dN_dlnzeta==0)] = np.nextafter(0, 1)
 
         # zeta[z,M]
-        zeta_m = self.mass2zeta(self.HMF['M_arr'], self.HMF['z_arr'])
+        zeta_m = scaling_relations.mass2obs(self.HMF['M_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling, self.cosmology)
 
         # Apply field scaling factor
         zeta_m*= self.SPT_survey['GAMMA'][fieldidx]
@@ -202,18 +198,3 @@ class NumberCount:
             lnlike_this_field+= this_lnlike
 
         return lnlike_this_field, Ntotal
-
-
-    ########## Utility functions
-
-    def dlnzeta_dxi(self, xi):
-        return xi/(xi**2 - 3)
-
-    def xi2zeta(self, xi):
-        return (xi**2 - 3)**.5
-
-    def mass2zeta(self, mass, z):
-        # [redshift][mass]
-        massterm = (mass/self.SZmPivot)**self.Bsz
-        zterm = (cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology))**self.Csz
-        return self.Asz * massterm[None,:] * zterm[:,None]
