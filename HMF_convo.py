@@ -1,97 +1,63 @@
 from __future__ import division
 import numpy as np
-import os
-import imp
+
 from multiprocessing import Pool
-import scipy.ndimage
-import scipy.special as ss
-from scipy import integrate
 from scipy.interpolate import RectBivariateSpline
-from scipy import signal
-from scipy.stats import norm
 from scipy.stats import multivariate_normal
 
 from cosmosis.datablock import option_section
-import cosmo, Mconversion_concentration, observablecovmat, scaling_relations
-import convolution
+
+import convolution, scaling_relations
 
 
 # Because multiprocessing within classes doesn't really work...
 def unwrap_self_f(arg):
-    return MassCalibration.clusterlike(*arg)
+    return MultiObsConvolution.get_P_multiobs_z_fixedkernel(*arg)
 
 ################################################################################
-class Convolution:
+class MultiObsConvolution:
 
     def __init__(self, options):
-        ##### Config parameters
-        self.todo = {
-            'WL': options.get_bool(option_section, 'doWL'),
-            'Yx': options.get_bool(option_section, 'doYx'),
-            'Mgas': options.get_bool(option_section, 'doMgas'),
-            'veldisp': options.get_bool(option_section, 'doveldisp'),
-            'richness': options.get_bool(option_section, 'dorichness'),
-            }
-        self.scaling = {}
-        for opt in ['SZmPivot', 'XraymPivot', 'richmPivot', 'YXPARAM']:
-            self.scaling[opt] = options.get_double(option_section, opt)
-        self.mcType = options.get_string(option_section, 'mcType')
-        self.surveyCutSZ = options.get_double_array_1d(option_section, 'surveyCutSZ')
-        self.surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
-        self.NPROC = options.get_int(option_section, 'NPROC')
-        # SPT survey
-        SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
-        assert os.path.isfile(SPT_survey_fields), "SPT survey table does not exist"
-        self.SPT_survey = Table.read(SPT_survey_fields, format='ascii.commented_header')
-        # Double counted clusters
-        SPT_doublecounts = options.get_string(option_section, 'SPT_doublecounts')
-        SPTdata = imp.load_source('SPTdata', SPT_doublecounts)
-        self.SPTdoubleCount = SPTdata.SPTdoubleCount
-        # Cluster catalog
-        SPTcatalogfile = options.get_string(option_section, 'SPTcatalogfile')
-        assert os.path.isfile(SPTcatalogfile), "SPT catalog file does not exist"
-        self.catalog = Table.read(SPTcatalogfile)
-        ##### WL simulation calibration
-        WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
-        WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
-        self.WLcalib = WLsimcalib.WLcalibration
+        self.pairnames_2d = ['Yx_SZ', 'Mgas_SZ', 'Megacam_SZ', 'HST_SZ', 'DES_SZ']
+        self.pairnames_3d = ['Megacam_Yx_SZ', 'Megacam_Mgas_SZ', 'HST_Yx_SZ', 'HST_Mgas_SZ', 'DES_Yx_SZ', 'DES_Mgas_SZ']
+        self.observable_pairs = options.get_string(option_section, 'observable_pairs').split()
+        for pair in self.observable_pairs:
+            assert pair in self.pairnames_2d or in self.pairnames_3d, "Unknown pair of observables %s"%pair
+        self.pairs_zmin = options.get_double_array_1d(option_section, 'pairs_zmin')
+        self.pairs_zmax = options.get_double_array_1d(option_section, 'pairs_zmax')
+        self.pairs_Nz = options.get_double_array_1d(option_section, 'pairs_Nz')
+        assert len(self.pairs_zmin)==len(self.observable_pairs), "Bad length of pairs_zmin"
+        assert len(self.pairs_zmax)==len(self.observable_pairs), "Bad length of pairs_zmax"
+        assert len(self.pairs_Nz)==len(self.observable_pairs), "Bad length of pairs_Nz"
 
-        # Weak lensing
-        if self.todo['WL']:
-            self.WL = lensing.SPTlensing(options, self.catalog)
+        self.obsnames_dict = {'Yx_SZ': 'Yx',
+                              'Mgas_SZ': 'Mgas',
+                              'Megacam_SZ': 'WLMegacam',
+                              'DES_SZ': 'WLDES',
+                              'HST_SZ': 'WLHST',
+                              'Megacam_Yx_SZ': ['WLMegacam', 'Yx'],
+                              'Megacam_Mgas_SZ': ['WLMegacam', 'Mgas'],
+                              'HST_Yx_SZ': ['WLHST', 'Yx'],
+                              'HST_Mgas_SZ': ['WLHST', 'Mgas'],
+                              'DES_Yx_SZ': ['WLDES', 'Yx'],
+                              'DES_Mgas_SZ': ['WLDES', 'Mgas'],
+                              }
+        # Number of multi-processes
+        self.NPROC = options.get_int(option_section, 'NPROC')
+        # Sigma-clipping in convolutions
+        self.N_sigma = 4
+
 
 
     ############################################################################
-    def compute(self, block):
+    def execute(self, block):
         ##### Extract from datablock
-        self.cosmology = {
-            'Omega_m': block.get_double('cosmological_parameters', 'Omega_m'),
-            'Omega_l': block.get_double('cosmological_parameters', 'Omega_lambda'),
-            'Omega_b': block.get_double('cosmological_parameters', 'Omega_b'),
-            'h': block.get_double('cosmological_parameters', 'hubble')/100,
-            'ns': block.get_double('cosmological_parameters', 'n_s'),
-            'w0': block.get_double('cosmological_parameters', 'w'),
-            'wa': block.get_double('cosmological_parameters', 'wa'),
-            'sigma8': block.get_double('cosmological_parameters', 'sigma_8')}
-        # SZ
-        for p in ['Asz', 'Bsz', 'Csz', 'Dsz', 'Bsz2', 'Csz2', 'Esz', 'DszM']:
+        for p in ['Bsz', 'Bx', 'Brichness']:
             self.scaling[p] = block.get_double('mor_parameters', p)
-        # X-ray
-        for p in ['Ax', 'Bx', 'Cx', 'Dx', 'Ex', 'dlnMg_dlnr']:
-            self.scaling[p] = block.get_double('mor_parameters', p)
-        # WL
-        for p in ['WLbias', 'WLscatter', 'HSTbias', 'HSTscatterLSS', 'MegacamBias', 'MegacamScatterLSS', 'DESbias', 'DESscatterLSS']:
-            self.scaling[p] = block.get_double('mor_parameters', p)
-        # Richness
-        for p in ['Arichness', 'Brichness', 'Crichness', 'Drichness']:
-            self.scaling[p] = block.get_double('mor_parameters', p)
-        # dispersion
-        for p in ['Adisp', 'Bdisp', 'Cdisp', 'Ddisp0', 'DdispN']:
-            self.scaling[p] = block.get_double('mor_parameters', p)
-        # Correlation coefficients
-        for p in ['rhoSZWL', 'rhoSZX', 'rhoWLX', 'rhoSZrichness', 'rhoXdisp', 'rhoSZdisp']:
-            self.scaling[p] = block.get_double('mor_parameters', p)
-
+        # Covariance matrices
+        self.covmat = {}
+        for c in ['cov_X_SZ', 'cov_Megacam_SZ', 'cov_DES_SZ', 'cov_rich_SZ', 'cov_Megacam_X_SZ', 'cov_DES_X_SZ']:
+            self.covmat[c] = block.get_double_array_nd('scaling', c)
         # Halo mass function
         self.HMF = {
             'M_arr': block.get_double_array_1d('HMF', 'M_arr'),
@@ -99,70 +65,125 @@ class Convolution:
             'dNdlnM': block.get_double_array_nd('HMF', 'dNdlnM')}
         self.HMF['len_z'] = len(self.HMF['z_arr'])
 
-        ##### Setup stuff for WL
-        if self.todo['WL']:
-            # Set bias and scatter for Megacam and DES from sim calibration
-            # and nuissance parameters
-            self.WL.set_scaling(self.scaling)
-
-
-        ##### Populate and check observable covariance matrices
-        self.covmat = {'invertible': True}
-        if not observablecovmat.set_covmats(self.todo, self.scaling, self.covmat):
-            self.covmat['invertible'] = False
-            return -np.inf
-
         ##### Set up interpolation for HMF
         HMF_in = self.HMF['dNdlnM'][1:,:]
         if np.any(HMF_in==0):
             HMF_in[np.where(HMF_in==0)] = np.nextafter(0, 1)
         self.HMF_interp = RectBivariateSpline(np.log(self.HMF['z_arr'][1:]), np.log(self.HMF['M_arr']), np.log(HMF_in))
 
-
         ##### Pre-compute the intrinsic scatter convolutions
-        self.P_obszeta_M_grid = {}
-        if self.todo['WL']:
-            self.P_obszeta_M_grid['WLDES'] = self.get_P_2obs_allz(obsname='WLDES')
-        if self.todo['Yx']:
-            self.P_obszeta_M_grid['Yx'] = self.get_P_2obs_allz(obsname='Yx')
-        if self.todo['Yx']:
-            self.P_obszeta_M_grid['Mgas'] = self.get_P_2obs_allz(obsname='Mgas')
-
-        if self.todo['WL'] and self.todo['Yx']:
-            self.P_obszeta_M_grid['WLYx'] = self.get_P_3obs_allz(obsnames=['WL', 'Yx'], covname='WLYx')
-        if self.todo['WL'] and self.todo['Mgas']:
-            self.P_obszeta_M_grid['WLMgas'] = self.get_P_3obs_allz(obsnames=['WL', 'Mgas'], covname='WLMgas')
+        for pair_idx,pair_name in enumerate(self.observable_pairs):
+            z_arr = np.linspace(self.pairs_zmin[pair_idx], self.pairs_zmax[pair_idx], self.pairs_Nz[pair_idx])
+            this_covmat_ = block.get_double_array_nd('scaling', 'cov_%s'%pair_name)
+            obsname_s_ = self.obsnames_dict[pair_name]
+            this_grid_ = self.get_P_2obs_allz(obsname=obsname_s_,
+                                              covmat=this_covmat_,
+                                              z_arr=z_arr)
+            block.put_double_array_nd('dN_dmultiobs', pair_name, this_grid_)
+            block.put_double_array_nd('dN_dmultiobs', '%s_z'%pair_name, z_arr)
 
 
 
+    def get_P_multiobs_allz(self, obsname, covmat, z_arr):
+        """Return P(obs, xi | M, z, p) for each redshift in z_arr. Optional
+        multiprocess."""
+        # Write to self to make function pickleable for multiprocessing
+        self.obsname = obsname
+        self.covmat = covmat
 
-    def get_P_2obs_allz(self, obsname):
-            """Return P(obs, xi | M, z, p) for each redshift in HMF. Optional
-            multiprocess."""
-
-            if self.NPROC==0:
-                # Iterate through redshift array
-                P_2obs_grid = np.array([self.get_P_2obs_z_fixedkernel(i, obsname) for i in range(self.HMF['len_z'])])
-            else:
-                # Launch a multiprocessing pool and get the likelihoods
-                pool = Pool(processes=self.NPROC)
-                argin = zip([self]*self.HMF['len_z'], range(self.HMF['len_z']), obsname)
-                P_2obs_grid = pool.map(unwrap_self_P2obs, argin)
-                pool.close()
-            return P_2obs_grid
+        if self.NPROC==0:
+            # Iterate through redshift array
+            P_obs_grid = np.array([self.get_P_multiobs_z_fixedkernel(z) for z in z_arr])
+        else:
+            # Launch and execute a multiprocessing pool
+            pool = Pool(processes=self.NPROC)
+            argin = zip([self]*len(z_arr), z_arr)
+            P_obs_grid = pool.map(unwrap_self_f, argin, chunksize=len_z//self.NPROC)
+            pool.close()
+        return P_obs_grid
 
 
-        def get_P_3obs_allz(self, obsnames, covname):
-            """Return P(obs0, obs1, xi | M, z, p) for each redshift in HMF. Optional
-            multiprocess."""
+    def get_P_multiobs_z_fixedkernel(self, z):
+        """Decide whether it's a 2D or 3D observable array."""
+        # Unpack self (again, because of multiprocessing)
+        covmat = self.covmat
+        obsname = self.obsname
+        # Compute 2D or 3D multi-obs HMF convolution
+        if pairname in self.pairnames_2d:
+            return self.get_P_2obs_z_fixedkernel(obsname, covmat, z)
+        elif pairname in self.pairnames_3d:
+            return self.get_P_3obs_z_fixedkernel(obsname, covmat, z)
 
-            if self.NPROC==0:
-                # Iterate through redshift array
-                P_3obs_grid = np.array([self.get_P_3obs_z_fixedkernel(i, obsnames, covname) for i in range(self.HMF['len_z'])])
-            else:
-                # Launch a multiprocessing pool and get the likelihoods
-                pool = Pool(processes=self.NPROC)
-                argin = zip([self]*self.HMF['len_z'], range(self.HMF['len_z']), obsnames, covname)
-                P_3obs_grid = pool.map(unwrap_self_P3obs, argin)
-                pool.close()
-            return P_3obs_grid
+
+
+    def get_P_2obs_z_fixedkernel(self, obsname, covmat, z):
+        """Return P(obs, zeta | M, z(z_id), p) for constant correlated
+        scatter."""
+        dN_dlnM, = self.HMF_interp(z_arr)
+
+        # Convert observable covmat into covmat in mass
+        Delta_lnM = np.log(self.HMF['M_arr'][1]/self.HMF['M_arr'][0])
+        dlnzeta_dlnM = 1/scaling_relations.dlnM_dlnobs('zeta')
+        dlnobs_dlnM = 1/scaling_relations.dlnM_dlnobs(obsname)
+        Jacobian = np.array([[dlnobs_dlnM**2, dlnobs_dlnM*dlnzeta_dlnM],
+                             [dlnobs_dlnM*dlnzeta_dlnM, dlnzeta_dlnM**2]])
+        covmat_lnM = covmat * Jacobian
+
+        Nbins_obs = int(2 * self.N_sigma * covmat_lnM[0,0]**.5 / Delta_lnM)
+        if Nbins_obs%2 != 0:
+            Nbins_obs+= 1
+        minmax_ = (Nbins_obs-1)/2 * Delta_lnM
+        lnobs_arr = np.linspace(-minmax_, minmax_, Nbins_obs)
+
+        Nbins_zeta = int(2 * self.N_sigma * covmat_lnM[1,1]**.5 / Delta_lnM)
+        if Nbins_zeta%2 != 0:
+            Nbins_zeta+= 1
+        minmax_ = (Nbins_zeta-1)/2 * Delta_lnM
+        lnzeta_arr = np.linspace(-minmax_, minmax_, Nbins_zeta)
+
+        # Get the scatter kernel [lnobs, lnzeta]
+        pos = np.empty((len_obs, len_zeta, 2))
+        pos[:,:,0], pos[:,:,1] = np.meshgrid(lnobs_arr, lnzeta_arr, indexing='ij')
+        kernel = multivariate_normal.pdf(pos, mean=(0,0), cov=covmat_lnM)
+
+        HMF_2d = self.convolve_HMF_2obs_fixedkernel(dN_dlnM, kernel)
+
+        return HMF_2d
+
+
+    def get_P_3obs_z_fixedkernel(self, obsnames, covmat, z):
+        """Return P(obs0, obs1, zeta | M, z(z_id), p) for constant correlated
+        scatter."""
+        dN_dlnM, = self.HMF_interp(z_arr)
+
+        # Convert observable covmat into covmat in mass
+        Delta_lnM = np.log(self.HMF['M_arr'][1]/self.HMF['M_arr'][0])
+        dlnzeta_dlnM = 1/scaling_relations.dlnM_dlnobs('zeta')
+        dlnobs_dlnM = [1/scaling_relations.dlnM_dlnobs(obs) for obs in obsnames]
+
+        Jacobian = np.array([[dlnobs_dlnM[0]**2,             dlnobs_dlnM[0]*dlnobs_dlnM[1], dlnobs_dlnM[0]*dlnzeta_dlnM,
+                             [dlnobs_dlnM[0]*dlnobs_dlnM[1], dlnobs_dlnM[1]**2,             dlnobs_dlnM[1]*dlnzeta_dlnM],
+                             [dlnobs_dlnM[0]*dlnzeta_dlnM,   dlnobs_dlnM[1]*dlnzeta_dlnM,   dlnzeta_dlnM**2]])
+        covmat_lnM = covmat * Jacobian
+
+        Nbins_obs = [int(2 * self.N_sigma * covmat_lnM[i,i]**.5 / Delta_lnM) for i in range(2)]
+        for i in range(2):
+            if Nbins_obs[i]%2 != 0:
+                Nbins_obs[i]+= 1
+        minmax_ = [(Nbins_obs[i]-1)/2 * Delta_lnM for i in range(2)]
+        lnobs_arr = [np.linspace(-minmax_[i], minmax_[i], Nbins_obs[i]) for i in range(2)]
+
+        Nbins_zeta = int(2 * self.N_sigma * covmat_lnM[2,2]**.5 / Delta_lnM)
+        if Nbins_zeta%2 != 0:
+            Nbins_zeta+= 1
+        minmax_ = (Nbins_zeta-1)/2 * Delta_lnM
+        lnzeta_arr = np.linspace(-minmax_, minmax_, Nbins_zeta)
+
+        # Get the scatter kernel [lnobs, lnzeta]
+        pos = np.empty((len_obs[0], len_obs[1], len_zeta, 3))
+        pos[:,:,0], pos[:,:,1], pos[:,:,2] = np.meshgrid(lnobs_arr[0], lnobs_arr[1], lnzeta_arr, indexing='ij')
+        kernel = multivariate_normal.pdf(pos, mean=(0,0,0), cov=covmat)
+
+        HMF_3d = self.convolve_HMF_3obs_fixedkernel(dN_dlnM, kernel)
+
+        return HMF_3d

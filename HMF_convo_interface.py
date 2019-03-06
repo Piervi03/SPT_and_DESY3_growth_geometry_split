@@ -2,11 +2,11 @@ from __future__ import division
 import HMF_convo
 
 def setup(options):
-    convolution_calc = HMF_convo.Convolution(options)
-    return convolution_calc
+    multi_obs_convolution = HMF_convo.MultiObsConvolution(options)
+    return multi_obs_convolution
 
-def execute(block, convolution_calc):
-    convolution_calc.compute(block)
+def execute(block, multi_obs_convolution):
+    multi_obs_convolution.execute(block)
     return 0
 
 def cleanup(config):
