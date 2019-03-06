@@ -18,8 +18,8 @@ def unwrap_self_f(arg):
 class MultiObsConvolution:
 
     def __init__(self, options):
-        self.pairnames_2d = ['Yx_SZ', 'Mgas_SZ', 'Megacam_SZ', 'HST_SZ', 'DES_SZ']
-        self.pairnames_3d = ['Megacam_Yx_SZ', 'Megacam_Mgas_SZ', 'HST_Yx_SZ', 'HST_Mgas_SZ', 'DES_Yx_SZ', 'DES_Mgas_SZ']
+        self.pairnames_2d = ['Yx_SZ', 'Mgas_SZ', 'Megacam_SZ', 'DES_SZ']
+        self.pairnames_3d = ['Megacam_Yx_SZ', 'Megacam_Mgas_SZ', 'DES_Yx_SZ', 'DES_Mgas_SZ']
         self.observable_pairs = options.get_string(option_section, 'observable_pairs').split()
         for pair in self.observable_pairs:
             assert pair in self.pairnames_2d or in self.pairnames_3d, "Unknown pair of observables %s"%pair
@@ -34,11 +34,8 @@ class MultiObsConvolution:
                               'Mgas_SZ': 'Mgas',
                               'Megacam_SZ': 'WLMegacam',
                               'DES_SZ': 'WLDES',
-                              'HST_SZ': 'WLHST',
                               'Megacam_Yx_SZ': ['WLMegacam', 'Yx'],
                               'Megacam_Mgas_SZ': ['WLMegacam', 'Mgas'],
-                              'HST_Yx_SZ': ['WLHST', 'Yx'],
-                              'HST_Mgas_SZ': ['WLHST', 'Mgas'],
                               'DES_Yx_SZ': ['WLDES', 'Yx'],
                               'DES_Mgas_SZ': ['WLDES', 'Mgas'],
                               }
