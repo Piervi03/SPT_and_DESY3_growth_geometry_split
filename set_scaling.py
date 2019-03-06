@@ -1,5 +1,6 @@
 from __future__ import division
 import numpy as np
+import imp
 
 from cosmosis.datablock import option_section
 
@@ -46,6 +47,29 @@ class SetScaling:
         scaling['bWL_DES'] = self.WLcalib['DESsim'][0] + scaling['WLbias']*massModelErr + scaling['DESbias']*zDistShearErr
         # D^2 = Dint^2 + (DSim + DErrParam * err(DSim))^2
         scaling['DWL_DES'] = self.WLcalib['DESsim'][2] + scaling['WLscatter']*self.WLcalib['DESsim'][3]
+
+        # HST
+        scaling['bwL_HST'] = {}
+        for name in self.WLcalib['HSTsim'].keys():
+            # bias = bSim + bMassModel + (bN(z)+bShearCal)
+            scaling['bWL_HST'][name] = self.WLcalib['HSTsim'][name][0] \\
+                + scaling['WLbias']*self.catalog['WLdata'][i]['massModelErr'] \\
+                + scaling['HSTbias']*self.catalog['WLdata'][i]['zDistShearErr']
+            # lognormal scatter
+            scaling['DWL_HST'] = self.WLcalib['HSTsim'][name][2] + scaling['WLscatter']*self.WLcalib['HSTsim'][name][3]
+            # SZ WL covariance matrix
+            cov = [[scaling['DWL_HST']**2, scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_HST']],
+                   [scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_HST'], scaling['Dsz']**2]]
+            if np.linalg.det(cov)<THRESHOLD:
+                return False
+            block.put_double_array_nd('scaling', 'cov_HST_SZ_%s'%name, np.array(cov))
+            # SZ WL X covariance matrix
+            cov = [[self.scaling['DWL_HST']**2, self.scaling['rhoWLX']*self.scaling['DWL_HST']*self.scaling['Dx'], self.scaling['rhoSZWL']*self.scaling['Dsz']*self.scaling['DWL_HST']],
+                   [self.scaling['rhoWLX']*self.scaling['DWL_HST']*self.scaling['Dx'], self.scaling['Dx']**2, self.scaling['rhoSZX']*self.scaling['Dsz']*self.scaling['Dx']],
+                   [self.scaling['rhoSZWL']*self.scaling['Dsz']*self.scaling['DWL_HST'], self.scaling['rhoSZX']*self.scaling['Dsz']*self.scaling['Dx'], self.scaling['Dsz']**2]]
+            if np.linalg.det(cov)<THRESHOLD:
+                return False
+            block.put_double_array_nd('scaling', 'cov_HST_X_SZ_%s'%name, np.array(cov))
 
 
 
