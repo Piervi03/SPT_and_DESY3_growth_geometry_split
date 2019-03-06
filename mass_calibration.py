@@ -3,14 +3,13 @@ import numpy as np
 import os
 import imp
 from multiprocessing import Pool
+from astropy.table import Table
+
 import scipy.ndimage
 import scipy.special as ss
-from scipy import integrate
+from scipy import integrate, signal
 from scipy.interpolate import RectBivariateSpline
-from scipy import signal
-from scipy.stats import norm
-from scipy.stats import multivariate_normal
-from astropy.table import Table
+from scipy.stats import norm, multivariate_normal
 
 from cosmosis.datablock import option_section
 import cosmo, lensing, Mconversion_concentration, scaling_relations
@@ -29,13 +28,9 @@ class MassCalibration:
 
     def __init__(self, options):
         ##### Config parameters
-        self.todo = {
-            'WL': options.get_bool(option_section, 'doWL'),
-            'Yx': options.get_bool(option_section, 'doYx'),
-            'Mgas': options.get_bool(option_section, 'doMgas'),
-            'veldisp': options.get_bool(option_section, 'doveldisp'),
-            'richness': options.get_bool(option_section, 'dorichness'),
-            }
+        self.todo = {}
+        for opt in ['doWL', 'doYx', 'doMgas', 'doveldisp', 'dorichness']:
+            self.todo[opt[2:]] = options.get_bool(option_section, opt)
         self.scaling = {}
         for opt in ['SZmPivot', 'XraymPivot', 'richmPivot', 'YXPARAM']:
             self.scaling[opt] = options.get_double(option_section, opt)
@@ -108,16 +103,9 @@ class MassCalibration:
             'dNdlnM': block.get_double_array_nd('HMF', 'dNdlnM')}
         self.HMF['len_z'] = len(self.HMF['z_arr'])
 
-        ##### Setup stuff for WL
+        ##### WL: Precompute array of angular diameter distances
         if self.todo['WL']:
-            # Precompute array of angular diameter distances
             self.WL.get_dAs(self.cosmology)
-
-        ##### Populate and check observable covariance matrices
-        self.covmat = {'invertible': True}
-        if not observablecovmat.set_covmats(self.todo, self.scaling, self.covmat):
-            self.covmat['invertible'] = False
-            return -np.inf
 
         ##### Set up interpolation for HMF
         HMF_in = self.HMF['dNdlnM'][1:,:]
