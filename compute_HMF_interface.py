@@ -38,7 +38,8 @@ def execute(block, HMF_calculator):
     else:
         block.put_double_array_1d('HMF', 'M_arr', np.array(HMF_calculator.HMF['m']))
         block.put_double_array_1d('HMF', 'z_arr', np.array(HMF_calculator.HMF['z']))
-        block.put_double_array_nd('HMF', 'dNdlnM', np.array(HMF_calculator.HMF))
+        dNdlnM_ = np.array(HMF_calculator.HMF.to_array()[0])
+        block.put_double_array_nd('HMF', 'dNdlnM', dNdlnM_)
     return 0
 
 def cleanup(config):
