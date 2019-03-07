@@ -134,7 +134,7 @@ class NumberCount:
             dN_dlnzeta[np.where(dN_dlnzeta==0)] = np.nextafter(0, 1)
 
         # zeta[z,M]
-        zeta_m = scaling_relations.mass2obs(self.HMF['M_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling, self.cosmology)
+        zeta_m = scaling_relations.mass2obs('zeta', self.HMF['M_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling, self.cosmology)
 
         # Apply field scaling factor
         zeta_m*= self.SPT_survey['GAMMA'][fieldidx]

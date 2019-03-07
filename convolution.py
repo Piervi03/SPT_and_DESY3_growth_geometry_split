@@ -29,6 +29,6 @@ def convolve_HMF_3obs_fixedkernel(dN_dlnM, kernel):
     shape_out_ = np.array([len_HMF_, len_HMF_, len_HMF_]) + np.array(kernel_shape_)
     res_ = np.zeros(shape_out_)
     for i in range(len_HMF_):
-    res_[i:i+kernel_shape_[0], i:i+kernel_shape_[1], i:i+kernel_shape_[2]]+= dN_dlnM[i] * kernel
+        res_[i:i+kernel_shape_[0], i:i+kernel_shape_[1], i:i+kernel_shape_[2]]+= dN_dlnM[i] * kernel
     res_out_ = res_[kernel_shape_[0]//2:-kernel_shape_[0]//2, kernel_shape_[1]//2:-kernel_shape_[1]//2, kernel_shape_[2]//2:-kernel_shape_[2]//2]
     return res_out_
