@@ -35,7 +35,7 @@ class SPTlensing:
         """Return likelihood of shear profile for a given cluster (index) given
         an array of cluster masses."""
         self.name = data['SPT_ID'][dataindex]
-        self.zcluster = data['redshift'][dataindex]
+        self.zcluster = data['REDSHIFT'][dataindex]
         self.WLdata = data['WLdata'][dataindex]
 
         ##### Precalculate M and r independent stuff, everything in h units

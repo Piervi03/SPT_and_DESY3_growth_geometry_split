@@ -193,7 +193,7 @@ class MassCalibration:
         if self.todo['Mgas'] and self.catalog['Mg_fid'][i]!=0:
             nobs+= 1
             obsnames.append('Mgas')
-        if self.todo['richness'] and self.catalog['richness'][i]!=0.:
+        if self.todo['richness'] and self.catalog['LAMBDA_RM'][i]!=0.:
             nobs+= 1
             obsnames.append('richness')
         if nobs==0:
@@ -271,7 +271,7 @@ class MassCalibration:
         elif obsname=='disp':
             obsmeas, obserr = self.catalog['veldisp'][dataID], self.scaling['DdispN']/self.catalog['Ngal'][dataID]
         elif obsname=='richness':
-            obsmeas, obserr = self.catalog['richness'][dataID], self.catalog['richness_err'][dataID]
+            obsmeas, obserr = self.catalog['LAMBDA_RM'][dataID], self.catalog['LAMBDA_RM_UNC'][dataID]
         elif obsname=='WLMegacam':
             LSSnoise = self.WLcalib['Megacam_LSS'][0] + self.scaling['MegacamScatterLSS'] * self.WLcalib['Megacam_LSS'][1]
         elif obsname=='WLHST':
