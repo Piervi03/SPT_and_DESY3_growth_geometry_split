@@ -214,9 +214,7 @@ class SPTlensing:
                         Ntot[j] = np.sum(HSTdata[name]['pzs'][j])
                     catalog['WLdata'][i] = {'datatype':'HST', 'center':HSTdata[name]['center'],
                         'r_deg':HSTdata[name]['r_deg'], 'shear':HSTdata[name]['shear'], 'shearerr':HSTdata[name]['shearerr'],
-                        'magbinids':HSTdata[name]['magbinids'], 'redshifts':HSTdata[name]['redshifts'], 'pzs':pzs, 'magcorr':HSTdata[name]['magnificationcorr'], 'Ntot':Ntot,
-                        'massModelErr': (self.WLcalib['HSTsim'][name][1]**2 + self.WLcalib['HSTmcErr']**2 + self.WLcalib['HSTcenterErr']**2)**.5,
-                        'zDistShearErr': (self.WLcalib['HSTzDistErr']**2 + self.WLcalib['HSTshearErr']**2)**.5}
+                        'magbinids':HSTdata[name]['magbinids'], 'redshifts':HSTdata[name]['redshifts'], 'pzs':pzs, 'magcorr':HSTdata[name]['magnificationcorr'], 'Ntot':Ntot,}
 
         ##### Megacam data
         if self.MegacamDir is not None:
@@ -227,9 +225,7 @@ class SPTlensing:
                     shear = np.loadtxt(prefix+'_shear.txt', unpack=True)
                     Nz = np.loadtxt(prefix+'_Nz.txt', unpack=True)
                     catalog['WLdata'][i] = {'datatype':'Megacam', 'r_deg':shear[0], 'shear':shear[1], 'shearerr':shear[2],
-                        'redshifts':Nz[0], 'Nz':Nz[1], 'Ntot':np.sum(Nz[1]),
-                        'massModelErr': (self.WLcalib['MegacamSim'][1]**2 + self.WLcalib['MegacamMcErr']**2 + self.WLcalib['MegacamCenterErr']**2)**.5,
-                        'zDistShearErr': (self.WLcalib['MegacamzDistErr']**2 + self.WLcalib['MegacamShearErr']**2)**.5}
+                        'redshifts':Nz[0], 'Nz':Nz[1], 'Ntot':np.sum(Nz[1]),}
 
         ##### Check for DES data
         if self.DESDir is not None:
@@ -240,6 +236,5 @@ class SPTlensing:
                     shear = np.loadtxt(prefix+'_shear.txt', unpack=True)
                     Nz = np.loadtxt(prefix+'_Nz.txt', unpack=True)
                     catalog['WLdata'][i] = {'datatype':'DES', 'r_deg':shear[0], 'shear':shear[1], 'shearerr':shear[2],
-                        'redshifts':Nz[0], 'Nz':Nz[1], 'Ntot':np.sum(Nz[1]),
-                        'massModelErr': (self.WLcalib['DESsim'][1]**2 + self.WLcalib['DESmcErr']**2 + self.WLcalib['DEScenterErr']**2)**.5,
-                        'zDistShearErr': (self.WLcalib['DESzDistErr']**2 + self.WLcalib['DESshearErr']**2)**.5}
+                        'redshifts':Nz[0], 'Nz':Nz[1], 'Ntot':np.sum(Nz[1]),}
+
