@@ -22,13 +22,18 @@ class MultiObsConvolution:
         self.pairnames_3d = ['Megacam_Yx_SZ', 'Megacam_Mgas_SZ', 'DES_Yx_SZ', 'DES_Mgas_SZ']
         self.observable_pairs = options.get_string(option_section, 'observable_pairs').split()
         for pair in self.observable_pairs:
-            assert pair in self.pairnames_2d or in self.pairnames_3d, "Unknown pair of observables %s"%pair
-        self.pairs_zmin = options.get_double_array_1d(option_section, 'pairs_zmin')
-        self.pairs_zmax = options.get_double_array_1d(option_section, 'pairs_zmax')
-        self.pairs_Nz = options.get_double_array_1d(option_section, 'pairs_Nz')
-        assert len(self.pairs_zmin)==len(self.observable_pairs), "Bad length of pairs_zmin"
-        assert len(self.pairs_zmax)==len(self.observable_pairs), "Bad length of pairs_zmax"
-        assert len(self.pairs_Nz)==len(self.observable_pairs), "Bad length of pairs_Nz"
+            assert (pair in self.pairnames_2d) or (pair in self.pairnames_3d), "Unknown pair of observables %s"%pair
+        if len(self.observable_pairs)==1:
+            self.pairs_zmin = [options.get_double(option_section, 'pairs_zmin')]
+            self.pairs_zmax = [options.get_double(option_section, 'pairs_zmax')]
+            self.pairs_Nz = [options.get_int(option_section, 'pairs_Nz')]
+        else:
+            self.pairs_zmin = options.get_double_array_1d(option_section, 'pairs_zmin')
+            self.pairs_zmax = options.get_double_array_1d(option_section, 'pairs_zmax')
+            self.pairs_Nz = options.get_int_array_1d(option_section, 'pairs_Nz')
+            assert len(self.pairs_zmin)==len(self.observable_pairs), "Bad length of pairs_zmin"
+            assert len(self.pairs_zmax)==len(self.observable_pairs), "Bad length of pairs_zmax"
+            assert len(self.pairs_Nz)==len(self.observable_pairs), "Bad length of pairs_Nz"
 
         self.obsnames_dict = {'Yx_SZ': 'Yx',
                               'Mgas_SZ': 'Mgas',
@@ -43,7 +48,7 @@ class MultiObsConvolution:
         self.NPROC = options.get_int(option_section, 'NPROC')
         # Sigma-clipping in convolutions
         self.N_sigma = 4
-
+        self.scaling = {}
 
 
     ############################################################################
@@ -54,7 +59,7 @@ class MultiObsConvolution:
         # Covariance matrices
         self.covmat = {}
         for c in ['cov_X_SZ', 'cov_Megacam_SZ', 'cov_DES_SZ', 'cov_rich_SZ', 'cov_Megacam_X_SZ', 'cov_DES_X_SZ']:
-            self.covmat[c] = block.get_double_array_nd('scaling', c)
+            self.covmat[c] = block.get_double_array_nd('mor_parameters', c)
         # Halo mass function
         self.HMF = {
             'M_arr': block.get_double_array_1d('HMF', 'M_arr'),
@@ -71,22 +76,24 @@ class MultiObsConvolution:
         ##### Pre-compute the intrinsic scatter convolutions
         for pair_idx,pair_name in enumerate(self.observable_pairs):
             z_arr = np.linspace(self.pairs_zmin[pair_idx], self.pairs_zmax[pair_idx], self.pairs_Nz[pair_idx])
-            this_covmat_ = block.get_double_array_nd('scaling', 'cov_%s'%pair_name)
+            this_covmat_ = block.get_double_array_nd('mor_parameters', 'cov_%s'%pair_name)
             obsname_s_ = self.obsnames_dict[pair_name]
-            this_grid_ = self.get_P_2obs_allz(obsname=obsname_s_,
-                                              covmat=this_covmat_,
-                                              z_arr=z_arr)
+            this_grid_ = self.get_P_multiobs_allz(obsname=obsname_s_,
+                                                  pairname=pair_name,
+                                                  covmat=this_covmat_,
+                                                  z_arr=z_arr)
             block.put_double_array_nd('dN_dmultiobs', pair_name, this_grid_)
             block.put_double_array_nd('dN_dmultiobs', '%s_z'%pair_name, z_arr)
 
 
 
-    def get_P_multiobs_allz(self, obsname, covmat, z_arr):
+    def get_P_multiobs_allz(self, obsname, pairname, covmat, z_arr):
         """Return P(obs, xi | M, z, p) for each redshift in z_arr. Optional
         multiprocess."""
         # Write to self to make function pickleable for multiprocessing
         self.obsname = obsname
         self.covmat = covmat
+        self.pairname = pairname
 
         if self.NPROC==0:
             # Iterate through redshift array
@@ -105,6 +112,7 @@ class MultiObsConvolution:
         # Unpack self (again, because of multiprocessing)
         covmat = self.covmat
         obsname = self.obsname
+        pairname = self.pairname
         # Compute 2D or 3D multi-obs HMF convolution
         if pairname in self.pairnames_2d:
             return self.get_P_2obs_z_fixedkernel(obsname, covmat, z)
@@ -116,12 +124,12 @@ class MultiObsConvolution:
     def get_P_2obs_z_fixedkernel(self, obsname, covmat, z):
         """Return P(obs, zeta | M, z(z_id), p) for constant correlated
         scatter."""
-        dN_dlnM, = self.HMF_interp(z_arr)
+        dN_dlnM, = np.exp(self.HMF_interp(np.log(z), np.log(self.HMF['M_arr'])))
 
         # Convert observable covmat into covmat in mass
         Delta_lnM = np.log(self.HMF['M_arr'][1]/self.HMF['M_arr'][0])
-        dlnzeta_dlnM = 1/scaling_relations.dlnM_dlnobs('zeta')
-        dlnobs_dlnM = 1/scaling_relations.dlnM_dlnobs(obsname)
+        dlnzeta_dlnM = 1/scaling_relations.dlnM_dlnobs('zeta', self.scaling)
+        dlnobs_dlnM = 1/scaling_relations.dlnM_dlnobs(obsname, self.scaling)
         Jacobian = np.array([[dlnobs_dlnM**2, dlnobs_dlnM*dlnzeta_dlnM],
                              [dlnobs_dlnM*dlnzeta_dlnM, dlnzeta_dlnM**2]])
         covmat_lnM = covmat * Jacobian
@@ -139,11 +147,11 @@ class MultiObsConvolution:
         lnzeta_arr = np.linspace(-minmax_, minmax_, Nbins_zeta)
 
         # Get the scatter kernel [lnobs, lnzeta]
-        pos = np.empty((len_obs, len_zeta, 2))
+        pos = np.empty((Nbins_obs, Nbins_zeta, 2))
         pos[:,:,0], pos[:,:,1] = np.meshgrid(lnobs_arr, lnzeta_arr, indexing='ij')
         kernel = multivariate_normal.pdf(pos, mean=(0,0), cov=covmat_lnM)
 
-        HMF_2d = self.convolve_HMF_2obs_fixedkernel(dN_dlnM, kernel)
+        HMF_2d = convolution.convolve_HMF_2obs_fixedkernel(dN_dlnM, kernel)
 
         return HMF_2d
 
@@ -151,14 +159,14 @@ class MultiObsConvolution:
     def get_P_3obs_z_fixedkernel(self, obsnames, covmat, z):
         """Return P(obs0, obs1, zeta | M, z(z_id), p) for constant correlated
         scatter."""
-        dN_dlnM, = self.HMF_interp(z_arr)
+        dN_dlnM, = np.exp(self.HMF_interp(np.log(z), np.log(self.HMF['M_arr'])))
 
         # Convert observable covmat into covmat in mass
         Delta_lnM = np.log(self.HMF['M_arr'][1]/self.HMF['M_arr'][0])
-        dlnzeta_dlnM = 1/scaling_relations.dlnM_dlnobs('zeta')
-        dlnobs_dlnM = [1/scaling_relations.dlnM_dlnobs(obs) for obs in obsnames]
+        dlnzeta_dlnM = 1/scaling_relations.dlnM_dlnobs('zeta', self.scaling)
+        dlnobs_dlnM = [1/scaling_relations.dlnM_dlnobs(obs, self.scaling) for obs in obsnames]
 
-        Jacobian = np.array([[dlnobs_dlnM[0]**2,             dlnobs_dlnM[0]*dlnobs_dlnM[1], dlnobs_dlnM[0]*dlnzeta_dlnM,
+        Jacobian = np.array([[dlnobs_dlnM[0]**2,             dlnobs_dlnM[0]*dlnobs_dlnM[1], dlnobs_dlnM[0]*dlnzeta_dlnM],
                              [dlnobs_dlnM[0]*dlnobs_dlnM[1], dlnobs_dlnM[1]**2,             dlnobs_dlnM[1]*dlnzeta_dlnM],
                              [dlnobs_dlnM[0]*dlnzeta_dlnM,   dlnobs_dlnM[1]*dlnzeta_dlnM,   dlnzeta_dlnM**2]])
         covmat_lnM = covmat * Jacobian
@@ -181,6 +189,6 @@ class MultiObsConvolution:
         pos[:,:,0], pos[:,:,1], pos[:,:,2] = np.meshgrid(lnobs_arr[0], lnobs_arr[1], lnzeta_arr, indexing='ij')
         kernel = multivariate_normal.pdf(pos, mean=(0,0,0), cov=covmat)
 
-        HMF_3d = self.convolve_HMF_3obs_fixedkernel(dN_dlnM, kernel)
+        HMF_3d = convolution.convolve_HMF_3obs_fixedkernel(dN_dlnM, kernel)
 
         return HMF_3d
