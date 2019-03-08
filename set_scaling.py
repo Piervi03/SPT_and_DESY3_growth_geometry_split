@@ -26,11 +26,10 @@ class SetScaling:
         scaling = {}
         for p in ['Dsz', 'Dx', 'Drichness', 'WLbias', 'WLscatter']:
             scaling[p] = block.get_double('mor_parameters', p)
-        for p in ['MegacamBias', 'MegacamScatterLSS', 'DESbias', 'DESscatterLSS']:
+        for p in ['MegacamBias', 'DESbias', 'HSTbias']:
             scaling[p] = block.get_double('mor_parameters', p)
         for p in ['rhoSZWL', 'rhoSZX', 'rhoWLX', 'rhoSZrichness', 'rhoXdisp', 'rhoSZdisp']:
             scaling[p] = block.get_double('mor_parameters', p)
-
 
         # Megacam
         massModelErr = (self.WLcalib['MegacamSim'][1]**2 + self.WLcalib['MegacamMcErr']**2 + self.WLcalib['MegacamCenterErr']**2)**.5
@@ -39,6 +38,9 @@ class SetScaling:
         scaling['bWL_Megacam'] = self.WLcalib['MegacamSim'][0] + scaling['WLbias']*massModelErr + scaling['MegacamBias']*zDistShearErr
         # lognormal scatter
         scaling['DWL_Megacam'] = self.WLcalib['MegacamSim'][2] + scaling['WLscatter']*self.WLcalib['MegacamSim'][3]
+        # Put into block
+        block.put_double('mor_parameters', 'bWL_Megacam', scaling['bWL_Megacam'])
+        block.put_double('mor_parameters', 'DWL_Megacam', scaling['DWL_Megacam'])
 
         # DES
         massModelErr = (self.WLcalib['DESsim'][1]**2 + self.WLcalib['DESmcErr']**2 + self.WLcalib['DEScenterErr']**2)**.5
@@ -47,14 +49,19 @@ class SetScaling:
         scaling['bWL_DES'] = self.WLcalib['DESsim'][0] + scaling['WLbias']*massModelErr + scaling['DESbias']*zDistShearErr
         # D^2 = Dint^2 + (DSim + DErrParam * err(DSim))^2
         scaling['DWL_DES'] = self.WLcalib['DESsim'][2] + scaling['WLscatter']*self.WLcalib['DESsim'][3]
+        # Put into block
+        block.put_double('mor_parameters', 'bWL_DES', scaling['bWL_DES'])
+        block.put_double('mor_parameters', 'DWL_DES', scaling['DWL_DES'])
 
         # HST
-        scaling['bwL_HST'] = {}
+        zDistShearErr = (self.WLcalib['HSTzDistErr']**2 + self.WLcalib['HSTshearErr']**2)**.5
+        scaling['bWL_HST'] = {}
         for name in self.WLcalib['HSTsim'].keys():
             # bias = bSim + bMassModel + (bN(z)+bShearCal)
-            scaling['bWL_HST'][name] = self.WLcalib['HSTsim'][name][0] \\
-                + scaling['WLbias']*self.catalog['WLdata'][i]['massModelErr'] \\
-                + scaling['HSTbias']*self.catalog['WLdata'][i]['zDistShearErr']
+            mass_model_err = (self.WLcalib['HSTsim'][name][1]**2 + self.WLcalib['HSTmcErr']**2 + self.WLcalib['HSTcenterErr']**2)**.5
+            scaling['bWL_HST'][name] = self.WLcalib['HSTsim'][name][0] \
+                + scaling['WLbias'] * mass_model_err \
+                + scaling['HSTbias'] * zDistShearErr
             # lognormal scatter
             scaling['DWL_HST'] = self.WLcalib['HSTsim'][name][2] + scaling['WLscatter']*self.WLcalib['HSTsim'][name][3]
             # SZ WL covariance matrix
@@ -62,14 +69,14 @@ class SetScaling:
                    [scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_HST'], scaling['Dsz']**2]]
             if np.linalg.det(cov)<THRESHOLD:
                 return False
-            block.put_double_array_nd('scaling', 'cov_HST_SZ_%s'%name, np.array(cov))
+            block.put_double_array_nd('mor_parameters', 'cov_HST_SZ_%s'%name, np.array(cov))
             # SZ WL X covariance matrix
-            cov = [[self.scaling['DWL_HST']**2, self.scaling['rhoWLX']*self.scaling['DWL_HST']*self.scaling['Dx'], self.scaling['rhoSZWL']*self.scaling['Dsz']*self.scaling['DWL_HST']],
-                   [self.scaling['rhoWLX']*self.scaling['DWL_HST']*self.scaling['Dx'], self.scaling['Dx']**2, self.scaling['rhoSZX']*self.scaling['Dsz']*self.scaling['Dx']],
-                   [self.scaling['rhoSZWL']*self.scaling['Dsz']*self.scaling['DWL_HST'], self.scaling['rhoSZX']*self.scaling['Dsz']*self.scaling['Dx'], self.scaling['Dsz']**2]]
+            cov = [[scaling['DWL_HST']**2, scaling['rhoWLX']*scaling['DWL_HST']*scaling['Dx'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_HST']],
+                   [scaling['rhoWLX']*scaling['DWL_HST']*scaling['Dx'], scaling['Dx']**2, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx']],
+                   [scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_HST'], scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2]]
             if np.linalg.det(cov)<THRESHOLD:
                 return False
-            block.put_double_array_nd('scaling', 'cov_HST_X_SZ_%s'%name, np.array(cov))
+            block.put_double_array_nd('mor_parameters', 'cov_HST_X_SZ_%s'%name, np.array(cov))
 
 
 
@@ -79,28 +86,28 @@ class SetScaling:
         [scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2]]
         if np.linalg.det(cov) < THRESHOLD:
             return False
-        block.put_double_array_nd('scaling', 'cov_X_SZ', np.array(cov))
+        block.put_double_array_nd('mor_parameters', 'cov_X_SZ', np.array(cov))
 
         # Richness
         cov = [[scaling['Drichness']**2, scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness']],
             [scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness'], scaling['Dsz']**2]]
         if np.linalg.det(cov) < THRESHOLD:
             return False
-        block.put_double_array_nd('scaling', 'cov_rich_SZ', np.array(cov))
+        block.put_double_array_nd('mor_parameters', 'cov_rich_SZ', np.array(cov))
 
         # WL: Megacam
         cov = [[scaling['DWL_Megacam']**2, scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_Megacam']],
             [scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_Megacam'], scaling['Dsz']**2]]
         if np.linalg.det(cov) < THRESHOLD:
             return False
-        block.put_double_array_nd('scaling', 'cov_Megacam_SZ', np.array(cov))
+        block.put_double_array_nd('mor_parameters', 'cov_Megacam_SZ', np.array(cov))
 
         # WL: DES
         cov = [[scaling['DWL_DES']**2, scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_DES']],
                 [scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_DES'], scaling['Dsz']**2]]
-            if np.linalg.det(cov) < THRESHOLD:
-                return False
-        block.put_double_array_nd('scaling', 'cov_DES_SZ', np.array(cov))
+        if np.linalg.det(cov) < THRESHOLD:
+            return False
+        block.put_double_array_nd('mor_parameters', 'cov_DES_SZ', np.array(cov))
 
 
         ##### two follow-up observables
@@ -111,7 +118,7 @@ class SetScaling:
             [scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_Megacam'], scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2]]
         if np.linalg.det(cov) < THRESHOLD:
             return False
-        block.put_double_array_nd('scaling', 'cov_Megacam_X_SZ', np.array(cov))
+        block.put_double_array_nd('mor_parameters', 'cov_Megacam_X_SZ', np.array(cov))
 
         # X-ray and WL: DES
         cov = [[scaling['DWL_DES']**2, scaling['rhoWLX']*scaling['DWL_DES']*scaling['Dx'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_DES']],
@@ -119,6 +126,6 @@ class SetScaling:
             [scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_DES'], scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2]]
         if np.linalg.det(cov) < THRESHOLD:
             return False
-        block.put_double_array_nd('scaling', 'cov_DES_X_SZ', np.array(cov))
+        block.put_double_array_nd('mor_parameters', 'cov_DES_X_SZ', np.array(cov))
 
         return True
