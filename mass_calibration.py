@@ -29,8 +29,9 @@ class MassCalibration:
         for opt in ['doWL', 'doYx', 'doMgas', 'doveldisp', 'dorichness']:
             self.todo[opt[2:]] = options.get_bool(option_section, opt)
         self.scaling = {}
-        for opt in ['SZmPivot', 'XraymPivot', 'richmPivot', 'YXPARAM']:
+        for opt in ['SZmPivot', 'XraymPivot', 'richmPivot']:
             self.scaling[opt] = options.get_double(option_section, opt)
+        self.scaling['YXPARAM'] = options.get_string(option_section, 'YXPARAM')
         self.mcType = options.get_string(option_section, 'mcType')
         self.surveyCutSZ = options.get_double_array_1d(option_section, 'surveyCutSZ')
         self.surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
@@ -54,15 +55,16 @@ class MassCalibration:
         ##### Multi-obs HMF convolution names
         self.observable_pairs = options.get_string(option_section, 'observable_pairs').split()
 
-        self.HMF_convo_names = [['Yx', 'Yx_SZ',]
+        self.HMF_convo_names = [['Yx', 'Yx_SZ'],
                                 ['Mgas', 'Mgas_SZ'],
                                 ['WLMegacam', 'Megacam_SZ'],
                                 ['WLDES', 'DES_SZ'],
-                                [['WLMegacam', 'Yx'], 'cov_Megacam_Yx_SZ'],
-                                [['WLDES', 'Yx'], 'cov_DES_Yx_SZ'],
-                                [['WLMegacam', 'Mgas'], 'cov_Megacam_Mgas_SZ'],
-                                [['WLDES', 'Mgas'], 'cov_DES_Mgas_SZ'],
-                                }
+                                ['WLHST', 'HST_SZ'],
+                                ['richness', 'richness_SZ'],
+                                [['WLMegacam', 'Yx'], 'Megacam_Yx_SZ'],
+                                [['WLDES', 'Yx'], 'DES_Yx_SZ'],
+                                [['WLMegacam', 'Mgas'], 'Megacam_Mgas_SZ'],
+                                [['WLDES', 'Mgas'], 'DES_Mgas_SZ'],]
 
         # Weak lensing
         if self.todo['WL']:
@@ -89,7 +91,7 @@ class MassCalibration:
         for p in ['Ax', 'Bx', 'Cx', 'Dx', 'Ex', 'dlnMg_dlnr']:
             self.scaling[p] = block.get_double('mor_parameters', p)
         # WL
-        for p in ['WLbias', 'WLscatter', 'HSTbias', 'HSTscatterLSS', 'MegacamScatterLSS', 'DESscatterLSS']:
+        for p in ['bWL_Megacam', 'bWL_DES', 'HSTscatterLSS', 'MegacamScatterLSS', 'DESscatterLSS']:
             self.scaling[p] = block.get_double('mor_parameters', p)
         # Richness
         for p in ['Arichness', 'Brichness', 'Crichness', 'Drichness']:
@@ -252,16 +254,22 @@ class MassCalibration:
         return correction
 
 
+    def get_multiobs_HMF_z(self, z, z_arr, lnHMF):
+        """Interpolate HMF[z, obs_0...N] to redshift z using linear interpolation in log-log space."""
+        lnz_arr = np.log(z_arr)
+        idx_lo = np.where(z_arr<z)[0][-1]
+        Delta_lnz = np.log(z)-lnz_arr[idx_lo]
+        Delta_lny = lnHMF[idx_lo+1]-lnHMF[idx_lo]
+        res = np.exp(lnHMF[idx_lo] + Delta_lnz*Delta_lny)
+        return res
+
+
     ############################################################################
     def get_P_1obs_xi(self, obsname, dataID, pairname):
         """Returns P(obs|xi,z,p) for a single type of follow-up data."""
-        this_redshift = self.catalog['REDSHIFT'][dataID]
-        HMF_convo_lnz = np.log(self.HMF_convos['%s_z'%self.HMF_convo_names[pairname]])
-        HMF_convo_ln = np.log(self.HMF_convos[self.HMF_convo_names[pairname]])
-        idx_lo = np.argmax(HMF_convo_lnz<np.log(this_redshift))
-        Delta_lnz = np.log(this_redshift)-HMF_convo_lnz[idx_lo]
-        Delta_lny = HMF_convo_lnz[idx_lo+1]-HMF_convo_lnz[idx_lo]
-        HMF_2d = np.exp(HMF_convo_lnz[idx_lo] + Delta_lnz*Delta_lny)
+        HMF_2d = self.get_multiobs_HMF_z(z=self.catalog['REDSHIFT'][dataID],
+                                         z_arr=self.HMF_convos['%s_z'%pairname],
+                                         lnHMF=self.HMF_convos[pairname])
 
         ##### Get the follow-up observable, obsintr is used for setting up mass range
         if obsname=='Yx':
@@ -280,10 +288,10 @@ class MassCalibration:
             LSSnoise = self.WLcalib['DES_LSS'][0] + self.scaling['DESscatterLSS'] * self.WLcalib['DES_LSS'][1]
 
         ##### Observable arrays
-        zeta_arr = self.thisSPTfield_gamma * self.mass2obs('zeta', self.HMF['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
+        zeta_arr = self.thisSPTfield_gamma * scaling_relations.mass2obs('zeta', self.HMF['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
         lnzeta_arr = np.log(zeta_arr)
         xi_arr = scaling_relations.zeta2xi(zeta_arr)
-        obsArr = self.mass2obs(obsname, self.HMF['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
+        obsArr = scaling_relations.mass2obs(obsname, self.HMF['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
 
         ##### Add radial dependence for X-ray observables
         if obsname in ('Mgas', 'Yx'):
@@ -291,7 +299,6 @@ class MassCalibration:
             obsArr*= correction
 
         lnobsArr = np.log(obsArr)
-
 
         ##### set to 0 if zeta<2
         HMF_2d[:,np.where(zeta_arr<2)] = 0
@@ -356,13 +363,9 @@ class MassCalibration:
     def get_P_2obs_xi(self, obsnames, dataID, pairname):
         """Returns P(obs1, obs2|xi,z,p) for two types of follow-up data (e.g.,
         WL and X-ray)."""
-        this_redshift = self.catalog['REDSHIFT'][dataID]
-        HMF_convo_lnz = np.log(self.HMF_convos['%s_z'%self.HMF_convo_names[pairname]])
-        HMF_convo_ln = np.log(self.HMF_convos[self.HMF_convo_names[pairname]])
-        idx_lo = np.argmax(HMF_convo_lnz<np.log(this_redshift))
-        Delta_lnz = np.log(this_redshift)-HMF_convo_lnz[idx_lo]
-        Delta_lny = HMF_convo_lnz[idx_lo+1]-HMF_convo_lnz[idx_lo]
-        HMF_3d = np.exp(HMF_convo_lnz[idx_lo] + Delta_lnz*Delta_lny)
+        HMF_3d = self.get_multiobs_HMF_z(z=self.catalog['REDSHIFT'][dataID],
+                                         z_arr=self.HMF_convos['%s_z'%pairname],
+                                         lnHMF=self.HMF_convos[pairname])
 
         ##### Get observables, obsintr is used for setting up mass range
         obsmeas, obserr = np.empty(2), np.empty(2)
@@ -384,13 +387,13 @@ class MassCalibration:
 
 
         ##### Observable arrays
-        zeta_arr = self.thisSPTfield_gamma * self.mass2obs('zeta', self.HMF['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
+        zeta_arr = self.thisSPTfield_gamma * scaling_relations.mass2obs('zeta', self.HMF['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
         lnzeta_arr = np.log(zeta_arr)
         xi_arr = scaling_relations.zeta2xi(zeta_arr)
 
         obsArr, lnobsArr = [], []
         for i in range(2):
-            obsArrTemp = self.mass2obs(obsnames[i], self.HMF['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
+            obsArrTemp = scaling_relations.mass2obs(obsnames[i], self.HMF['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
             ##### Add radial dependence for X-ray observables
             if obsnames[i] in ('Mgas', 'Yx'):
                 correction = self.conversion_factor_Xray_obs_r500ref(self.catalog['REDSHIFT'][dataID])

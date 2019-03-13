@@ -18,7 +18,7 @@ def unwrap_self_f(arg):
 class MultiObsConvolution:
 
     def __init__(self, options):
-        self.pairnames_2d = ['Yx_SZ', 'Mgas_SZ', 'Megacam_SZ', 'DES_SZ']
+        self.pairnames_2d = ['Yx_SZ', 'Mgas_SZ', 'Megacam_SZ', 'DES_SZ', 'richness_SZ']
         self.pairnames_3d = ['Megacam_Yx_SZ', 'Megacam_Mgas_SZ', 'DES_Yx_SZ', 'DES_Mgas_SZ']
         self.observable_pairs = options.get_string(option_section, 'observable_pairs').split()
         for pair in self.observable_pairs:
@@ -39,6 +39,7 @@ class MultiObsConvolution:
                               'Mgas_SZ': 'Mgas',
                               'Megacam_SZ': 'WLMegacam',
                               'DES_SZ': 'WLDES',
+                              'richness_SZ': 'richness',
                               'Megacam_Yx_SZ': ['WLMegacam', 'Yx'],
                               'Megacam_Mgas_SZ': ['WLMegacam', 'Mgas'],
                               'DES_Yx_SZ': ['WLDES', 'Yx'],
@@ -58,7 +59,7 @@ class MultiObsConvolution:
             self.scaling[p] = block.get_double('mor_parameters', p)
         # Covariance matrices
         self.covmat = {}
-        for c in ['cov_X_SZ', 'cov_Megacam_SZ', 'cov_DES_SZ', 'cov_rich_SZ', 'cov_Megacam_X_SZ', 'cov_DES_X_SZ']:
+        for c in ['cov_X_SZ', 'cov_Megacam_SZ', 'cov_DES_SZ', 'cov_richness_SZ', 'cov_Megacam_X_SZ', 'cov_DES_X_SZ']:
             self.covmat[c] = block.get_double_array_nd('mor_parameters', c)
         # Halo mass function
         self.HMF = {
@@ -82,7 +83,9 @@ class MultiObsConvolution:
                                                   pairname=pair_name,
                                                   covmat=this_covmat_,
                                                   z_arr=z_arr)
-            block.put_double_array_nd('dN_dmultiobs', pair_name, this_grid_)
+            if np.any(this_grid_==0):
+                this_grid_[np.where(this_grid_==0)] = np.nextafter(0, 1)
+            block.put_double_array_nd('dN_dmultiobs', pair_name, np.log(this_grid_))
             block.put_double_array_nd('dN_dmultiobs', '%s_z'%pair_name, z_arr)
 
 

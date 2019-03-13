@@ -93,7 +93,7 @@ class SetScaling:
             [scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness'], scaling['Dsz']**2]]
         if np.linalg.det(cov) < THRESHOLD:
             return False
-        block.put_double_array_nd('mor_parameters', 'cov_rich_SZ', np.array(cov))
+        block.put_double_array_nd('mor_parameters', 'cov_richness_SZ', np.array(cov))
 
         # WL: Megacam
         cov = [[scaling['DWL_Megacam']**2, scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_Megacam']],
