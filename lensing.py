@@ -35,7 +35,7 @@ class SPTlensing:
         """Return likelihood of shear profile for a given cluster (index) given
         an array of cluster masses."""
         self.name = data['SPT_ID'][dataindex]
-        self.zcluster = data['redshift'][dataindex]
+        self.zcluster = data['REDSHIFT'][dataindex]
         self.WLdata = data['WLdata'][dataindex]
 
         ##### Precalculate M and r independent stuff, everything in h units
@@ -214,9 +214,7 @@ class SPTlensing:
                         Ntot[j] = np.sum(HSTdata[name]['pzs'][j])
                     catalog['WLdata'][i] = {'datatype':'HST', 'center':HSTdata[name]['center'],
                         'r_deg':HSTdata[name]['r_deg'], 'shear':HSTdata[name]['shear'], 'shearerr':HSTdata[name]['shearerr'],
-                        'magbinids':HSTdata[name]['magbinids'], 'redshifts':HSTdata[name]['redshifts'], 'pzs':pzs, 'magcorr':HSTdata[name]['magnificationcorr'], 'Ntot':Ntot,
-                        'massModelErr': (self.WLcalib['HSTsim'][name][1]**2 + self.WLcalib['HSTmcErr']**2 + self.WLcalib['HSTcenterErr']**2)**.5,
-                        'zDistShearErr': (self.WLcalib['HSTzDistErr']**2 + self.WLcalib['HSTshearErr']**2)**.5}
+                        'magbinids':HSTdata[name]['magbinids'], 'redshifts':HSTdata[name]['redshifts'], 'pzs':pzs, 'magcorr':HSTdata[name]['magnificationcorr'], 'Ntot':Ntot,}
 
         ##### Megacam data
         if self.MegacamDir is not None:
@@ -227,9 +225,7 @@ class SPTlensing:
                     shear = np.loadtxt(prefix+'_shear.txt', unpack=True)
                     Nz = np.loadtxt(prefix+'_Nz.txt', unpack=True)
                     catalog['WLdata'][i] = {'datatype':'Megacam', 'r_deg':shear[0], 'shear':shear[1], 'shearerr':shear[2],
-                        'redshifts':Nz[0], 'Nz':Nz[1], 'Ntot':np.sum(Nz[1]),
-                        'massModelErr': (self.WLcalib['MegacamSim'][1]**2 + self.WLcalib['MegacamMcErr']**2 + self.WLcalib['MegacamCenterErr']**2)**.5,
-                        'zDistShearErr': (self.WLcalib['MegacamzDistErr']**2 + self.WLcalib['MegacamShearErr']**2)**.5}
+                        'redshifts':Nz[0], 'Nz':Nz[1], 'Ntot':np.sum(Nz[1]),}
 
         ##### Check for DES data
         if self.DESDir is not None:
@@ -240,28 +236,5 @@ class SPTlensing:
                     shear = np.loadtxt(prefix+'_shear.txt', unpack=True)
                     Nz = np.loadtxt(prefix+'_Nz.txt', unpack=True)
                     catalog['WLdata'][i] = {'datatype':'DES', 'r_deg':shear[0], 'shear':shear[1], 'shearerr':shear[2],
-                        'redshifts':Nz[0], 'Nz':Nz[1], 'Ntot':np.sum(Nz[1]),
-                        'massModelErr': (self.WLcalib['DESsim'][1]**2 + self.WLcalib['DESmcErr']**2 + self.WLcalib['DEScenterErr']**2)**.5,
-                        'zDistShearErr': (self.WLcalib['DESzDistErr']**2 + self.WLcalib['DESshearErr']**2)**.5}
+                        'redshifts':Nz[0], 'Nz':Nz[1], 'Ntot':np.sum(Nz[1]),}
 
-
-    #######################################
-    def set_scaling(self, scaling):
-        """Set total (or effective) bias and scatter for Megacam and DES using
-        the simulation calibration numbers and the nuissance parameters."""
-        # Megacam
-        if self.MegacamDir is not None:
-            massModelErr = (self.WLcalib['MegacamSim'][1]**2 + self.WLcalib['MegacamMcErr']**2 + self.WLcalib['MegacamCenterErr']**2)**.5
-            zDistShearErr = (self.WLcalib['MegacamzDistErr']**2 + self.WLcalib['MegacamShearErr']**2 + self.WLcalib['MegacamContamCorr']**2)**.5
-            # bias = bSim + bMassModel + (bN(z)+bShearCal)
-            scaling['bWL_Megacam'] = self.WLcalib['MegacamSim'][0] + scaling['WLbias']*massModelErr + scaling['MegacamBias']*zDistShearErr
-            # lognormal scatter
-            scaling['DWL_Megacam'] = self.WLcalib['MegacamSim'][2]+scaling['WLscatter']*self.WLcalib['MegacamSim'][3]
-        # DES
-        if self.DESDir is not None:
-            massModelErr = (self.WLcalib['DESsim'][1]**2 + self.WLcalib['DESmcErr']**2 + self.WLcalib['DEScenterErr']**2)**.5
-            zDistShearErr = (self.WLcalib['DESzDistErr']**2 + self.WLcalib['DESshearErr']**2 + self.WLcalib['DEScontamCorr']**2)**.5
-            # bias = bSim + bFitParam * err(bSim)
-            scaling['bWL_DES'] = self.WLcalib['DESsim'][0] + scaling['WLbias']*massModelErr + scaling['DESbias']*zDistShearErr
-            # D^2 = Dint^2 + (DSim + DErrParam * err(DSim))^2
-            scaling['DWL_DES'] = self.WLcalib['DESsim'][2]+scaling['WLscatter']*self.WLcalib['DESsim'][3]

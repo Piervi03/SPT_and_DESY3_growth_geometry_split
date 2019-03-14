@@ -8,12 +8,6 @@ def setup(options):
 
 def execute(block, masscalibration):
     lnlike = masscalibration.lnlike(block)
-    if np.isneginf(lnlike):
-        # Catch error when det(covmat) too small and fail quietly
-        if masscalibration.covmat['invertible']==False:
-            block.put_double('likelihoods', 'MASS_CALIBRATION_LIKE', lnlike)
-            return 0
-        return 1
     block.put_double('likelihoods', 'MASS_CALIBRATION_LIKE', lnlike)
     return 0
 

@@ -3,20 +3,18 @@ import numpy as np
 import os
 import imp
 from multiprocessing import Pool
-import scipy.ndimage
-import scipy.special as ss
-from scipy import integrate
-from scipy.interpolate import RectBivariateSpline
-from scipy import signal
-from scipy.stats import norm
-from scipy.stats import multivariate_normal
 from astropy.table import Table
 
+import scipy.special as ss
+from scipy import integrate, signal
+from scipy.interpolate import RectBivariateSpline
+from scipy.stats import norm, lognorm, multivariate_normal
+
 from cosmosis.datablock import option_section
-import cosmo, Mconversion_concentration, lensing, observablecovmat
+import cosmo, lensing, Mconversion_concentration, scaling_relations
 
 cosmologyRef = {'Omega_m':.272, 'Omega_l':.728, 'h':.702, 'w0':-1, 'wa':0}
-getpull = False
+GETPULL = False
 
 # Because multiprocessing within classes doesn't really work...
 def unwrap_self_f(arg):
@@ -27,17 +25,13 @@ class MassCalibration:
 
     def __init__(self, options):
         ##### Config parameters
-        self.todo = {
-            'WL': options.get_bool(option_section, 'doWL'),
-            'Yx': options.get_bool(option_section, 'doYx'),
-            'Mgas': options.get_bool(option_section, 'doMgas'),
-            'veldisp': options.get_bool(option_section, 'doveldisp'),
-            'richness': options.get_bool(option_section, 'dorichness'),
-            }
-        self.SZmPivot = options.get_double(option_section, 'SZmPivot')
-        self.XraymPivot = options.get_double(option_section, 'XraymPivot')
-        self.richmPivot = options.get_double(option_section, 'richmPivot')
-        self.YXPARAM = options.get_string(option_section, 'YXPARAM')
+        self.todo = {}
+        for opt in ['doWL', 'doYx', 'doMgas', 'doveldisp', 'dorichness']:
+            self.todo[opt[2:]] = options.get_bool(option_section, opt)
+        self.scaling = {}
+        for opt in ['SZmPivot', 'XraymPivot', 'richmPivot']:
+            self.scaling[opt] = options.get_double(option_section, opt)
+        self.scaling['YXPARAM'] = options.get_string(option_section, 'YXPARAM')
         self.mcType = options.get_string(option_section, 'mcType')
         self.surveyCutSZ = options.get_double_array_1d(option_section, 'surveyCutSZ')
         self.surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
@@ -58,6 +52,19 @@ class MassCalibration:
         WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
         WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
         self.WLcalib = WLsimcalib.WLcalibration
+        ##### Multi-obs HMF convolution names
+        self.observable_pairs = options.get_string(option_section, 'observable_pairs').split()
+
+        self.HMF_convo_names = [['Yx', 'Yx_SZ'],
+                                ['Mgas', 'Mgas_SZ'],
+                                ['WLMegacam', 'Megacam_SZ'],
+                                ['WLDES', 'DES_SZ'],
+                                ['WLHST', 'HST_SZ'],
+                                ['richness', 'richness_SZ'],
+                                [['WLMegacam', 'Yx'], 'Megacam_Yx_SZ'],
+                                [['WLDES', 'Yx'], 'DES_Yx_SZ'],
+                                [['WLMegacam', 'Mgas'], 'Megacam_Mgas_SZ'],
+                                [['WLDES', 'Mgas'], 'DES_Mgas_SZ'],]
 
         # Weak lensing
         if self.todo['WL']:
@@ -68,78 +75,47 @@ class MassCalibration:
     def lnlike(self, block):
         """Returns ln-likelihood for mass calibration of the whole cluster sample."""
         ##### Extract from datablock
-        self.cosmology = {'Omega_m': block.get_double('cosmological_parameters', 'Omega_m'),
+        self.cosmology = {
             'Omega_l': block.get_double('cosmological_parameters', 'Omega_lambda'),
-            'Omega_b': block.get_double('cosmological_parameters', 'Omega_b'),
             'h': block.get_double('cosmological_parameters', 'hubble')/100,
             'ns': block.get_double('cosmological_parameters', 'n_s'),
             'w0': block.get_double('cosmological_parameters', 'w'),
             'wa': block.get_double('cosmological_parameters', 'wa'),
             'sigma8': block.get_double('cosmological_parameters', 'sigma_8')}
-        self.scaling = {
-            # SZ
-            'Asz': block.get_double('mor_parameters', 'Asz'),
-            'Bsz': block.get_double('mor_parameters', 'Bsz'),
-            'Csz': block.get_double('mor_parameters', 'Csz'),
-            'Dsz': block.get_double('mor_parameters', 'Dsz'),
-            'Bsz2': block.get_double('mor_parameters', 'Bsz2'),
-            'Csz2': block.get_double('mor_parameters', 'Csz2'),
-            'Esz': block.get_double('mor_parameters', 'Esz'),
-            'DszM': block.get_double('mor_parameters', 'DszM'),
-            # X-ray
-            'Ax': block.get_double('mor_parameters', 'Ax'),
-            'Bx': block.get_double('mor_parameters', 'Bx'),
-            'Cx': block.get_double('mor_parameters', 'Cx'),
-            'Dx': block.get_double('mor_parameters', 'Dx'),
-            'Ex': block.get_double('mor_parameters', 'Ex'),
-            'dlnMg_dlnr': block.get_double('mor_parameters', 'dlnMg_dlnr'),
-            # WL
-            'WLbias': block.get_double('mor_parameters', 'WLbias'),
-            'WLscatter': block.get_double('mor_parameters', 'WLscatter'),
-            'HSTbias': block.get_double('mor_parameters', 'HSTbias'),
-            'HSTscatterLSS': block.get_double('mor_parameters', 'HSTscatterLSS'),
-            'MegacamBias': block.get_double('mor_parameters', 'MegacamBias'),
-            'MegacamScatterLSS': block.get_double('mor_parameters', 'MegacamScatterLSS'),
-            'DESbias': block.get_double('mor_parameters', 'DESbias'),
-            'DESscatterLSS': block.get_double('mor_parameters', 'DESscatterLSS'),
-            # Richness
-            'Arichness': block.get_double('mor_parameters', 'Arichness'),
-            'Brichness': block.get_double('mor_parameters', 'Brichness'),
-            'Crichness': block.get_double('mor_parameters', 'Crichness'),
-            'Drichness': block.get_double('mor_parameters', 'Drichness'),
-            # dispersion
-            'Adisp': block.get_double('mor_parameters', 'Adisp'),
-            'Bdisp': block.get_double('mor_parameters', 'Bdisp'),
-            'Cdisp': block.get_double('mor_parameters', 'Cdisp'),
-            'Ddisp0': block.get_double('mor_parameters', 'Ddisp0'),
-            'DdispN': block.get_double('mor_parameters', 'DdispN'),
-            # Correlation coefficients
-            'rhoSZWL': block.get_double('mor_parameters', 'rhoSZWL'),
-            'rhoWLX': block.get_double('mor_parameters', 'rhoWLX'),
-            'rhoSZX': block.get_double('mor_parameters', 'rhoSZX'),
-            'rhoSZrichness': block.get_double('mor_parameters', 'rhoSZrichness'),
-            'rhoXdisp': block.get_double('mor_parameters', 'rhoXdisp'),
-            'rhoSZdisp': block.get_double('mor_parameters', 'rhoSZdisp'),
-            }
+        for p in ['Omega_m', 'Omega_b', 'wa']:
+            self.cosmology[p] = block.get_double('cosmological_parameters', p)
+        # SZ
+        for p in ['Asz', 'Bsz', 'Csz', 'Dsz', 'Bsz2', 'Csz2', 'Esz', 'DszM']:
+            self.scaling[p] = block.get_double('mor_parameters', p)
+        # X-ray
+        for p in ['Ax', 'Bx', 'Cx', 'Dx', 'Ex', 'dlnMg_dlnr']:
+            self.scaling[p] = block.get_double('mor_parameters', p)
+        # WL
+        for p in ['bWL_Megacam', 'bWL_DES', 'HSTscatterLSS', 'MegacamScatterLSS', 'DESscatterLSS']:
+            self.scaling[p] = block.get_double('mor_parameters', p)
+        # Richness
+        for p in ['Arichness', 'Brichness', 'Crichness', 'Drichness']:
+            self.scaling[p] = block.get_double('mor_parameters', p)
+        # dispersion
+        for p in ['Adisp', 'Bdisp', 'Cdisp', 'Ddisp0', 'DdispN']:
+            self.scaling[p] = block.get_double('mor_parameters', p)
+
+        # Get multi-obs HMF convolutions
+        self.HMF_convos = {}
+        for pair_name in self.observable_pairs:
+            self.HMF_convos[pair_name] = block.get_double_array_nd('dN_dmultiobs', pair_name)
+            self.HMF_convos['%s_z'%pair_name] = block.get_double_array_nd('dN_dmultiobs', '%s_z'%pair_name)
+
         # Halo mass function
-        self.HMF = {'M_arr': block.get_double_array_1d('HMF', 'M_arr'),
+        self.HMF = {
+            'M_arr': block.get_double_array_1d('HMF', 'M_arr'),
             'z_arr': block.get_double_array_1d('HMF', 'z_arr'),
             'dNdlnM': block.get_double_array_nd('HMF', 'dNdlnM')}
         self.HMF['len_z'] = len(self.HMF['z_arr'])
 
-        ##### Setup stuff for WL
+        ##### WL: Precompute array of angular diameter distances
         if self.todo['WL']:
-            # Set bias and scatter for Megacam and DES from sim calibration
-            # and nuissance parameters
-            self.WL.set_scaling(self.scaling)
-            # Precompute array of angular diameter distances
             self.WL.get_dAs(self.cosmology)
-
-        ##### Populate and check observable covariance matrices
-        self.covmat = {'invertible': True}
-        if not observablecovmat.set_covmats(self.todo, self.scaling, self.covmat):
-            self.covmat['invertible'] = False
-            return -np.inf
 
         ##### Set up interpolation for HMF
         HMF_in = self.HMF['dNdlnM'][1:,:]
@@ -194,8 +170,10 @@ class MassCalibration:
         name = self.catalog['SPT_ID'][i]
 
         ##### Do we actually want this guy? (some clusters in SPT-SZ are at field boundaries)
-        if (name,self.catalog['FIELD'][i]) in self.SPTdoubleCount: return 1.
-        if not self.surveyCutSZ[0]<self.catalog['XI'][i]<self.surveyCutSZ[1] or not self.surveyCutRedshift[0]<self.catalog['REDSHIFT'][i]<self.surveyCutRedshift[1]: return 1
+        if (name,self.catalog['FIELD'][i]) in self.SPTdoubleCount:
+            return 1.
+        if not self.surveyCutSZ[0]<self.catalog['XI'][i]<self.surveyCutSZ[1] or not self.surveyCutRedshift[0]<self.catalog['REDSHIFT'][i]<self.surveyCutRedshift[1]:
+            return 1
 
         ##### Check if follow-up is available
         nobs = 0
@@ -208,16 +186,6 @@ class MassCalibration:
                 obsnames.append('WLDES')
             elif self.catalog['WLdata'][i]['datatype']=='HST':
                 obsnames.append('WLHST')
-                # bias = bSim + bMassModel + (bN(z)+bShearCal)
-                self.scaling['bWL_HST'] = self.WLcalib['HSTsim'][name][0] + self.scaling['WLbias']*self.catalog['WLdata'][i]['massModelErr'] + self.scaling['HSTbias']*self.catalog['WLdata'][i]['zDistShearErr']
-                # lognormal scatter
-                self.scaling['DWL_HST'] = self.WLcalib['HSTsim'][name][2]+self.scaling['WLscatter']*self.WLcalib['HSTsim'][name][3]
-                cov = [[self.scaling['DWL_HST']**2, self.scaling['rhoSZWL']*self.scaling['Dsz']*self.scaling['DWL_HST']],
-                    [self.scaling['rhoSZWL']*self.scaling['Dsz']*self.scaling['DWL_HST'], self.scaling['Dsz']**2]]
-                if np.linalg.det(cov)<observablecovmat.THRESHOLD:
-                    return 0.
-                self.covmat['WLHST'] = cov
-
         if self.todo['veldisp'] and self.catalog['veldisp'][i]!=0.:
             nobs+= 1
             obsnames.append('disp')
@@ -227,7 +195,7 @@ class MassCalibration:
         if self.todo['Mgas'] and self.catalog['Mg_fid'][i]!=0:
             nobs+= 1
             obsnames.append('Mgas')
-        if self.todo['richness'] and self.catalog['richness'][i]!=0.:
+        if self.todo['richness'] and self.catalog['LAMBDA_RM'][i]!=0.:
             nobs+= 1
             obsnames.append('richness')
         if nobs==0:
@@ -238,29 +206,20 @@ class MassCalibration:
 
         #####
         if nobs==1:
-            probability = self.get_P_1obs_xi(obsnames[0], i)
+            # Get the name of the multi-obs HMF
+            for obs in self.HMF_convo_names:
+                if obsnames[0]==obs[0]:
+                    pair_name = obs[1]
+
+            probability = self.get_P_1obs_xi(obsnames[0], i, pair_name)
 
         elif nobs==2:
-            if 'disp' in obsnames:
-                if self.scaling['rhoXdisp']==0:
-                    probability = self.get_P_1obs_xi(obsnames[0], i)*self.get_P_1obs_xi(obsnames[1], i)
-                else:
-                    probability = self.get_P_2obs_xi(obsnames[:2], i, 'Yxdisp')
-            else:
-                if 'WLMegacam' in obsnames: covname = 'XrayMegacam'
-                elif 'WLDES' in obsnames: covname = 'XrayDES'
-                elif 'WLHST' in obsnames:
-                    covname = 'XrayHST'
-                    cov = [[self.scaling['DWL_HST']**2, self.scaling['rhoWLX']*self.scaling['DWL_HST']*self.scaling['Dx'], self.scaling['rhoSZWL']*self.scaling['Dsz']*self.scaling['DWL_HST']],
-                    [self.scaling['rhoWLX']*self.scaling['DWL_HST']*self.scaling['Dx'], self.scaling['Dx']**2, self.scaling['rhoSZX']*self.scaling['Dsz']*self.scaling['Dx']],
-                    [self.scaling['rhoSZWL']*self.scaling['Dsz']*self.scaling['DWL_HST'], self.scaling['rhoSZX']*self.scaling['Dsz']*self.scaling['Dx'], self.scaling['Dsz']**2]]
-                    if np.linalg.det(cov)<observablecovmat.THRESHOLD:
-                        return 0.
-                    self.covmat[covname] = cov
-                if self.scaling['rhoWLX']==0:
-                    probability = self.get_P_1obs_xi(obsnames[0], i) * self.get_P_1obs_xi(obsnames[1], i)
-                else:
-                    probability = self.get_P_2obs_xi(obsnames[:2], i, covname)
+            # Get the name of the multi-obs HMF
+            for obs in self.HMF_convo_names:
+                if obsnames==obs[0]:
+                    pair_name = obs[1]
+
+            probability = self.get_P_2obs_xi(obsnames, i, pairname)
 
         else:
             raise ValueError(name,"has",nobs,"follow-up observables. I don't know what to do!")
@@ -273,318 +232,183 @@ class MassCalibration:
         return probability
 
 
+    ############################################################################
+    def conversion_factor_Xray_obs_r500ref(self, redshift):
+        """Account for the cosmological dependence of the X-ray observable and
+        convert to the model expectation at r500ref using the slope of the
+        radial profile. This is done for the mass array self.HMF['M_arr']."""
+
+        # Angular diameter distances in current and reference cosmology [Mpc]
+        dA = cosmo.dA(redshift, self.cosmology)/self.cosmology['h']
+        dAref = cosmo.dA(redshift, cosmologyRef)/cosmologyRef['h']
+        # R500 [kpc]
+        rho_c_z = cosmo.RHOCRIT * cosmo.Ez(redshift, self.cosmology)**2
+        r500 = 1000 * (3*self.HMF['M_arr']/(4*np.pi*500*rho_c_z))**(1/3) / self.cosmology['h']
+        # r500 in reference cosmology [kpc]
+        r500ref = r500 * dAref/dA
+        # Xray observable at fiducial r500...
+        correction = (self.catalog['r500'][dataID]/r500ref)**self.scaling['dlnMg_dlnr']
+        # ... corrected to reference cosmology
+        correction*= (dAref/dA)**2.5
+
+        return correction
+
+
+    def get_multiobs_HMF_z(self, z, z_arr, lnHMF):
+        """Interpolate HMF[z, obs_0...N] to redshift z using linear interpolation in log-log space."""
+        lnz_arr = np.log(z_arr)
+        idx_lo = np.where(z_arr<z)[0][-1]
+        Delta_lnz = np.log(z)-lnz_arr[idx_lo]
+        Delta_lny = lnHMF[idx_lo+1]-lnHMF[idx_lo]
+        res = np.exp(lnHMF[idx_lo] + Delta_lnz*Delta_lny)
+        return res
 
 
     ############################################################################
-    def get_P_1obs_xi(self, obsname, dataID):
+    def get_P_1obs_xi(self, obsname, dataID, pairname):
         """Returns P(obs|xi,z,p) for a single type of follow-up data."""
-        covmat = self.covmat[obsname]
+        HMF_2d = self.get_multiobs_HMF_z(z=self.catalog['REDSHIFT'][dataID],
+                                         z_arr=self.HMF_convos['%s_z'%pairname],
+                                         lnHMF=self.HMF_convos[pairname])
 
         ##### Get the follow-up observable, obsintr is used for setting up mass range
         if obsname=='Yx':
-            obsmeas, obsintr, obserr = self.catalog['Yx_fid'][dataID], self.scaling['Dx'], self.catalog['Yx_err'][dataID]
+            obsmeas, obserr = self.catalog['Yx_fid'][dataID], self.catalog['Yx_err'][dataID]
         elif obsname=='Mgas':
-            obsmeas, obsintr, obserr = self.catalog['Mg_fid'][dataID], self.scaling['Dx'], self.catalog['Mg_err'][dataID]
+            obsmeas, obserr = self.catalog['Mg_fid'][dataID], self.catalog['Mg_err'][dataID]
         elif obsname=='disp':
-            Dsigma = self.scaling['Ddisp0'] + self.scaling['DdispN']/self.catalog['Ngal'][dataID]
-            cov = [[Dsigma**2, self.scaling['rhoSZdisp']*self.scaling['Dsz']*Dsigma],
-                [self.scaling['rhoSZdisp']*self.scaling['Dsz']*Dsigma, self.scaling['Dsz']**2]]
-            covmat = cov, np.linalg.det(cov)
-            obsmeas, obserr, obsintr = self.catalog['veldisp'][dataID], Dsigma, Dsigma
+            obsmeas, obserr = self.catalog['veldisp'][dataID], self.scaling['DdispN']/self.catalog['Ngal'][dataID]
         elif obsname=='richness':
-            obsmeas, obserr, obsintr = self.catalog['richness'][dataID], self.catalog['richness_err'][dataID], (self.scaling['Drichness']**2 + 1/((1-self.scaling['Drichness'])*self.catalog['richness'][dataID]))**.5
+            obsmeas, obserr = self.catalog['LAMBDA_RM'][dataID], self.catalog['LAMBDA_RM_UNC'][dataID]
         elif obsname=='WLMegacam':
             LSSnoise = self.WLcalib['Megacam_LSS'][0] + self.scaling['MegacamScatterLSS'] * self.WLcalib['Megacam_LSS'][1]
-            obsmeas, obserr, obsintr = .8*self.scaling['bWL_Megacam']*self.obs2mass('zeta', self.xi2zeta(self.catalog['XI'][dataID]), self.catalog['REDSHIFT'][dataID]), .3, self.scaling['DWL_Megacam']
         elif obsname=='WLHST':
             LSSnoise = self.WLcalib['HST_LSS'][0] + self.scaling['HSTscatterLSS'] * self.WLcalib['HST_LSS'][1]
-            obsmeas, obserr, obsintr = .8*self.scaling['bWL_HST']*self.obs2mass('zeta', self.xi2zeta(self.catalog['XI'][dataID]), self.catalog['REDSHIFT'][dataID]), .3, self.scaling['DWL_HST']
         elif obsname=='WLDES':
             LSSnoise = self.WLcalib['DES_LSS'][0] + self.scaling['DESscatterLSS'] * self.WLcalib['DES_LSS'][1]
-            obsmeas, obserr, obsintr = .8*self.scaling['bWL_DES']*self.obs2mass('zeta', self.xi2zeta(self.catalog['XI'][dataID]), self.catalog['REDSHIFT'][dataID]), .3, self.scaling['DWL_DES']
-
-        ##### Define reasonable mass range
-        # xi -> M(xi)
-        xi_minmax = np.array([max(2.6,self.catalog['XI'][dataID]-5), self.catalog['XI'][dataID]+3])
-        M_xi_minmax = self.obs2mass('zeta', self.xi2zeta(xi_minmax), self.catalog['REDSHIFT'][dataID])
-        if M_xi_minmax[0]>self.HMF['M_arr'][-1]:
-            print "cluster mass exceeds HMF mass range", self.catalog['SPT_ID'][dataID],\
-                M_xi_minmax[0], self.HMF['M_arr'][-1]
-            return 0
-
-        # obs: prediction
-        lnobs0 = np.log(self.mass2obs(obsname, self.obs2mass('zeta', self.xi2zeta(self.catalog['XI'][dataID]), self.catalog['REDSHIFT'][dataID]), self.catalog['REDSHIFT'][dataID]))
-        SZscatterobs = self.dlnM_dlnobs('zeta') / self.dlnM_dlnobs(obsname, self.SZmPivot, self.catalog['REDSHIFT'][dataID]) * self.scaling['Dsz']
-        intrscatter = (SZscatterobs**2 + obsintr**2)**.5
-        obsthminmax = np.exp(np.array([lnobs0-5.*intrscatter, lnobs0+3.5*intrscatter]))
-        M_obsth_minmax = self.obs2mass(obsname, obsthminmax, self.catalog['REDSHIFT'][dataID])
-        # obs: measurement
-        if obsname=='richness':
-            obsmeasminmax = np.amax((.1,obsmeas-3*obserr)), obsmeas+3*obserr
-        elif obsname in ('Mgas', 'Yx'):
-            obsmeasminmax = np.amax((.1, obsmeas-3*obserr)), obsmeas+3*obserr
-        else:
-            obsmeasminmax = np.exp(np.log(obsmeas)-4*obserr), np.exp(np.log(obsmeas)+3*obserr)
-        M_obsmeas_minmax = self.obs2mass(obsname, np.array(obsmeasminmax), self.catalog['REDSHIFT'][dataID])
-
-        ##### Define grid in mass
-        Mmin, Mmax = min(M_xi_minmax[0], M_obsth_minmax[0], M_obsmeas_minmax[0]), max(M_xi_minmax[1], M_obsth_minmax[1], M_obsmeas_minmax[1])
-        Mmin, Mmax = max(.5*Mmin, self.HMF['M_arr'][0]), min(Mmax, self.HMF['M_arr'][-1])
-        lenObs = 54
-        M_obsArr = np.logspace(np.log10(Mmin), np.log10(Mmax), lenObs)
 
         ##### Observable arrays
-        lnzeta_arr = np.log(self.mass2obs('zeta', M_obsArr, self.catalog['REDSHIFT'][dataID]))
-        xi_arr = self.zeta2xi(np.exp(lnzeta_arr))
-        obsArr = self.mass2obs(obsname, M_obsArr, self.catalog['REDSHIFT'][dataID])
+        zeta_arr = self.thisSPTfield_gamma * scaling_relations.mass2obs('zeta', self.HMF['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
+        lnzeta_arr = np.log(zeta_arr)
+        xi_arr = scaling_relations.zeta2xi(zeta_arr)
+        obsArr = scaling_relations.mass2obs(obsname, self.HMF['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
 
         ##### Add radial dependence for X-ray observables
-        if obsname in ('Mgas','Yx'):
-            # Angular diameter distances in current and reference cosmology [Mpc]
-            dA = cosmo.dA(self.catalog['REDSHIFT'][dataID], self.cosmology)/self.cosmology['h']
-            dAref = cosmo.dA(self.catalog['REDSHIFT'][dataID], cosmologyRef)/cosmologyRef['h']
-            # R500 [kpc]
-            rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.catalog['REDSHIFT'][dataID], self.cosmology)**2
-            r500 = 1000 * (3*M_obsArr/(4*np.pi*500*rho_c_z))**(1/3) / self.cosmology['h']
-            # r500 in reference cosmology [kpc]
-            r500ref = r500 * dAref/dA
-            # Xray observable at fiducial r500...
-            obsArr*= (self.catalog['r500'][dataID]/r500ref)**self.scaling['dlnMg_dlnr']
-            # ... corrected to reference cosmology
-            obsArr*= (dAref/dA)**2.5
+        if obsname in ('Mgas', 'Yx'):
+            correction = self.conversion_factor_Xray_obs_r500ref(self.catalog['REDSHIFT'][dataID])
+            obsArr*= correction
 
         lnobsArr = np.log(obsArr)
 
-        ##### HMF array for convolution
-        M_HMF_arr = M_obsArr
-
-        ##### Convert self.HMF to dN/(dlnzeta dlnobs) = dN/dlnM * dlnM/dlnzeta * dlnM/dlnobs
-        # This only matter if dlnM/dlnobs is mass-dependent, as for dispersions
-        dN_dlnzeta_dlnobs = np.exp(self.HMF_interp(np.log(self.catalog['REDSHIFT'][dataID]), np.log(M_HMF_arr)))[0]
-        if obsname=='disp':
-            dN_dlnzeta_dlnobs*= self.dlnM_dlnobs(obsname, M_HMF_arr, self.catalog['REDSHIFT'][dataID])
-
-        ##### HMF on 2D observable grid
-        HMF_2d_in = np.zeros((lenObs, lenObs))
-        np.fill_diagonal(HMF_2d_in, dN_dlnzeta_dlnobs)
-
-        ##### 2D convolution with correlated scatter [lnobs,lnzeta]
-        pos = np.empty((lenObs,lenObs,2))
-        pos[:,:,0], pos[:,:,1] = np.meshgrid(lnobsArr, lnzeta_arr, indexing='ij')
-        kernel = multivariate_normal.pdf(pos, mean=(lnobsArr[27], lnzeta_arr[27]), cov=covmat)
-        HMF_2d = signal.fftconvolve(HMF_2d_in, kernel, mode='same')
-
-        # set to 0 if zeta<2
-        HMF_2d[:,np.where(lnzeta_arr<np.log(2.))] = 0.
-
-        # Set small negative values to zero (FFT noise)
-        if np.any(HMF_2d<-1e-7):
-            if np.abs(np.amin(HMF_2d))/np.amax(HMF_2d)>1e-6:
-                print "HMF_2d has negative entries:",np.amin(HMF_2d), np.amax(HMF_2d)
-        HMF_2d[np.where(HMF_2d<0)] = 0.
-
-        # Safety check
-        if np.all(HMF_2d==0.):
-            print self.catalog['SPT_ID'][dataID],'HMF_2d is zero, det',np.linalg.det(covmat),self.scaling['Dsz'],obsintr,self.scaling['rhoSZX']
-            return 0.
+        ##### set to 0 if zeta<2
+        HMF_2d[:,np.where(zeta_arr<2)] = 0
 
         ##### dN/(dxi dlnobs) = dN/(dlnzeta dlnobs) * dlnzeta/dxi [lnobs,xi]
-        HMF_2d*= self.dlnzeta_dxi(xi_arr)[None,:]
+        HMF_2d*= scaling_relations.dlnzeta_dxi(xi_arr)[None,:]
 
         #### Convolve with xi measurement error [lnobs]
-        dP_dlnobs = np.trapz(HMF_2d * norm.pdf(self.catalog['XI'][dataID], xi_arr[None,:], 1.), xi_arr, axis=1)
+        dP_dlnobs = np.trapz(HMF_2d * norm.pdf(self.catalog['XI'][dataID], xi_arr[None,:], 1), xi_arr, axis=1)
 
-
-        ##### Evaluate likelihood
+        #### Convolve with additional lognormal scatter in richness
         if obsname=='richness':
             # Convolve with uncorrelated part of intrinsic scatter
             integrand = dP_dlnobs[None,:] * norm.pdf(lnobsArr[:,None], lnobsArr[None,:], 1/obsArr[None,:]**.5)
-            dP_drichness_Poisson = np.trapz(integrand, lnobsArr, axis=1)
-            # dP/dobs = dP/dlnobs * dlnobs/dobs = dP/dlnobs /obs
-            dP_dobs = dP_drichness_Poisson/obsArr
-            # normalize
-            dP_dobs/= np.trapz(dP_dobs, obsArr)
-            # Likelihood is integral over P(obs)*P(predicted)
-            likeli = np.trapz(dP_dobs*norm.pdf(obsArr, obsmeas, obserr), obsArr)
+            dP_dlnobs = np.trapz(integrand, lnobsArr, axis=1)
 
-        else:
-            ##### dP/dobs = dP/dlnobs * dlnobs/dobs = dP/dlnobs /obs
-            dP_dobs = dP_dlnobs/obsArr
-            # normalize
-            dP_dobs/= np.trapz(dP_dobs, obsArr)
+        #### Go to linear obs space and normalize
+        # dP/dobs = dP/dlnobs * dlnobs/dobs = dP/dlnobs /obs
+        dP_dobs = dP_dlnobs/obsArr
+        dP_dobs/= np.trapz(dP_dobs, obsArr)
 
-            ##### WL
-            if obsname in ('WLHST', 'WLMegacam', 'WLDES'):
-                # Concolve with Gaussian LSS scatter
-                if LSSnoise>0.:
-                    integrand = dP_dobs[None,:] * norm.pdf(obsArr[:,None], obsArr[None,:], LSSnoise)
-                    dP_dobs = np.trapz(integrand, obsArr, axis=1)
-                    dP_dobs/= np.trapz(dP_dobs, obsArr)
-                # P(Mwl) from data
-                Pwl = self.WL.like(self.catalog, dataID, obsArr, self.cosmology, self.MCrel, self.lnM500_to_lnM200)
-                # Get likelihood
-                likeli = np.trapz(Pwl*dP_dobs, obsArr)
 
-            ##### dispersion
-            elif obsname=='disp':
-                likeli = np.interp(obsmeas, obsArr, dP_dobs)
+        ##### Evaluate likelihood
+        if obsname in ('Yx', 'Mgas', 'richness'):
+            likeli = np.trapz(dP_dobs*norm.pdf(obsmeas, obsArr, obserr), obsArr)
 
-            ##### X-ray
-            else:
-                # Get likelihood
-                likeli = np.trapz(dP_dobs*norm.pdf(obsmeas, obsArr, obserr), obsArr)
+            if GETPULL:
+                integrand = dP_dobs[None,:] * norm.pdf(obsArr[:,None], obsArr[None,:], obserr)
+                dP_dobs_obs = np.trapz(integrand, obsArr, axis=1)
+                dP_dobs_obs/= np.trapz(dP_dobs_obs,obsArr)
+                cumtrapz = integrate.cumtrapz(dP_dobs_obs,obsArr)
+                perc = np.interp(obsmeas, obsArr[1:], cumtrapz)
+                print '%s %.4f %.4f %.4f %.4e'%(
+                    self.catalog['SPT_ID'][dataID], self.catalog['XI'][dataID], self.catalog['REDSHIFT'][dataID], obsmeas, 2**.5 * ss.erfinv(2*perc-1))
 
-                if getpull:
-                    integrand = dP_dobs[None,:] * norm.pdf(obsArr[:,None], obsArr[None,:], obserr)
-                    dP_dobs_obs = np.trapz(integrand, obsArr, axis=1)
-                    dP_dobs_obs/= np.trapz(dP_dobs_obs,obsArr)
-                    cumtrapz = integrate.cumtrapz(dP_dobs_obs,obsArr)
-                    perc = np.interp(obsmeas, obsArr[1:], cumtrapz)
-                    print self.catalog['SPT_ID'][dataID], '%.4f %.4f %.4f %.4e'%(self.catalog['XI'][dataID], self.catalog['REDSHIFT'][dataID], obsmeas, 2**.5 * ss.erfinv(2*perc-1))
+        elif obsname=='disp':
+            dP_dobs_meas = lognorm.pdf(obsmeas, scale=obsArr, s=obserr)
+            likeli = np.trapz(dP_dobs*dP_dobs_meas, obsArr)
+
+        elif obsname in ('WLHST', 'WLMegacam', 'WLDES'):
+            # Convolve with Gaussian LSS scatter
+            if LSSnoise>0.:
+                integrand = dP_dobs[None,:] * norm.pdf(obsArr[:,None], obsArr[None,:], LSSnoise)
+                dP_dobs = np.trapz(integrand, obsArr, axis=1)
+                dP_dobs/= np.trapz(dP_dobs, obsArr)
+            # P(Mwl) from data
+            Pwl = self.WL.like(self.catalog, dataID, obsArr, self.cosmology, self.MCrel, self.lnM500_to_lnM200)
+            # Get likelihood
+            likeli = np.trapz(Pwl*dP_dobs, obsArr)
+
 
         if ((likeli<0)|(np.isnan(likeli))):
             print self.catalog['SPT_ID'][dataID], obsname, likeli
             #np.savetxt(self.catalog['SPT_ID'][dataID],np.transpose((obsArr, dP_dobs)))
             return 0.
 
-        #np.savetxt(self.catalog['SPT_ID'][dataID]+obsname,np.transpose((obsArr, dP_dobs)))
-
         return likeli
 
 
 
     ############################################################################
-    def get_P_2obs_xi(self, obsnames, dataID, covname):
+    def get_P_2obs_xi(self, obsnames, dataID, pairname):
         """Returns P(obs1, obs2|xi,z,p) for two types of follow-up data (e.g.,
         WL and X-ray)."""
+        HMF_3d = self.get_multiobs_HMF_z(z=self.catalog['REDSHIFT'][dataID],
+                                         z_arr=self.HMF_convos['%s_z'%pairname],
+                                         lnHMF=self.HMF_convos[pairname])
+
         ##### Get observables, obsintr is used for setting up mass range
-        obsmeas, obserr, obsintr = np.empty(2), np.empty(2), np.empty(2)
+        obsmeas, obserr = np.empty(2), np.empty(2)
         for i in range(2):
             if obsnames[i]=='Yx':
-                obsmeas[i], obsintr[i], obserr[i] = self.catalog['Yx_fid'][dataID], self.scaling['Dx'], self.catalog['Yx_err'][dataID]
+                obsmeas[i], obserr[i] = self.catalog['Yx_fid'][dataID], self.catalog['Yx_err'][dataID]
             elif obsnames[i]=='Mgas':
-                obsmeas[i], obsintr[i], obserr[i] = self.catalog['Mg_fid'][dataID], self.scaling['Dx'], self.catalog['Mg_err'][dataID]
+                obsmeas[i], obserr[i] = self.catalog['Mg_fid'][dataID], self.catalog['Mg_err'][dataID]
             elif obsnames[i]=='disp':
-                Dsigma = self.scaling['Ddisp0'] + self.scaling['DdispN']/self.catalog['Ngal'][dataID]
-                obsmeas[i], obserr[i], obsintr[i] = self.catalog['veldisp'][dataID], Dsigma, Dsigma
+                obsmeas[i], obserr[i] = self.catalog['veldisp'][dataID], self.scaling['DdispN']/self.catalog['Ngal'][dataID]
             elif obsnames[i]=='richness':
-                obsmeas[i], obserr[i], obsintr[i] = self.catalog['richness'][dataID], self.catalog['richness_err'][dataID], (self.scaling['Drichness']**2 + 1/((1-self.scaling['Drichness'])*self.catalog['richness'][dataID]))**.5
+                obsmeas[i], obserr[i] = self.catalog['richness'][dataID], self.catalog['richness_err'][dataID]
             elif obsnames[i]=='WLMegacam':
                 LSSnoise = self.WLcalib['Megacam_LSS'][0] + self.scaling['MegacamScatterLSS'] * self.WLcalib['Megacam_LSS'][1]
-                obsmeas[i], obserr[i], obsintr[i] = .8*self.scaling['bWL_Megacam']*self.obs2mass('zeta', self.xi2zeta(self.catalog['XI'][dataID]), self.catalog['REDSHIFT'][dataID]), .3, self.scaling['DWL_Megacam']
             elif obsnames[i]=='WLHST':
                 LSSnoise = self.WLcalib['HST_LSS'][0] + self.scaling['HSTscatterLSS'] * self.WLcalib['HST_LSS'][1]
-                obsmeas[i], obserr[i], obsintr[i] = .8*self.scaling['bWL_HST']*self.obs2mass('zeta', self.xi2zeta(self.catalog['XI'][dataID]), self.catalog['REDSHIFT'][dataID]), .3, self.scaling['DWL_HST']
             elif obsnames[i]=='WLDES':
                 LSSnoise = self.WLcalib['DES_LSS'][0] + self.scaling['DESscatterLSS'] * self.WLcalib['DES_LSS'][1]
-                obsmeas[i], obserr[i], obsintr[i] = .8*self.scaling['bWL_DES']*self.obs2mass('zeta', self.xi2zeta(self.catalog['XI'][dataID]), self.catalog['REDSHIFT'][dataID]), .3, self.scaling['DWL_DES']
-
-        ##### Special case for dispersions
-        if ('Yx' in obsnames) and ('disp' in obsnames):
-            cov = [[Dsigma**2, self.scaling['rhoXdisp']*Dsigma*self.scaling['Dx'], self.scaling['rhoSZdisp']*self.scaling['Dsz']*Dsigma],
-                [self.scaling['rhoXdisp']*Dsigma*self.scaling['Dx'], self.scaling['Dx']**2, self.scaling['rhoSZX']*self.scaling['Dsz']*self.scaling['Dx']],
-                [self.scaling['rhoSZdisp']*self.scaling['Dsz']*Dsigma, self.scaling['rhoSZX']*self.scaling['Dsz']*self.scaling['Dx'], self.scaling['Dsz']**2]]
-            covmat = cov
-        else:
-            covmat = self.covmat[covname]
-
-
-        ##### Define reasonable mass range
-        # xi -> M(xi)
-        xi_minmax = np.array((np.amax((2.6,self.catalog['XI'][dataID]-5)), self.catalog['XI'][dataID]+3))
-        M_xi_minmax = self.obs2mass('zeta', self.xi2zeta(xi_minmax), self.catalog['REDSHIFT'][dataID])
-        if M_xi_minmax[0]>self.HMF['M_arr'][-1]:
-            print "cluster mass exceeds HMF mass range", self.catalog['SPT_ID'][dataID],\
-                M_xi_minmax[0], self.HMF['M_arr'][-1]
-            return 0
-
-        M_obsminmax = []
-        for i in range(2):
-            # obs: prediction
-            lnobs0 = np.log(self.mass2obs(obsnames[i], self.obs2mass('zeta', self.xi2zeta(self.catalog['XI'][dataID]), self.catalog['REDSHIFT'][dataID]), self.catalog['REDSHIFT'][dataID]))
-            if obsnames[i]=='disp': SZscatterobs = self.dlnM_dlnobs('zeta')/3.*self.scaling['Dsz']
-            else: SZscatterobs = self.dlnM_dlnobs('zeta')/self.dlnM_dlnobs(obsnames[i])*self.scaling['Dsz']
-            intrscatter = (SZscatterobs**2 + obsintr[i]**2)**.5
-            obsthminmax = np.exp(np.array((lnobs0-5*intrscatter, lnobs0+3.5*intrscatter)))
-            # obs: measurement
-            if obsnames[i]=='richness':
-                obsmeasminmax = np.amax((.1, obsmeas[i]-3*obserr[i])), obsmeas[i]+3*obserr[i]
-            elif obsnames[i] in ('Mgas', 'Yx'):
-                obsmeasminmax = np.amax((.1, obsmeas[i]-3*obserr[i])), obsmeas[i]+3*obserr[i]
-            else:
-                obsmeasminmax = np.exp(np.log(obsmeas[i])-4*obserr[i]), np.exp(np.log(obsmeas[i])+3*obserr[i])
-            # put together
-            obsminmax = np.array((min(obsthminmax[0],obsmeasminmax[0]), max(obsthminmax[1],obsmeasminmax[1])))
-            M_obsminmax.append(self.obs2mass(obsnames[i], obsminmax, self.catalog['REDSHIFT'][dataID]))
-
-        ##### Define grid in mass
-        Mmin, Mmax = min(M_xi_minmax[0],M_obsminmax[0][0],M_obsminmax[1][0]), max(M_xi_minmax[1],M_obsminmax[0][1],M_obsminmax[1][1])
-        Mmin, Mmax = max(.5*Mmin, self.HMF['M_arr'][0]), min(Mmax, self.HMF['M_arr'][-1])
-        lenObs = 54
-        M_obsArr = np.logspace(np.log10(Mmin), np.log10(Mmax), lenObs)
-        M_HMF_arr = M_obsArr
 
 
         ##### Observable arrays
-        lnzeta_arr = np.log(self.mass2obs('zeta', M_obsArr, self.catalog['REDSHIFT'][dataID]))
-        xi_arr = self.zeta2xi(np.exp(lnzeta_arr))
+        zeta_arr = self.thisSPTfield_gamma * scaling_relations.mass2obs('zeta', self.HMF['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
+        lnzeta_arr = np.log(zeta_arr)
+        xi_arr = scaling_relations.zeta2xi(zeta_arr)
+
         obsArr, lnobsArr = [], []
         for i in range(2):
-            obsArrTemp = self.mass2obs(obsnames[i], M_obsArr, self.catalog['REDSHIFT'][dataID])
+            obsArrTemp = scaling_relations.mass2obs(obsnames[i], self.HMF['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
             ##### Add radial dependence for X-ray observables
-            if obsnames[i] in ('Mgas','Yx'):
-                # Angular diameter distances in current and reference cosmology [Mpc]
-                dA = cosmo.dA(self.catalog['REDSHIFT'][dataID], self.cosmology)/self.cosmology['h']
-                dAref = cosmo.dA(self.catalog['REDSHIFT'][dataID], cosmologyRef)/cosmologyRef['h']
-                # R500 [kpc]
-                rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.catalog['REDSHIFT'][dataID], self.cosmology)**2
-                r500 = 1000 * (3*M_obsArr/(4*np.pi*500*rho_c_z))**(1/3) / self.cosmology['h']
-                # r500 in reference cosmology [kpc]
-                r500ref = r500 * dAref/dA
-                # Xray observable at rFid...
-                obsArrTemp*= (self.catalog['r500'][dataID]/r500ref)**self.scaling['dlnMg_dlnr']
-                # ... corrected to reference cosmology
-                obsArrTemp*= (dAref/dA)**2.5
+            if obsnames[i] in ('Mgas', 'Yx'):
+                correction = self.conversion_factor_Xray_obs_r500ref(self.catalog['REDSHIFT'][dataID])
+                obsArrTemp*= correction
             obsArr.append( obsArrTemp )
             lnobsArr.append( np.log(obsArrTemp) )
 
-
-        ##### HMF to dN/(dlnzeta dlnobs0 dlnobs1) = dN/dlnM * dlnM/dlnzeta * dlnM/dlnobs0 * dlnM/dlnobs1
-        # This only matter if dlnM/dlnobs is mass-dependent, as for dispersions
-        dN_dlnzeta_dlnobs = np.exp(self.HMF_interp(np.log(self.catalog['REDSHIFT'][dataID]), np.log(M_HMF_arr)))[0]
-        if 'disp' in obsnames:
-            dN_dlnzeta_dlnobs*= self.dlnM_dlnobs('disp', M_HMF_arr, self.catalog['REDSHIFT'][dataID])
-
-        ##### HMF on 3D observable grid [lnobs0,lnobs1,lnzeta]
-        HMF_3d_in = np.zeros((lenObs, lenObs, lenObs))
-        np.fill_diagonal(HMF_3d_in, dN_dlnzeta_dlnobs)
-
-        ##### 3D convolution with correlated scatter
-        # kernel is min(lenObs, max(20bins, +/-5sigma))
-        Nbin_obs0 = int(np.amin((lenObs, 10 * np.amax((2, covmat[0][0]**.5/(lnobsArr[0][1] - lnobsArr[0][0]))))))
-        Nbin_obs1 = int(np.amin((lenObs, 10 * np.amax((2, covmat[1][1]**.5/(lnobsArr[1][1] - lnobsArr[1][0]))))))
-        Nbin_zeta = int(np.amin((lenObs, 10 * np.amax((2, covmat[-1][-1]**.5/(lnzeta_arr[1] - lnzeta_arr[0]))))))
-        pos = np.empty((Nbin_obs0, Nbin_obs1, Nbin_zeta, 3))
-        pos[:,:,:,0], pos[:,:,:,1], pos[:,:,:,2] = np.meshgrid(lnobsArr[0][:Nbin_obs0], lnobsArr[1][:Nbin_obs1], lnzeta_arr[:Nbin_zeta], indexing='ij')
-        kernel = multivariate_normal.pdf(pos, mean=(lnobsArr[0][int(Nbin_obs0/2)], lnobsArr[1][int(Nbin_obs1/2)], lnzeta_arr[int(Nbin_zeta/2)]), cov=covmat)
-        HMF_3d = signal.fftconvolve(HMF_3d_in, kernel, mode='same')
-
-        # set to 0 if zeta<2
-        HMF_3d[:,:,np.where(lnzeta_arr<np.log(2.))] = 0.
-        # Safety check
-        if np.any(HMF_3d<-1e-6):
-            print np.amin(HMF_3d), np.amax(HMF_3d)
-            print self.catalog['SPT_ID'][dataID],'HMF_3d<0, det',np.linalg.det(covmat),self.scaling['Dsz'],obsintr
-        HMF_3d[np.where(HMF_3d<0)] = 0
-        if np.all(HMF_3d==0.):
-            print self.catalog['SPT_ID'][dataID],'HMF_3d<=0, det',np.linalg.det(covmat),self.scaling['Dsz'],obsintr
-            return 0
+        ##### set to 0 if zeta<2
+        HMF_3d[:,:,np.where(zeta_arr<2)] = 0
 
         ##### dN/(dxi dlnobs) = dN/(dlnzeta dlnobs) * dlnzeta/dxi [lnobs0][lnobs1][xi]
-        HMF_3d*= self.dlnzeta_dxi(xi_arr)[None,None,:]
+        HMF_3d*= scaling_relations.dlnzeta_dxi(xi_arr)[None,None,:]
 
         #### Convolve with xi measurement error [lnobs0][lnobs1]
-        dP_dlnobs = np.trapz(HMF_3d * norm.pdf(self.catalog['XI'][dataID], xi_arr[None,None,:], 1.), xi_arr, axis=2)
+        dP_dlnobs = np.trapz(HMF_3d * norm.pdf(self.catalog['XI'][dataID], xi_arr[None,None,:], 1), xi_arr, axis=2)
 
         ##### Go to linear space [obs0][obs1]
         dP_dobs01 = dP_dlnobs/obsArr[0][:,None]/obsArr[1][None,:]
@@ -594,7 +418,7 @@ class MassCalibration:
         dP_dobs0/= np.trapz(dP_dobs0, obsArr[0])
 
         if obsnames[0] in ('WLHST', 'WLMegacam', 'WLDES'):
-            # Concolve with Gaussian LSS scatter
+            # Convolve with Gaussian LSS scatter
             if LSSnoise>0.:
                 integrand = dP_dobs0[None,:] * norm.pdf(obsArr[0][:,None], obsArr[0][None,:], LSSnoise)
                 dP_dobs0 = np.trapz(integrand, obsArr[0], axis=1)
@@ -612,116 +436,8 @@ class MassCalibration:
         dP_dobs1/= np.trapz(dP_dobs1, obsArr[1])
         likeli1 = np.trapz(dP_dobs1*norm.pdf(obsmeas[1], obsArr[1], obserr[1]), obsArr[1])
 
-        #np.savetxt(self.catalog['SPT_ID'][dataID]+'_3d'+obsnames[0],np.transpose((obsArr[0], dP_dobs0)))
-        #np.savetxt(self.catalog['SPT_ID'][dataID]+'_3d'+obsnames[1],np.transpose((obsArr[1], dP_dobs1)))
-
 
         ##### Probability
         likeli = likeli0*likeli1
 
         return likeli
-
-
-
-
-    ############################################################################
-    ##### Utility functions
-    def xi2zeta(self, xi): return (xi**2 - 3)**.5
-    def zeta2xi(self, zeta): return (zeta**2 + 3)**.5
-    def dlnzeta_dxi(self, xi): return xi / (xi**2 - 3)
-    def dxi_dzeta(self, zeta): return zeta / (zeta**2 + 3)
-
-
-    ####################
-    def obs2mass(self, name, obs, z):
-        """Returns mass given (observable, z) using scaling relation."""
-        if name=='zeta':
-            Asz = self.thisSPTfield_gamma * self.scaling['Asz']
-            lnM = np.log(self.SZmPivot) + (np.log(obs) - np.log(Asz)\
-                - self.scaling['Csz']*np.log(cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology)))/(self.scaling['Bsz']\
-                + self.scaling['Esz']*np.log(cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology)))
-            return np.exp(lnM)
-        elif name=='Yx':
-            if self.YXPARAM=='SPT_XVP':
-                return 1e14 * self.scaling['Ax'] * self.cosmology['h']**1.5\
-                    * (self.cosmology['h']/.72)**(2.5*self.scaling['Bx']-1.5)\
-                    * (obs/3.)**self.scaling['Bx'] * cosmo.Ez(z, self.cosmology)**self.scaling['Cx']
-            elif self.YXPARAM=='Munich':
-                return self.XraymPivot * self.cosmology['h']**1.5 * (obs/(self.scaling['Ax']
-                    *(cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology))**self.scaling['Cx']))**(1/self.scaling['Bx'])
-        elif name=='Mgas':
-            return self.XraymPivot * self.cosmology['h'] * (obs/self.XraymPivot/self.scaling['Ax']
-                /(cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology))**self.scaling['Cx'])**(1./self.scaling['Bx'])
-        elif name=='disp':
-            h70z = self.cosmology['h']/.7*cosmo.Ez(z, self.cosmology)
-            M200c = 1e15*self.cosmology['h'] * (obs/self.scaling['Adisp']/h70z**self.scaling['Cdisp'])**self.scaling['Bdisp']
-            return np.exp(self.lnM200_to_lnM500(z, np.log(M200c)))
-        elif name=='richness':
-            return self.richmPivot* (obs/self.scaling['Arichness']
-                /(cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology))**self.scaling['Crichness'])**(1/self.scaling['Brichness'])
-        elif name=='WLMegacam':
-            return obs/self.scaling['bWL_Megacam']
-        elif name=='WLHST':
-            return obs/self.scaling['bWL_HST']
-        elif name=='WLDES':
-            return obs/self.scaling['bWL_DES']
-        else:
-            raise ValueError("Observable not known:",name)
-
-
-    ####################
-    def mass2obs(self, name, mass, z):
-        """Returns observable given (mass, z) using scaling relation."""
-        if name=='zeta':
-            lnzeta = np.log(self.scaling['Asz']*self.thisSPTfield_gamma)\
-                + self.scaling['Bsz'] * np.log(mass/self.SZmPivot)\
-                + self.scaling['Csz'] * np.log(cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology))\
-                + self.scaling['Esz'] * np.log(mass/self.SZmPivot)*np.log(cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology))
-            return np.exp(lnzeta)
-        elif name=='Yx':
-            if self.YXPARAM=='SPT_XVP':
-                return 3.*(mass*1e-14/(self.scaling['Ax'] * self.cosmology['h']**1.5
-                    * (self.cosmology['h']/.72)**(2.5*self.scaling['Bx']-1.5)
-                    * cosmo.Ez(z, self.cosmology)**self.scaling['Cx']))**(1/self.scaling['Bx'])
-            elif self.YXPARAM=='Munich':
-                return self.scaling['Ax']* (mass/self.cosmology['h']**1.5/self.XraymPivot)**self.scaling['Bx']\
-                    * (cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology))**self.scaling['Cx']
-        elif name=='Mgas':
-            lnMgas = np.log(self.XraymPivot * self.scaling['Ax']) + self.scaling['Bx']*np.log(mass/self.XraymPivot/self.cosmology['h'])\
-                + self.scaling['Cx']*np.log(cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology))\
-                + self.scaling['Ex']*np.log(mass/self.XraymPivot/self.cosmology['h'])*np.log(cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology))
-            return np.exp(lnMgas)
-        elif name=='disp':
-            h70z = self.cosmology['h']/.7*cosmo.Ez(z, self.cosmology)
-            M200c = np.exp(self.lnM500_to_lnM200(z, np.log(mass)))
-            if len(M200c)==1: M200c = M200c[0]
-            return self.scaling['Adisp'] * (M200c/1e15/self.cosmology['h'])**(1/self.scaling['Bdisp']) * h70z**self.scaling['Cdisp']
-        elif name=='richness':
-            return self.scaling['Arichness'] * (mass/self.richmPivot)**self.scaling['Brichness']\
-                * (cosmo.Ez(z, self.cosmology)/cosmo.Ez(.6, self.cosmology))**self.scaling['Crichness']
-        elif name=='WLMegacam':
-            return self.scaling['bWL_Megacam'] * mass
-        elif name=='WLHST':
-            return self.scaling['bWL_HST'] * mass
-        elif name=='WLDES':
-            return self.scaling['bWL_DES'] * mass
-        else:
-            raise ValueError("Observable not known:",name)
-
-
-    ####################
-    def dlnM_dlnobs(self, name, M0_arr=None, z=None):
-        """Returns dlnM/dln(obs) for a given observable."""
-        if name=='zeta': return 1/self.scaling['Bsz']
-        elif name=='richness': return 1/self.scaling['Brichness']
-        elif name=='Yx':
-            if self.YXPARAM=='SPT_XVP': return 1/(1/self.scaling['Bx'] - self.scaling['dlnMg_dlnr']/3)
-            elif self.YXPARAM=='Munich': return 1/(self.scaling['Bx'] - self.scaling['dlnMg_dlnr']/3)
-        elif name=='Mgas': return 1/(self.scaling['Bx'] - self.scaling['dlnMg_dlnr']/3)
-        elif (name=='WLMegacam')|(name=='WLHST')|(name=='WLDES'): return 1.
-        elif name=='disp':
-            dlnM = np.log(1.01)
-            dlnobs = np.log(self.mass2obs('disp', 1.01*M0_arr, z)/self.mass2obs('disp', M0_arr, z))
-            if np.any(dlnobs==0.):
-                if dlnobs[-1]==0: dlnobs[-1] = dlnobs[-2]
-            return dlnM/dlnobs
