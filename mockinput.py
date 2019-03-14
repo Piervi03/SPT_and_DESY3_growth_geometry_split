@@ -1,4 +1,4 @@
-SPTdatafile = 'SPTcluster_data.py'
+# SPTdatafile = 'SPTcluster_data.py'
 
 random_seed = 0
 
@@ -22,17 +22,16 @@ scaling = {'Asz': 4., 'Bsz': 1.34, 'Csz': .49, 'Dsz': .2,
            'slope_MgR': 1.16, 'slope_MgR_std': .016,
            'rhoSZrichness': 0., 'rhoSZdisp': 0., 'rhoSZX': 0., 'rhoSZWL': 0.,
            'rhoWLX': 0., 'rhoWLrichness':0.,
-           'rhoXrichness': 0}
+           'rhoXrichness': 0,
+           'SZmPivot': 3e14,
+           'XraymPivot': 5e14,
+           'richmPivot': 3e14,
+            'YXPARAM': 'SPT_XVP',
+           }
 
 # SPT survey cuts
 surveyCutSZ = (5., 47.)
 surveyCutRedshift = (0.25, 2.)
-# Pivot point of SZ scaling relation in solar masses
-SZmPivot = 3e14
-# Pivot point of X-ray scaling relation in solar masses
-XraymPivot = 5e14
-# Pivot point of richness scaling relation in solar masses
-richmPivot = 3e14
 # Type of M-c scaling relation, 'Duffy08' or 'DK15' or float
 mcType = 'DK15'
 # How to model X-ray profiles? 'PL' or 'beta'
@@ -44,4 +43,3 @@ richness_err = 10
 nXrayCluster = 80
 # Use Mgas or Yx?
 Xray_obs = 'Yx'
-YXPARAM = 'SPT_XVP'
