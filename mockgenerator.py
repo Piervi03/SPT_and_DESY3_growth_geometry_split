@@ -2,7 +2,7 @@ from __future__ import division, print_function
 import numpy as np
 import os
 import sys
-import imp
+import importlib
 from scipy.interpolate import RectBivariateSpline
 from astropy.io import fits as pyfits
 from astropy.table import Table
@@ -15,15 +15,13 @@ cosmologyRef = {'Omega_m':.272, 'Omega_l':.728, 'h':.702, 'w0':-1, 'wa':0}
 
 def main():
     ##### General setup
-    # Input parameters and settings1
-    configMod = imp.load_source('configMod', sys.argv[1])
+    # Input parameters and settings
+    configMod = importlib.import_module(sys.argv[1][:-3])
     # SPT survey information
-    SPT_survey = Table.read('data/SPT_survey.txt', format='ascii.commented_header')
+    SPT_survey = Table.read(configMod.SPT_survey, format='ascii.commented_header')
     cosmology = configMod.cosmology
     scaling = configMod.scaling
-    mcType = configMod.mcType
     np.random.seed(configMod.random_seed)
-    Xray_obs = configMod.Xray_obs
     # Initialize c(M) calculator
     MCrel = Mconversion_concentration.ConcentrationConversion(configMod.mcType, cosmology)
 
@@ -40,7 +38,7 @@ def main():
     dlnm = np.log(HMF['m'][1]/HMF['m'][0])
     HMF_dNdM_V = RectBivariateSpline(np.log(HMF['z'][1:]), np.log(HMF['m']), np.log(HMF.to_array()[0][1:,:]*dlnm*(np.pi/180)**2))
     dz = .01
-    z_arr = np.linspace(configMod.surveyCutRedshift[0], configMod.surveyCutRedshift[1], int((configMod.surveyCutRedshift[1]-configMod.surveyCutRedshift[0])/dz+1))
+    z_arr = np.linspace(configMod.surveyCutRedshift[0], configMod.surveyCutRedshift[1], int((configMod.surveyCutRedshift[1]-configMod.surveyCutRedshift[0])/dz) + 1)
     dz = z_arr[1]-z_arr[0]
 
     # Get the mock catalog
@@ -64,7 +62,7 @@ def main():
                     continue
                 # draw (Mwl,Yx,zeta,richness)|M
                 obs_0 = [scaling_relations.mass2obs(name, M, z, scaling, cosmology)
-                         for name in ('WLMegacam', Xray_obs, 'zeta', 'richness')]
+                         for name in ('WLMegacam', configMod.Xray_obs, 'zeta', 'richness')]
                 obs_0[2]*= SPT_survey['GAMMA'][fieldidx]
                 obs = np.exp(np.random.multivariate_normal(np.log(obs_0), cov, N[i,j]))
                 for k in range(N[i,j]):

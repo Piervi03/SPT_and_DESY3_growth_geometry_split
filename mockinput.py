@@ -1,4 +1,4 @@
-# SPTdatafile = 'SPTcluster_data.py'
+SPT_survey = 'data/SPT_survey.txt'
 
 random_seed = 0
 
