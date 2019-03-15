@@ -237,7 +237,6 @@ class MassCalibration:
         """Account for the cosmological dependence of the X-ray observable and
         convert to the model expectation at r500ref using the slope of the
         radial profile. This is done for the mass array self.HMF['M_arr']."""
-
         # Angular diameter distances in current and reference cosmology [Mpc]
         dA = cosmo.dA(redshift, self.cosmology)/self.cosmology['h']
         dAref = cosmo.dA(redshift, cosmologyRef)/cosmologyRef['h']
@@ -255,7 +254,8 @@ class MassCalibration:
 
 
     def get_multiobs_HMF_z(self, z, z_arr, lnHMF):
-        """Interpolate HMF[z, obs_0...N] to redshift z using linear interpolation in log-log space."""
+        """Interpolate HMF[z, obs_0...N] to redshift z using linear
+        interpolation of z_arr in log-log space."""
         lnz_arr = np.log(z_arr)
         idx_lo = np.where(z_arr<z)[0][-1]
         Delta_lnz = np.log(z)-lnz_arr[idx_lo]
@@ -264,12 +264,46 @@ class MassCalibration:
         return res
 
 
+    def convolve_HMF_lnobs_to_xi(self, xi, zeta_arr, xi_arr, HMF):
+        """Return P(ln(multi-obs) | xi). Start from multi-obs `HMF[ln(obs0),
+        ln(obs1), ..., ln(zeta)]`, set elements with zeta<2 to 0, convolve with
+        unit variance in xi and evaluate at `xi`."""
+        shape = HMF.shape
+        if len(shape)==2:
+            this_xi_arr = xi_arr[None,:]
+            HMF[:,np.where(zeta_arr<2)] = 0
+        elif len(shape)==3:
+            this_xi_arr = xi_arr[None,None,:]
+            HMF[:,:,np.where(zeta_arr<2)] = 0
+        # dP/dxi = dP/dlnzeta dlnzeta/dxi
+        HMF_xi = HMF * scaling_relations.dlnzeta_dxi(this_xi_arr)
+        # Simultaneous convolution and evaluation at xi
+        unit_var_kernel = norm.pdf(xi, this_xi_arr, 1)
+        HMF_at_xi = np.trapz(HMF_xi * unit_var_kernel, this_xi_arr, axis=-1)
+        return HMF_at_xi
+
+
+    def apply_sys_Poisson_scatter_richness(self, obs_arr, lnobs_arr, dP_dlnobs):
+        """Convolve dP/dlnlambda with lognormal scatter of width var=1/lambda.
+        This mimics the Poisson error on counting member galaxies."""
+        integrand = dP_dlnobs[None,:] * norm.pdf(lnobs_arr[:,None], lnobs_arr[None,:], 1/obs_arr[None,:]**.5)
+        dP_dlnobs = np.trapz(integrand, lnobs_arr, axis=1)
+        return dP_dlnobs
+
+
+    def convolve_WL_LSS(self, obs_arr, dP_dobs, LSSnoise):
+        """Convolve dP/dMwl with Gaussian scatter to account for noise by
+        large-scale structure."""
+        integrand = dP_dobs[None,:] * norm.pdf(obs_arr[:,None], obs_arr[None,:], LSSnoise)
+        dP_dobs = np.trapz(integrand, obs_arr, axis=1)
+        # Normalize to be sure
+        dP_dobs/= np.trapz(dP_dobs, obs_arr)
+        return dP_dobs
+
+
     ############################################################################
     def get_P_1obs_xi(self, obsname, dataID, pairname):
         """Returns P(obs|xi,z,p) for a single type of follow-up data."""
-        HMF_2d = self.get_multiobs_HMF_z(z=self.catalog['REDSHIFT'][dataID],
-                                         z_arr=self.HMF_convos['%s_z'%pairname],
-                                         lnHMF=self.HMF_convos[pairname])
 
         ##### Get the follow-up observable, obsintr is used for setting up mass range
         if obsname=='Yx':
@@ -292,28 +326,23 @@ class MassCalibration:
         lnzeta_arr = np.log(zeta_arr)
         xi_arr = scaling_relations.zeta2xi(zeta_arr)
         obsArr = scaling_relations.mass2obs(obsname, self.HMF['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
-
-        ##### Add radial dependence for X-ray observables
+        # Account for radial dependence for X-ray observables
         if obsname in ('Mgas', 'Yx'):
             correction = self.conversion_factor_Xray_obs_r500ref(self.catalog['REDSHIFT'][dataID])
             obsArr*= correction
-
         lnobsArr = np.log(obsArr)
 
-        ##### set to 0 if zeta<2
-        HMF_2d[:,np.where(zeta_arr<2)] = 0
+        ##### dN/dlnobs/dlnzeta at z=z_cluster from interpolation tables
+        HMF_2d = self.get_multiobs_HMF_z(z=self.catalog['REDSHIFT'][dataID],
+                                         z_arr=self.HMF_convos['%s_z'%pairname],
+                                         lnHMF=self.HMF_convos[pairname])
 
-        ##### dN/(dxi dlnobs) = dN/(dlnzeta dlnobs) * dlnzeta/dxi [lnobs,xi]
-        HMF_2d*= scaling_relations.dlnzeta_dxi(xi_arr)[None,:]
-
-        #### Convolve with xi measurement error [lnobs]
-        dP_dlnobs = np.trapz(HMF_2d * norm.pdf(self.catalog['XI'][dataID], xi_arr[None,:], 1), xi_arr, axis=1)
+        ##### P(ln(obs) | xi)
+        dP_dlnobs = self.convolve_HMF_lnobs_to_xi(self.catalog['XI'][dataID], zeta_arr, xi_arr, HMF_2d)
 
         #### Convolve with additional lognormal scatter in richness
         if obsname=='richness':
-            # Convolve with uncorrelated part of intrinsic scatter
-            integrand = dP_dlnobs[None,:] * norm.pdf(lnobsArr[:,None], lnobsArr[None,:], 1/obsArr[None,:]**.5)
-            dP_dlnobs = np.trapz(integrand, lnobsArr, axis=1)
+            dP_dlnobs = self.apply_sys_Poisson_scatter_richness(obsArr, lnobsArr, dP_dlnobs)
 
         #### Go to linear obs space and normalize
         # dP/dobs = dP/dlnobs * dlnobs/dobs = dP/dlnobs /obs
@@ -341,9 +370,7 @@ class MassCalibration:
         elif obsname in ('WLHST', 'WLMegacam', 'WLDES'):
             # Convolve with Gaussian LSS scatter
             if LSSnoise>0.:
-                integrand = dP_dobs[None,:] * norm.pdf(obsArr[:,None], obsArr[None,:], LSSnoise)
-                dP_dobs = np.trapz(integrand, obsArr, axis=1)
-                dP_dobs/= np.trapz(dP_dobs, obsArr)
+                dP_dobs = self.convolve_WL_LSS(obsArr, dP_dobs, LSSnoise)
             # P(Mwl) from data
             Pwl = self.WL.like(self.catalog, dataID, obsArr, self.cosmology, self.MCrel, self.lnM500_to_lnM200)
             # Get likelihood
@@ -363,9 +390,6 @@ class MassCalibration:
     def get_P_2obs_xi(self, obsnames, dataID, pairname):
         """Returns P(obs1, obs2|xi,z,p) for two types of follow-up data (e.g.,
         WL and X-ray)."""
-        HMF_3d = self.get_multiobs_HMF_z(z=self.catalog['REDSHIFT'][dataID],
-                                         z_arr=self.HMF_convos['%s_z'%pairname],
-                                         lnHMF=self.HMF_convos[pairname])
 
         ##### Get observables, obsintr is used for setting up mass range
         obsmeas, obserr = np.empty(2), np.empty(2)
@@ -385,30 +409,27 @@ class MassCalibration:
             elif obsnames[i]=='WLDES':
                 LSSnoise = self.WLcalib['DES_LSS'][0] + self.scaling['DESscatterLSS'] * self.WLcalib['DES_LSS'][1]
 
-
         ##### Observable arrays
         zeta_arr = self.thisSPTfield_gamma * scaling_relations.mass2obs('zeta', self.HMF['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
         lnzeta_arr = np.log(zeta_arr)
         xi_arr = scaling_relations.zeta2xi(zeta_arr)
-
         obsArr, lnobsArr = [], []
         for i in range(2):
             obsArrTemp = scaling_relations.mass2obs(obsnames[i], self.HMF['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
-            ##### Add radial dependence for X-ray observables
+            # Account for radial dependence for X-ray observables
             if obsnames[i] in ('Mgas', 'Yx'):
                 correction = self.conversion_factor_Xray_obs_r500ref(self.catalog['REDSHIFT'][dataID])
                 obsArrTemp*= correction
             obsArr.append( obsArrTemp )
             lnobsArr.append( np.log(obsArrTemp) )
 
-        ##### set to 0 if zeta<2
-        HMF_3d[:,:,np.where(zeta_arr<2)] = 0
+        ##### dN/dlnobs0/dlnobs1/dlnzeta at z=z_cluster from interpolation tables
+        HMF_3d = self.get_multiobs_HMF_z(z=self.catalog['REDSHIFT'][dataID],
+                                         z_arr=self.HMF_convos['%s_z'%pairname],
+                                         lnHMF=self.HMF_convos[pairname])
 
-        ##### dN/(dxi dlnobs) = dN/(dlnzeta dlnobs) * dlnzeta/dxi [lnobs0][lnobs1][xi]
-        HMF_3d*= scaling_relations.dlnzeta_dxi(xi_arr)[None,None,:]
-
-        #### Convolve with xi measurement error [lnobs0][lnobs1]
-        dP_dlnobs = np.trapz(HMF_3d * norm.pdf(self.catalog['XI'][dataID], xi_arr[None,None,:], 1), xi_arr, axis=2)
+        ##### P(ln(obs0, obs1) | xi)
+        dP_dlnobs = self.convolve_HMF_lnobs_to_xi(self.catalog['XI'][dataID], zeta_arr, xi_arr, HMF_3d)
 
         ##### Go to linear space [obs0][obs1]
         dP_dobs01 = dP_dlnobs/obsArr[0][:,None]/obsArr[1][None,:]
@@ -420,9 +441,7 @@ class MassCalibration:
         if obsnames[0] in ('WLHST', 'WLMegacam', 'WLDES'):
             # Convolve with Gaussian LSS scatter
             if LSSnoise>0.:
-                integrand = dP_dobs0[None,:] * norm.pdf(obsArr[0][:,None], obsArr[0][None,:], LSSnoise)
-                dP_dobs0 = np.trapz(integrand, obsArr[0], axis=1)
-                dP_dobs0/= np.trapz(dP_dobs0, obsArr[0])
+                dP_dobs0 = self.convolve_WL_LSS(obsArr[0], dP_dobs0, LSSnoise)
             # P(Mwl) from data
             Pobs = self.WL.like(self.catalog, dataID, obsArr[0], self.cosmology, self.MCrel, self.lnM500_to_lnM200)
         else: print "not ready!"
