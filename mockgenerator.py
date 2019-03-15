@@ -62,8 +62,9 @@ def main():
             for j, M in enumerate(HMF['m']):
                 if N[i,j]==0:
                     continue
-                # draw (Mwl,Yx,zeta)|M
-                obs_0 = [scaling_relations.mass2obs(name, M, z, scaling, cosmology) for name in ('WLMegacam', Xray_obs, 'zeta', 'richness')]
+                # draw (Mwl,Yx,zeta,richness)|M
+                obs_0 = [scaling_relations.mass2obs(name, M, z, scaling, cosmology)
+                         for name in ('WLMegacam', Xray_obs, 'zeta', 'richness')]
                 obs_0[2]*= SPT_survey['GAMMA'][fieldidx]
                 obs = np.exp(np.random.multivariate_normal(np.log(obs_0), cov, N[i,j]))
                 for k in range(N[i,j]):
@@ -77,7 +78,8 @@ def main():
                             # Convert WL mass to 200c
                             M200h_WL = MCrel.MDelta_to_M200(obs[k,0],500.,z)
                             # Observed richness
-                            richness_obs = np.random.normal(obs[k,3], configMod.richness_err)
+                            richness_int = np.random.lognormal(np.log(obs[k,3]), obs[k,3]**-.5)
+                            richness_obs = np.random.normal(richness_int, configMod.richness_err)
 
                             mock.append((M, z, xi, Mg, M200h_WL, richness_obs))
                             fieldnames.append(field)
