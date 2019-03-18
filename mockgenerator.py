@@ -4,7 +4,7 @@ import os
 import sys
 import importlib
 from scipy.interpolate import RectBivariateSpline
-from astropy.io import fits as pyfits
+# from astropy.io import fits as pyfits
 from astropy.table import Table
 import xarray as xr
 
@@ -75,6 +75,7 @@ def main():
                             Mg = np.random.lognormal(np.log(obs[k,1]), sigma=configMod.Xerr)
                             # Convert WL mass to 200c
                             M200h_WL = MCrel.MDelta_to_M200(obs[k,0],500.,z)
+
                             # Observed richness
                             richness_int = np.random.lognormal(np.log(obs[k,3]), obs[k,3]**-.5)
                             richness_obs = np.random.normal(richness_int, configMod.richness_err)
@@ -90,6 +91,7 @@ def main():
                 mock.append((0., 0., xiArrBin[i], 0., 0., 0.))
                 fieldnames.append(field)
 
+    names = np.array(['cluster%d'%i for i in range(len(mock))])
 
     mock = np.array(mock)
 
@@ -151,7 +153,6 @@ def main():
 
 
     ##### Bookkeeping of names
-    names = np.array(['cluster%d'%i for i in range(nCluster)])
     XraySample = names[np.where(mock[:,3]!=0.)[0]]
     print(XraySample)
 
@@ -163,20 +164,21 @@ def main():
     M500_noh = np.random.lognormal(np.log(mock[:,0]/cosmology['h']), scaling['Dsz']/scaling['Bsz'])
 
     ##### Save catalog file
-    # create numpy rec array
-    names_arr = ['SPT_ID', 'FIELD', 'XI', 'REDSHIFT', 'REDSHIFT_UNC', 'REDSHIFT_LIM',
+    names_arr = ['SPT_ID', 'FIELD', 'XI', 'REDSHIFT', 'REDSHIFT_UNC', 'REDSHIFT_LIMIT',
                  'Mg_MM', 'lnMg_err_MM', 'lnYx_err_MM',
                  'M_true', 'Tx_MM', 'M500', 'Mwl_200',
-                 'richness', 'richness_err']
-    format_arr = ['12a', '14a', 'f', 'f', 'f', 'f', '(2,80)f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f']
+                 'LAMBDA_RM', 'LAMBDA_RM_UNC']
     data_arr = [names, fieldnames, mock[:,2], mock[:,1], np.zeros(nCluster), redshiftLim,
                 Mgas, Xerrarr, Xerrarr, mock[:,0], 1e14*np.ones(nCluster),
                 M500_noh, mock[:,4],
                 mock[:,5], configMod.richness_err*np.ones(nCluster)]
-    arr = np.rec.array(data_arr, names=names_arr, formats=format_arr)
+    # format_arr = ['12a', '14a', 'f', 'f', 'f', 'f', '(2,80)f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f']
+    # arr = np.rec.array(data_arr, names=names_arr, formats=format_arr)
     # Save to fits
-    hdu = pyfits.BinTableHDU(data=arr)
-    hdu.writeto('mockSPT2500d_'+sys.argv[1]+'.fits')
+    # hdu = pyfits.BinTableHDU(data=arr)
+    # hdu.writeto('mockSPT2500d_'+sys.argv[1]+'.fits')
+    cat = Table(data_arr, names=names_arr)
+    cat.write('mockfits.fits')
 
 
 
