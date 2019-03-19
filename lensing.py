@@ -2,7 +2,7 @@ from __future__ import division
 import numpy as np
 from numpy.lib import scimath as sm
 from scipy.stats import norm
-import pickle
+import h5py
 import imp
 import os
 
@@ -20,12 +20,12 @@ class SPTlensing:
         self.WLcalib = WLsimcalib.WLcalibration
         # Lensing data
         self.HSTfile = options.get_string(option_section, 'HSTfile')
-        self.MegacamDir = options.get_string(option_section, 'MegacamDir')
-        self.DESDir = options.get_string(option_section, 'DESDir')
+        self.MegacamFile = options.get_string(option_section, 'MegacamFile')
+        self.DESfile = options.get_string(option_section, 'DESfile')
         # I don't know how to pass a None
         if self.HSTfile=='None': self.HSTfile = None
-        if self.MegacamDir=='None': self.MegacamDir = None
-        if self.DESDir=='None': self.DESDir = None
+        if self.MegacamFile=='None': self.MegacamFile = None
+        if self.DESfile=='None': self.DESfile = None
         self.readdata(catalog)
 
 
@@ -201,40 +201,32 @@ class SPTlensing:
 
         ##### Check for HST data
         if self.HSTfile is not None:
-            assert os.path.isfile(self.HSTfile), "HST shear data %s not found"%self.HSTfile
-            # Load weak lensing data
-            # HSTdataclass = HSTCluster(self.HSTfile)
-            HSTdata = pickle.load(open(self.HSTfile, 'rb'))
-            for i,name in enumerate(catalog['SPT_ID']):
-                if name in HSTdata.keys():
-                    # Total number of background galaxies
-                    Ntot, pzs = {}, {}
-                    for j in HSTdata[name]['pzs'].keys():
-                        pzs[j] = np.sum(HSTdata[name]['pzs'][j], axis=0)
-                        Ntot[j] = np.sum(HSTdata[name]['pzs'][j])
-                    catalog['WLdata'][i] = {'datatype':'HST', 'center':HSTdata[name]['center'],
-                        'r_deg':HSTdata[name]['r_deg'], 'shear':HSTdata[name]['shear'], 'shearerr':HSTdata[name]['shearerr'],
-                        'magbinids':HSTdata[name]['magbinids'], 'redshifts':HSTdata[name]['redshifts'], 'pzs':pzs, 'magcorr':HSTdata[name]['magnificationcorr'], 'Ntot':Ntot,}
+            with h5py.File(self.HSTfile, 'r') as f:
+                for i,name in enumerate(catalog['SPT_ID']):
+                    if name in f.keys():
+                        catalog['WLdata'][i] = {'datatype':'HST', 'center':f[name].attrs['center'],
+                            'r_deg':f[name]['shear_profile'][0], 'shear':f[name]['shear_profile'][1], 'shearerr':f[name]['shear_profile'][2], 'magbinids':f[name]['shear_profile'][3],
+                            'redshifts':f[name]['redshifts'],
+                            'pzs':{}, 'magcorr':{}, 'Ntot':{}}
+                        for key in f[name]['magbindata'].keys():
+                            catalog['WLdata'][i]['pzs'][key] = np.sum(f[name]['magbindata'][key]['pzs'], axis=0)
+                            catalog['WLdata'][i]['Ntot'][key] = np.sum(catalog['WLdata'][i]['pzs'][key])
+                            catalog['WLdata'][i]['magcorr'][key] = f[name]['magbindata'][key]['magnificationcorr']
 
         ##### Megacam data
-        if self.MegacamDir is not None:
-            assert os.path.isdir(self.MegacamDir), "Megacam data %s not found"%self.MegacamDir
-            for i,name in enumerate(catalog['SPT_ID']):
-                prefix = self.MegacamDir+'/'+name+'/'+name
-                if os.path.isfile(prefix+'_shear.txt'):
-                    shear = np.loadtxt(prefix+'_shear.txt', unpack=True)
-                    Nz = np.loadtxt(prefix+'_Nz.txt', unpack=True)
-                    catalog['WLdata'][i] = {'datatype':'Megacam', 'r_deg':shear[0], 'shear':shear[1], 'shearerr':shear[2],
-                        'redshifts':Nz[0], 'Nz':Nz[1], 'Ntot':np.sum(Nz[1]),}
+        if self.MegacamFile is not None:
+            with h5py.File(self.MegacamFile, 'r') as f:
+                for i,name in enumerate(catalog['SPT_ID']):
+                    if name in f.keys():
+                        catalog['WLdata'][i] = {'datatype':'Megacam',
+                            'r_deg':f[name]['shear_profile'][0], 'shear':f[name]['shear_profile'][1], 'shearerr':f[name]['shear_profile'][2],
+                            'redshifts':f[name]['Nz'][0], 'Nz':f[name]['Nz'][1], 'Ntot':np.sum(f[name]['Nz'][1]),}
 
         ##### Check for DES data
-        if self.DESDir is not None:
-            assert os.path.isdir(self.DESDir), "DES data %s not found"%self.DESDir
-            for i,name in enumerate(catalog['SPT_ID']):
-                prefix = self.DESDir+'/'+name+'/'+name
-                if os.path.isfile(prefix+'_shear.txt'):
-                    shear = np.loadtxt(prefix+'_shear.txt', unpack=True)
-                    Nz = np.loadtxt(prefix+'_Nz.txt', unpack=True)
-                    catalog['WLdata'][i] = {'datatype':'DES', 'r_deg':shear[0], 'shear':shear[1], 'shearerr':shear[2],
-                        'redshifts':Nz[0], 'Nz':Nz[1], 'Ntot':np.sum(Nz[1]),}
-
+        if self.DESfile is not None:
+            with h5py.File(self.DESfile, 'r') as f:
+                for i,name in enumerate(catalog['SPT_ID']):
+                    if name in f.keys():
+                        catalog['WLdata'][i] = {'datatype':'DES',
+                            'r_deg':f[name]['shear_profile'][0], 'shear':f[name]['shear_profile'][1], 'shearerr':f[name]['shear_profile'][2],
+                            'redshifts':f[name]['Nz'][0], 'Nz':f[name]['Nz'][1], 'Ntot':np.sum(f[name]['Nz'][1]),}
