@@ -58,8 +58,10 @@ class MarginalizeMass:
                 continue
 
             # Normalized HMF
-            HMF_z_ = np.exp(HMF_interp(np.log(self.catalog['REDSHIFT'][i]), np.log(self.HMF['M_arr'])))[0]
-            HMF_z_/= np.sum(np.diff(self.HMF['M_arr']) * np.exp(.5*np.log(HMF_z_[1:]*HMF_z_[:-1])))
+            lnHMF_z_ = HMF_interp(np.log(self.catalog['REDSHIFT'][i]), np.log(self.HMF['M_arr']))[0]
+            Ntot_ = np.sum(np.diff(self.HMF['M_arr']) * np.exp(.5*(lnHMF_z_[1:]+lnHMF_z_[:-1])))
+            #HMF_z_ = np.exp(HMF_interp(np.log(self.catalog['REDSHIFT'][i]), np.log(self.HMF['M_arr'])))[0]
+            #HMF_z_/= np.sum(np.diff(self.HMF['M_arr']) * np.exp(.5*np.log(HMF_z_[1:]*HMF_z_[:-1])))
 
             xi = 0
             while xi<=2.65:
@@ -74,7 +76,8 @@ class MarginalizeMass:
             M500_ = self.zeta2mass(zeta_true, self.catalog['REDSHIFT'][i], field_factor)
             M200_ = self.MCrel.MDelta_to_M200(M500_, 500., self.catalog['REDSHIFT'][i])
             # P(M,z) a.k.a. the halo mass function
-            weight_ = np.exp(np.interp(np.log(M500_), np.log(self.HMF['M_arr']), np.log(HMF_z_)))
+            weight_ = np.exp(HMF_interp(np.log(self.catalog['REDSHIFT'][i]), np.log(M500_)))[0,0] / Ntot_
+            #weight_ = np.exp(np.interp(np.log(M500_), np.log(self.HMF['M_arr']), np.log(HMF_z_)))
 
             M500.append(M500_)
             M200.append(M200_)
