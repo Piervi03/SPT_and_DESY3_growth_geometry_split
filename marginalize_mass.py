@@ -1,8 +1,6 @@
 from __future__ import division
 import numpy as np
 import os
-import imp
-from scipy.stats import norm
 from scipy.interpolate import RectBivariateSpline
 from astropy.table import Table
 
