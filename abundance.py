@@ -1,14 +1,10 @@
 from __future__ import division
 import numpy as np
-import os
-import imp
 from multiprocessing import Pool
 import scipy.ndimage
 from scipy.stats import norm
 from scipy.interpolate import RectBivariateSpline
-from astropy.table import Table
 
-from cosmosis.datablock import option_section
 import cosmo
 import scaling_relations
 
@@ -18,57 +14,9 @@ def unwrap_self_f(arg):
 
 ################################################################################
 class NumberCount:
-    def __init__(self, options):
-        ##### Global variables
-        self.NPROC = options.get_int(option_section, 'NPROC')
-        self.surveyCutSZ = options.get_double_array_1d(option_section, 'surveyCutSZ')
-        self.surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
-        self.scaling = {'SZmPivot': options.get_double(option_section, 'SZmPivot')}
-        # SPT survey
-        SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
-        assert os.path.isfile(SPT_survey_fields), "SPT survey table does not exist"
-        self.SPT_survey = Table.read(SPT_survey_fields, format='ascii.commented_header')
-        # Cluster catalog
-        SPTcatalogfile = options.get_string(option_section, 'SPTcatalogfile')
-        assert os.path.isfile(SPTcatalogfile), "SPT catalog file does not exist"
-        self.catalog = Table.read(SPTcatalogfile)
-        ##### Various observable arrays
-        # Lin spaced for convo with unit scatter (+3 sigma margin)
-        Nxi = int((self.surveyCutSZ[1]+3 - 2.7)/.1 + 1)
-        self.xi_bins = np.linspace(2.7, self.surveyCutSZ[1]+3, Nxi)
-        self.dxi = self.xi_bins[1] - self.xi_bins[0]
-        # ln(zeta(xi_bins))
-        self.ln_zeta_xi_arr = np.log(scaling_relations.xi2zeta(self.xi_bins))
-        # dlnzeta/dxi (xi_bins)
-        self.dlnzeta_dxi_arr = scaling_relations.dlnzeta_dxi(self.xi_bins)
-        # Arrays over which we'll integrate (survey cuts applied)
-        Nxi = int(np.log10(self.surveyCutSZ[1]/self.surveyCutSZ[0])/.005 + 1)
-        self.xi_arr = np.logspace(np.log10(self.surveyCutSZ[0]), np.log10(self.surveyCutSZ[1]), Nxi)
-        dz = .01
-        Nz = int((self.surveyCutRedshift[1]-self.surveyCutRedshift[0])/dz + 1)
-        self.z_arr = np.linspace(self.surveyCutRedshift[0], self.surveyCutRedshift[1], Nz)
 
-
-
-    ##########
-    def lnlike(self, block):
+    def lnlike(self):
         """Return ln-likelihood for SPT cluster abundance."""
-        # Only need cosmo for E(z)-type stuff
-        self.cosmology = {
-            'Omega_m': block.get_double('cosmological_parameters', 'Omega_m'),
-            'Omega_l': block.get_double('cosmological_parameters', 'omega_lambda'),
-            'w0': block.get_double('cosmological_parameters', 'w'),
-            'wa': block.get_double('cosmological_parameters', 'wa')}
-        # SZ scaling relation parameters
-        for p in ['Asz', 'Bsz', 'Csz', 'Dsz', 'Bsz2', 'Csz2', 'Esz', 'DszM']:
-            self.scaling[p] = block.get_double('mor_parameters', p)
-        # Halo mass function
-        self.HMF = {
-            'M_arr': block.get_double_array_1d('HMF', 'M_arr'),
-            'z_arr': block.get_double_array_1d('HMF', 'z_arr'),
-            'dNdlnM': block.get_double_array_nd('HMF', 'dNdlnM')}
-        self.HMF['len_z'] = len(self.HMF['z_arr'])
-
         ##### Convert HMF to dN/dln(zeta) = dN/dlog10(M) * dlog10(M)/dln(zeta)
         if ((self.scaling['Bsz2']!=0.)|(self.scaling['Csz2']!=0)|(self.scaling['Esz']!=0.)|(self.scaling['DszM']!=0.)):
             lnzetaM = np.log(scaling_relations.mass2obs('zeta', self.HMF['M_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling, self.cosmology))
