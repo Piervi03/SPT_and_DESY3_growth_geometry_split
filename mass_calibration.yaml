@@ -24,7 +24,7 @@ params:
   SZmPivot: (float) pivot point of SZ mor relation [Msun/h]
   XraymPivot: (float) pivot point of X-ray mor relation [Msun/h]
   richmPivot: (float) pivot point of richness mor relation [Msun/h]
-  YXPARAM: (string) form of the X-ray scaling relation (`SPT_XVP`, `Munich`,
+  YXPARAM: (string) form of the X-ray scaling relation (`SPT_XVP`, `obs-mass`,
   or `WtG`)
   mcType: (string) `Duffy08` or `DK15`
   surveyCutSZ: (list of two float) lower and upper limit in xi

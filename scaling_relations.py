@@ -11,44 +11,6 @@ def zeta2xi(zeta):
     return (zeta**2 + 3)**.5
 def dlnzeta_dxi(xi):
     return xi / (xi**2 - 3)
-# def dxi_dzeta(zeta):
-    # return zeta / (zeta**2 + 3)
-
-
-####################
-# def obs2mass(name, obs, z, scaling, cosmology):
-#     """Returns mass given (observable, z) using scaling relation."""
-#     if name=='zeta':
-#         lnM = np.log(scaling['SZmPivot']) + (np.log(obs) - np.log(scaling['Asz'])\
-#             - scaling['Csz']*np.log(cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology)))/(scaling['Bsz']\
-#             + scaling['Esz']*np.log(cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology)))
-#         return np.exp(lnM)
-#     elif name=='Yx':
-#         if scaling['YXPARAM']=='SPT_XVP':
-#             return 1e14 * scaling['Ax'] * cosmology['h']**1.5\
-#                 * (cosmology['h']/.72)**(2.5*scaling['Bx']-1.5)\
-#                 * (obs/3.)**scaling['Bx'] * cosmo.Ez(z, cosmology)**scaling['Cx']
-#         elif scaling['YXPARAM']=='Munich':
-#             return scaling['XraymPivot'] * cosmology['h']**1.5 * (obs/(scaling['Ax']
-#                 *(cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology))**scaling['Cx']))**(1/scaling['Bx'])
-#     elif name=='Mgas':
-#         return scaling['XraymPivot'] * cosmology['h'] * (obs/scaling['XraymPivot']/scaling['Ax']
-#             /(cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology))**scaling['Cx'])**(1./scaling['Bx'])
-#     elif name=='disp':
-#         h70z = cosmology['h']/.7*cosmo.Ez(z, cosmology)
-#         M200c = 1e15*cosmology['h'] * (obs/scaling['Adisp']/h70z**scaling['Cdisp'])**scaling['Bdisp']
-#         return np.exp(lnM200_to_lnM500(z, np.log(M200c)))
-#     elif name=='richness':
-#         return scaling['richmPivot']* (obs/scaling['Arichness']
-#             /(cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology))**scaling['Crichness'])**(1/scaling['Brichness'])
-#     elif name=='WLMegacam':
-#         return obs/scaling['bWL_Megacam']
-#     elif name=='WLHST':
-#         return obs/scaling['bWL_HST']
-#     elif name=='WLDES':
-#         return obs/scaling['bWL_DES']
-#     else:
-#         raise ValueError("Observable not known:",name)
 
 
 ####################
@@ -61,16 +23,16 @@ def mass2obs(name, mass, z, scaling, cosmology):
         return np.exp(lnzeta)
     elif name=='Yx':
         if scaling['YXPARAM']=='SPT_XVP':
-            return 3*(mass*1e-14/(scaling['Ax'] * cosmology['h']**1.5
-                * (cosmology['h']/.72)**(2.5*scaling['Bx']-1.5)
-                * cosmo.Ez(z, cosmology)**scaling['Cx']))**(1/scaling['Bx'])
-        elif scaling['YXPARAM']=='Munich':
-            return scaling['Ax']* (mass/cosmology['h']**1.5/scaling['XraymPivot'])**scaling['Bx']\
+            return 3 * (self.cosmology['h']/.7)**-2.5 * (mass/1e14 /.7**(3/2) / scaling['Ax'] \
+                / cosmo.Ez(z, cosmology)**scaling['Cx']))**(1/scaling['Bx'])
+        elif scaling['YXPARAM']=='obs-mass':
+            return scaling['Ax'] * (self.cosmology['h']/.7)**-2.5 * (mass/cosmology['h']/scaling['XraymPivot'])**scaling['Bx'] \
                 * (cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology))**scaling['Cx']
     elif name=='Mgas':
-        lnMgas = np.log(scaling['XraymPivot'] * scaling['Ax']) + scaling['Bx']*np.log(mass/scaling['XraymPivot']/cosmology['h'])\
-            + scaling['Cx']*np.log(cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology))\
-            + scaling['Ex']*np.log(mass/scaling['XraymPivot']/cosmology['h'])*np.log(cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology))
+        lnMgas = np.log(scaling['XraymPivot'] * scaling['Ax']) - 2.5 * np.log(cosmology['h']/.7) \
+            + scaling['Bx'] * np.log(mass/scaling['XraymPivot']/cosmology['h'])\
+            + scaling['Cx'] * np.log(cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology))\
+            + scaling['Ex'] * np.log(mass/scaling['XraymPivot']/cosmology['h'])*np.log(cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology))
         return np.exp(lnMgas)
     elif name=='disp':
         h70z = cosmology['h']/.7*cosmo.Ez(z, cosmology)
@@ -100,7 +62,7 @@ def dlnM_dlnobs(name, scaling, cosmology=None, M0_arr=None, z=None):
     elif name=='Yx':
         if scaling['YXPARAM']=='SPT_XVP':
             return 1/(1/scaling['Bx'] - scaling['dlnMg_dlnr']/3)
-        elif scaling['YXPARAM']=='Munich':
+        elif scaling['YXPARAM']=='obs-mass':
             return 1/(scaling['Bx'] - scaling['dlnMg_dlnr']/3)
     elif name=='Mgas':
         return 1/(scaling['Bx'] - scaling['dlnMg_dlnr']/3)
