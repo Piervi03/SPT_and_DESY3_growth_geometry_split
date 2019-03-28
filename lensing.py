@@ -6,22 +6,19 @@ import h5py
 import imp
 import os
 
-from cosmosis.datablock import option_section
 import cosmo
 
 ########################################
 ##### This class reads and stores shear data and calculates P(shear|P(M))
 class SPTlensing:
 
-    def __init__(self, options, catalog):
-        # WL simulation calibration data
-        WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
+    def __init__(self, catalog, WLsimcalibfile, HSTfile, MegacamFile, DESfile):
         WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
         self.WLcalib = WLsimcalib.WLcalibration
         # Lensing data
-        self.HSTfile = options.get_string(option_section, 'HSTfile')
-        self.MegacamFile = options.get_string(option_section, 'MegacamFile')
-        self.DESfile = options.get_string(option_section, 'DESfile')
+        self.HSTfile = HSTfile
+        self.MegacamFile = MegacamFile
+        self.DESfile = DESfile
         # I don't know how to pass a None
         if self.HSTfile=='None': self.HSTfile = None
         if self.MegacamFile=='None': self.MegacamFile = None

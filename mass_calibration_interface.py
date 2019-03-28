@@ -5,8 +5,7 @@ from cosmosis.datablock import option_section
 import mass_calibration
 
 def setup(options):
-    do_WL = options.get_bool(option_section, 'doWL')
-    masscalibration = mass_calibration.MassCalibration(do_WL)
+    masscalibration = mass_calibration.MassCalibration()
 
     ##### Config parameters
     masscalibration.todo = {}
@@ -38,6 +37,16 @@ def setup(options):
     masscalibration.WLcalib = WLsimcalib.WLcalibration
     ##### Multi-obs HMF convolution names
     masscalibration.observable_pairs = options.get_string(option_section, 'observable_pairs').split()
+
+    if masscalibration.todo['WL']:
+        # WL simulation calibration data
+        WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
+        # Lensing data
+        HSTfile = options.get_string(option_section, 'HSTfile')
+        MegacamFile = options.get_string(option_section, 'MegacamFile')
+        DESfile = options.get_string(option_section, 'DESfile')
+
+        masscalibration.init_WL(WLsimcalibfile, HSTfile, MegacamFile, DESfile)
 
     return masscalibration
 

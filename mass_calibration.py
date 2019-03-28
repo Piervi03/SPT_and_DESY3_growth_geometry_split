@@ -21,7 +21,7 @@ def unwrap_self_f(arg):
 ################################################################################
 class MassCalibration:
 
-    def __init__(self, do_WL):
+    def __init__(self):
         self.HMF_convo_names = [['Yx', 'Yx_SZ'],
                                 ['Mgas', 'Mgas_SZ'],
                                 ['WLMegacam', 'Megacam_SZ'],
@@ -32,9 +32,10 @@ class MassCalibration:
                                 [['WLDES', 'Yx'], 'DES_Yx_SZ'],
                                 [['WLMegacam', 'Mgas'], 'Megacam_Mgas_SZ'],
                                 [['WLDES', 'Mgas'], 'DES_Mgas_SZ'],]
-        # Weak lensing
-        if do_WL:
-            self.WL = lensing.SPTlensing(options, self.catalog)
+
+    def init_WL(self, WLsimcalibfile, HSTfile, MegacamFile, DESfile):
+        self.WL = lensing.SPTlensing(options, self.catalog,
+                                     WLsimcalibfile, HSTfile, MegacamFile, DESfile)
 
 
     ############################################################################
