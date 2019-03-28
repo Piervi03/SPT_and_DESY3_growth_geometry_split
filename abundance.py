@@ -15,6 +15,24 @@ def unwrap_self_f(arg):
 ################################################################################
 class NumberCount:
 
+    def set_arrays(self):
+        # Lin spaced for convo with unit scatter (+3 sigma margin)
+        Nxi = int((self.surveyCutSZ[1]+3 - 2.7)/.1 + 1)
+        self.xi_bins = np.linspace(2.7, self.surveyCutSZ[1]+3, Nxi)
+        self.dxi = self.xi_bins[1] - self.xi_bins[0]
+        # ln(zeta(xi_bins))
+        self.ln_zeta_xi_arr = np.log(scaling_relations.xi2zeta(self.xi_bins))
+        # dlnzeta/dxi (xi_bins)
+        self.dlnzeta_dxi_arr = scaling_relations.dlnzeta_dxi(self.xi_bins)
+        # Arrays over which we'll integrate (survey cuts applied)
+        Nxi = int(np.log10(self.surveyCutSZ[1]/self.surveyCutSZ[0])/.005 + 1)
+        self.xi_arr = np.logspace(np.log10(self.surveyCutSZ[0]), np.log10(self.surveyCutSZ[1]), Nxi)
+        dz = .01 
+        Nz = int((self.surveyCutRedshift[1]-self.surveyCutRedshift[0])/dz + 1)
+        self.z_arr = np.linspace(self.surveyCutRedshift[0], self.surveyCutRedshift[1], Nz) 
+
+
+
     def lnlike(self):
         """Return ln-likelihood for SPT cluster abundance."""
         ##### Convert HMF to dN/dln(zeta) = dN/dlog10(M) * dlog10(M)/dln(zeta)

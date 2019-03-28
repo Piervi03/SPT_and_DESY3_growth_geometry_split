@@ -1,14 +1,13 @@
 from __future__ import division
 import numpy as np
 from astropy.table import Table
-import os
 
 from cosmosis.datablock import option_section
 
 import abundance
 
 def setup(options):
-    number_count = abundance.NumberCount(options)
+    number_count = abundance.NumberCount()
     ##### Global variables
     number_count.NPROC = options.get_int(option_section, 'NPROC')
     number_count.surveyCutSZ = options.get_double_array_1d(option_section, 'surveyCutSZ')
@@ -16,27 +15,12 @@ def setup(options):
     number_count.scaling = {'SZmPivot': options.get_double(option_section, 'SZmPivot')}
     # SPT survey
     SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
-    assert os.path.isfile(SPT_survey_fields), "SPT survey table does not exist"
     number_count.SPT_survey = Table.read(SPT_survey_fields, format='ascii.commented_header')
     # Cluster catalog
     SPTcatalogfile = options.get_string(option_section, 'SPTcatalogfile')
-    assert os.path.isfile(SPTcatalogfile), "SPT catalog file does not exist"
     number_count.catalog = Table.read(SPTcatalogfile)
     ##### Various observable arrays
-    # Lin spaced for convo with unit scatter (+3 sigma margin)
-    Nxi = int((number_count.surveyCutSZ[1]+3 - 2.7)/.1 + 1)
-    number_count.xi_bins = np.linspace(2.7, number_count.surveyCutSZ[1]+3, Nxi)
-    number_count.dxi = number_count.xi_bins[1] - number_count.xi_bins[0]
-    # ln(zeta(xi_bins))
-    number_count.ln_zeta_xi_arr = np.log(scaling_relations.xi2zeta(number_count.xi_bins))
-    # dlnzeta/dxi (xi_bins)
-    number_count.dlnzeta_dxi_arr = scaling_relations.dlnzeta_dxi(number_count.xi_bins)
-    # Arrays over which we'll integrate (survey cuts applied)
-    Nxi = int(np.log10(number_count.surveyCutSZ[1]/number_count.surveyCutSZ[0])/.005 + 1)
-    number_count.xi_arr = np.logspace(np.log10(number_count.surveyCutSZ[0]), np.log10(number_count.surveyCutSZ[1]), Nxi)
-    dz = .01
-    Nz = int((number_count.surveyCutRedshift[1]-number_count.surveyCutRedshift[0])/dz + 1)
-    number_count.z_arr = np.linspace(number_count.surveyCutRedshift[0], number_count.surveyCutRedshift[1], Nz)
+    number_count.set_arrays()
 
     return number_count
 
