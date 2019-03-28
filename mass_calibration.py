@@ -34,8 +34,8 @@ class MassCalibration:
                                 [['WLDES', 'Mgas'], 'DES_Mgas_SZ'],]
 
     def init_WL(self, WLsimcalibfile, HSTfile, MegacamFile, DESfile):
-        self.WL = lensing.SPTlensing(options, self.catalog,
-                                     WLsimcalibfile, HSTfile, MegacamFile, DESfile)
+        self.WL = lensing.SPTlensing(self.catalog, WLsimcalibfile,
+                                     HSTfile, MegacamFile, DESfile)
 
 
     ############################################################################

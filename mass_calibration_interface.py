@@ -1,6 +1,7 @@
 from __future__ import division
 import numpy as np
 import imp
+from astropy.table import Table
 from cosmosis.datablock import option_section
 import mass_calibration
 
@@ -21,7 +22,6 @@ def setup(options):
     masscalibration.NPROC = options.get_int(option_section, 'NPROC')
     # SPT survey
     SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
-    assert os.path.isfile(SPT_survey_fields), "SPT survey table does not exist"
     masscalibration.SPT_survey = Table.read(SPT_survey_fields, format='ascii.commented_header')
     # Double counted clusters
     SPT_doublecounts = options.get_string(option_section, 'SPT_doublecounts')
@@ -29,7 +29,6 @@ def setup(options):
     masscalibration.SPTdoubleCount = SPTdata.SPTdoubleCount
     # Cluster catalog
     SPTcatalogfile = options.get_string(option_section, 'SPTcatalogfile')
-    assert os.path.isfile(SPTcatalogfile), "SPT catalog file does not exist"
     masscalibration.catalog = Table.read(SPTcatalogfile)
     ##### WL simulation calibration
     WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
