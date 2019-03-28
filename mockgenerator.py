@@ -2,6 +2,7 @@ from __future__ import division, print_function
 import numpy as np
 import os
 import sys
+import time
 import importlib
 from scipy.interpolate import RectBivariateSpline
 # from astropy.io import fits as pyfits
@@ -172,13 +173,9 @@ def main():
                 Mgas, Xerrarr, Xerrarr, mock[:,0], 1e14*np.ones(nCluster),
                 M500_noh, mock[:,4],
                 mock[:,5], configMod.richness_err*np.ones(nCluster)]
-    # format_arr = ['12a', '14a', 'f', 'f', 'f', 'f', '(2,80)f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f']
-    # arr = np.rec.array(data_arr, names=names_arr, formats=format_arr)
     # Save to fits
-    # hdu = pyfits.BinTableHDU(data=arr)
-    # hdu.writeto('mockSPT2500d_'+sys.argv[1]+'.fits')
     cat = Table(data_arr, names=names_arr)
-    cat.write('mockfits.fits')
+    cat.write('mock_%s.fits'%time.strftime("%y%m%d-%H%M%S"))
 
 
 

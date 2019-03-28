@@ -1,5 +1,7 @@
 import numpy as np
 
+random_seed = 0
+
 r_deg = np.linspace(.05,.15,11)
 
 # DES Y3
