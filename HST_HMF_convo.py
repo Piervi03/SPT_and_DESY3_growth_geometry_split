@@ -1,12 +1,8 @@
 from __future__ import division
 import numpy as np
-import imp
-
 from multiprocessing import Pool
 from scipy.interpolate import RectBivariateSpline
 from scipy.stats import multivariate_normal
-
-from cosmosis.datablock import option_section
 
 import convolution, scaling_relations
 
@@ -18,55 +14,20 @@ def unwrap_self_f(arg):
 ################################################################################
 class MultiObsConvolution:
 
-    def __init__(self, options):
-        # WL simulation calibration data
-        WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
-        WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
-        self.WLcalib = WLsimcalib.WLcalibration
-
+    def __init__(self):
         self.pairnames_2d = ['HST_SZ', ]
         self.pairnames_3d = ['HST_Yx_SZ', 'HST_Mgas_SZ']
-        self.observable_pairs = options.get_string(option_section, 'observable_pairs').split()
-        for pair in self.observable_pairs:
-            assert pair in self.pairnames_2d or in self.pairnames_3d, "Unknown pair of observables %s"%pair
-        self.pairs_zmin = options.get_double_array_1d(option_section, 'pairs_zmin')
-        self.pairs_zmax = options.get_double_array_1d(option_section, 'pairs_zmax')
-        self.pairs_Nz = options.get_double_array_1d(option_section, 'pairs_Nz')
-        assert len(self.pairs_zmin)==len(self.observable_pairs), "Bad length of pairs_zmin"
-        assert len(self.pairs_zmax)==len(self.observable_pairs), "Bad length of pairs_zmax"
-        assert len(self.pairs_Nz)==len(self.observable_pairs), "Bad length of pairs_Nz"
-
         self.obsnames_dict = {'HST_SZ': 'WLHST',
                               'HST_Yx_SZ': ['WLHST', 'Yx'],
                               'HST_Mgas_SZ': ['WLHST', 'Mgas'],
                               }
-        # Number of multi-processes
-        self.NPROC = options.get_int(option_section, 'NPROC')
         # Sigma-clipping in convolutions
         self.N_sigma = 4
 
 
 
     ############################################################################
-    def execute(self, block):
-        ##### Extract from datablock
-        for p in ['Bsz',]:
-            self.scaling[p] = block.get_double('mor_parameters', p)
-        # Covariance matrices
-        self.covmat = {}
-        for name in self.WLcalib['HSTsim'].keys():
-            cov_name = 'cov_HST_SZ_%s'%name
-            self.covmat[cov_name] = block.get_double_array_nd('scaling', covname)
-            cov_name = 'cov_HST_X_SZ_%s'%name
-            self.covmat[cov_name] = block.get_double_array_nd('scaling', covname)
-
-        # Halo mass function
-        self.HMF = {
-            'M_arr': block.get_double_array_1d('HMF', 'M_arr'),
-            'z_arr': block.get_double_array_1d('HMF', 'z_arr'),
-            'dNdlnM': block.get_double_array_nd('HMF', 'dNdlnM')}
-        self.HMF['len_z'] = len(self.HMF['z_arr'])
-
+    def execute(self):
         ##### Set up interpolation for HMF
         HMF_in = self.HMF['dNdlnM'][1:,:]
         if np.any(HMF_in==0):
@@ -74,15 +35,18 @@ class MultiObsConvolution:
         self.HMF_interp = RectBivariateSpline(np.log(self.HMF['z_arr'][1:]), np.log(self.HMF['M_arr']), np.log(HMF_in))
 
         ##### Pre-compute the intrinsic scatter convolutions
+        output_dict = {}
         for pair_idx,pair_name in enumerate(self.observable_pairs):
             z_arr = np.linspace(self.pairs_zmin[pair_idx], self.pairs_zmax[pair_idx], self.pairs_Nz[pair_idx])
-            this_covmat_ = block.get_double_array_nd('scaling', 'cov_%s'%pair_name)
+            this_covmat_ = self.covmat['cov_%s'%pair_name]
             obsname_s_ = self.obsnames_dict[pair_name]
             this_grid_ = self.get_P_2obs_allz(obsname=obsname_s_,
                                               covmat=this_covmat_,
                                               z_arr=z_arr)
-            block.put_double_array_nd('dN_dmultiobs', pair_name, this_grid_)
-            block.put_double_array_nd('dN_dmultiobs', '%s_z'%pair_name, z_arr)
+            output_dict[pair_name] = this_grid_
+            output_dict['%s_z'%pair_name] = z_arr
+
+        return output_dict
 
 
 
