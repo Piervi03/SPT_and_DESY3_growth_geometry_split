@@ -24,7 +24,7 @@ def mass2obs(name, mass, z, scaling, cosmology):
     elif name=='Yx':
         if scaling['YXPARAM']=='SPT_XVP':
             return 3 * (self.cosmology['h']/.7)**-2.5 * (mass/1e14 /.7**(3/2) / scaling['Ax'] \
-                / cosmo.Ez(z, cosmology)**scaling['Cx']))**(1/scaling['Bx'])
+                / cosmo.Ez(z, cosmology)**scaling['Cx'])**(1/scaling['Bx'])
         elif scaling['YXPARAM']=='obs-mass':
             return scaling['Ax'] * (self.cosmology['h']/.7)**-2.5 * (mass/cosmology['h']/scaling['XraymPivot'])**scaling['Bx'] \
                 * (cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology))**scaling['Cx']
