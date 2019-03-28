@@ -1,7 +1,6 @@
 from __future__ import division
 import numpy as np
 import os
-import imp
 from multiprocessing import Pool
 from astropy.table import Table
 
@@ -10,7 +9,6 @@ from scipy import integrate, signal
 from scipy.interpolate import RectBivariateSpline
 from scipy.stats import norm, lognorm, multivariate_normal
 
-from cosmosis.datablock import option_section
 import cosmo, lensing, Mconversion_concentration, scaling_relations
 
 cosmologyRef = {'Omega_m':.272, 'Omega_l':.728, 'h':.702, 'w0':-1, 'wa':0}
@@ -23,38 +21,7 @@ def unwrap_self_f(arg):
 ################################################################################
 class MassCalibration:
 
-    def __init__(self, options):
-        ##### Config parameters
-        self.todo = {}
-        for opt in ['doWL', 'doYx', 'doMgas', 'doveldisp', 'dorichness']:
-            self.todo[opt[2:]] = options.get_bool(option_section, opt)
-        self.scaling = {}
-        for opt in ['SZmPivot', 'XraymPivot', 'richmPivot']:
-            self.scaling[opt] = options.get_double(option_section, opt)
-        self.scaling['YXPARAM'] = options.get_string(option_section, 'YXPARAM')
-        self.mcType = options.get_string(option_section, 'mcType')
-        self.surveyCutSZ = options.get_double_array_1d(option_section, 'surveyCutSZ')
-        self.surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
-        self.NPROC = options.get_int(option_section, 'NPROC')
-        # SPT survey
-        SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
-        assert os.path.isfile(SPT_survey_fields), "SPT survey table does not exist"
-        self.SPT_survey = Table.read(SPT_survey_fields, format='ascii.commented_header')
-        # Double counted clusters
-        SPT_doublecounts = options.get_string(option_section, 'SPT_doublecounts')
-        SPTdata = imp.load_source('SPTdata', SPT_doublecounts)
-        self.SPTdoubleCount = SPTdata.SPTdoubleCount
-        # Cluster catalog
-        SPTcatalogfile = options.get_string(option_section, 'SPTcatalogfile')
-        assert os.path.isfile(SPTcatalogfile), "SPT catalog file does not exist"
-        self.catalog = Table.read(SPTcatalogfile)
-        ##### WL simulation calibration
-        WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
-        WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
-        self.WLcalib = WLsimcalib.WLcalibration
-        ##### Multi-obs HMF convolution names
-        self.observable_pairs = options.get_string(option_section, 'observable_pairs').split()
-
+    def __init__(self, do_WL):
         self.HMF_convo_names = [['Yx', 'Yx_SZ'],
                                 ['Mgas', 'Mgas_SZ'],
                                 ['WLMegacam', 'Megacam_SZ'],
@@ -65,54 +32,14 @@ class MassCalibration:
                                 [['WLDES', 'Yx'], 'DES_Yx_SZ'],
                                 [['WLMegacam', 'Mgas'], 'Megacam_Mgas_SZ'],
                                 [['WLDES', 'Mgas'], 'DES_Mgas_SZ'],]
-
         # Weak lensing
-        if self.todo['WL']:
+        if do_WL:
             self.WL = lensing.SPTlensing(options, self.catalog)
 
 
     ############################################################################
-    def lnlike(self, block):
+    def lnlike(self):
         """Returns ln-likelihood for mass calibration of the whole cluster sample."""
-        ##### Extract from datablock
-        self.cosmology = {
-            'Omega_l': block.get_double('cosmological_parameters', 'Omega_lambda'),
-            'h': block.get_double('cosmological_parameters', 'hubble')/100,
-            'ns': block.get_double('cosmological_parameters', 'n_s'),
-            'w0': block.get_double('cosmological_parameters', 'w'),
-            'wa': block.get_double('cosmological_parameters', 'wa'),
-            'sigma8': block.get_double('cosmological_parameters', 'sigma_8')}
-        for p in ['Omega_m', 'Omega_b', 'wa']:
-            self.cosmology[p] = block.get_double('cosmological_parameters', p)
-        # SZ
-        for p in ['Asz', 'Bsz', 'Csz', 'Dsz', 'Bsz2', 'Csz2', 'Esz', 'DszM']:
-            self.scaling[p] = block.get_double('mor_parameters', p)
-        # X-ray
-        for p in ['Ax', 'Bx', 'Cx', 'Dx', 'Ex', 'dlnMg_dlnr']:
-            self.scaling[p] = block.get_double('mor_parameters', p)
-        # WL
-        for p in ['bWL_Megacam', 'bWL_DES', 'HSTscatterLSS', 'MegacamScatterLSS', 'DESscatterLSS']:
-            self.scaling[p] = block.get_double('mor_parameters', p)
-        # Richness
-        for p in ['Arichness', 'Brichness', 'Crichness', 'Drichness']:
-            self.scaling[p] = block.get_double('mor_parameters', p)
-        # dispersion
-        for p in ['Adisp', 'Bdisp', 'Cdisp', 'Ddisp0', 'DdispN']:
-            self.scaling[p] = block.get_double('mor_parameters', p)
-
-        # Get multi-obs HMF convolutions
-        self.HMF_convos = {}
-        for pair_name in self.observable_pairs:
-            self.HMF_convos[pair_name] = block.get_double_array_nd('dN_dmultiobs', pair_name)
-            self.HMF_convos['%s_z'%pair_name] = block.get_double_array_nd('dN_dmultiobs', '%s_z'%pair_name)
-
-        # Halo mass function
-        self.HMF = {
-            'M_arr': block.get_double_array_1d('HMF', 'M_arr'),
-            'z_arr': block.get_double_array_1d('HMF', 'z_arr'),
-            'dNdlnM': block.get_double_array_nd('HMF', 'dNdlnM')}
-        self.HMF['len_z'] = len(self.HMF['z_arr'])
-
         ##### WL: Precompute array of angular diameter distances
         if self.todo['WL']:
             self.WL.get_dAs(self.cosmology)
