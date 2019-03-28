@@ -3,7 +3,7 @@ from cosmosis.datablock import option_section
 import HMF_convo
 
 def setup(options):
-    multi_obs_convolution = HMF_convo.MultiObsConvolution(options)
+    multi_obs_convolution = HMF_convo.MultiObsConvolution()
 
     multi_obs_convolution.observable_pairs = options.get_string(option_section, 'observable_pairs').split()
     for pair in multi_obs_convolution.observable_pairs:
@@ -43,7 +43,7 @@ def execute(block, multi_obs_convolution):
     dN_dmultiobs_dict = multi_obs_convolution.execute()
     for pair_name in multi_obs_convolution.observable_pairs:
         block.put_double_array_nd('dN_dmultiobs', pair_name, dN_dmultiobs_dict[pair_name])
-        block.put_double_array_nd('dN_dmultiobs', '%s_z'%pair_name, '%s_z'%pair_name)
+        block.put_double_array_nd('dN_dmultiobs', '%s_z'%pair_name, dN_dmultiobs_dict['%s_z'%pair_name])
 
     return 0
 
