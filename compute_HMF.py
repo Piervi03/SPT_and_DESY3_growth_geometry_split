@@ -3,14 +3,11 @@ import numpy as np
 import imp
 from scipy.interpolate import interp1d
 import scipy.integrate
-from cosmosis.datablock import option_section
 import cosmo
 
 class HMFCalculator:
-    def __init__(self, options):
-        """Initialize Tinker interpolation functions and critical overdensity,
-        and store in self."""
-        self.Deltacrit = options.get_double(option_section, 'Deltacrit', default=500.)
+    def __init__(self):
+        """Initialize Tinker parameter interpolation functions."""
         # Initialize Tinker interpolation (A, a, b, c)
         x = np.log((200., 300., 400., 600., 800., 1200., 1600., 2400., 3200.))
         y = (1.858659e-01, 1.995973e-01, 2.115659e-01, 2.184113e-01, 2.480968e-01, 2.546053e-01, 2.600000e-01, 2.600000e-01, 2.600000e-01)
@@ -23,22 +20,13 @@ class HMFCalculator:
         self.interp_c = interp1d(x, y, kind='cubic')
 
 
-    def compute_HMF(self, block):
-        """Compute Tinker HMF, apply redshift volume, and add to block."""
+    def compute_HMF(self, cosmology, z_arr, k_arr, Pk):
+        """Compute Tinker HMF and apply redshift volume."""
         ##### Setup
-        # Only need cosmo for E(z)-type stuff
-        cosmology = {
-            'Omega_m': block.get_double('cosmological_parameters', 'Omega_m'),
-            'Omega_nu': block.get_double('cosmological_parameters', 'Omega_nu'),
-            'Omega_l': block.get_double('cosmological_parameters', 'omega_lambda'),
-            'w0': block.get_double('cosmological_parameters', 'w'),
-            'wa': block.get_double('cosmological_parameters', 'wa')}
         rho_m = (cosmology['Omega_m'] - cosmology['Omega_nu']) * cosmo.RHOCRIT
         # Data arrays
         M_arr = np.logspace(13, 16, 301)
-        z_arr = block.get_double_array_1d('matter_power_lin', 'z')
-        k_arr = block.get_double_array_1d('matter_power_lin', 'k_h')
-        Pk = block.get_double_array_nd('matter_power_lin', 'p_k')
+
         # Mean overdensity at each redshift
         Deltamean = self.Deltacrit / cosmo.Omega_m_z(z_arr, cosmology)
 
@@ -68,11 +56,9 @@ class HMFCalculator:
         deltaV = np.insert(deltaV, 0, deltaV[1])
         dNdlnM = dNdlnM_noVol * deltaV[:,None]
 
-        ##### Store HMF
-        block.put_double_array_1d('HMF', 'M_arr', M_arr)
-        block.put_double_array_1d('HMF', 'z_arr', z_arr)
-        block.put_double_array_nd('HMF', 'dNdlnM_unitVol', dNdlnM_noVol)
-        block.put_double_array_nd('HMF', 'dNdlnM', dNdlnM)
+        ##### Return HMF
+        return M_arr, dNdlnM_noVol, dNdlnM
+
 
 
     def Tinker_params(self, z, Deltamean):
