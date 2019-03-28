@@ -17,7 +17,7 @@ class SPTlensing:
         WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
         self.WLcalib = WLsimcalib.WLcalibration
         # beta bias redshift-interpolation for DES
-        data_ = np.loadtxt(DES_betabias_file)[:,:3]
+        data_ = np.loadtxt(DES_betabias_file, unpack=True)[:3]
         self.DES_betabias_mean = interp1d(data_[1], data_[0], kind='cubic')
         self.DES_betabias_var = interp1d(data_[1], data_[2]**2, kind='cubic')
         # Lensing data
