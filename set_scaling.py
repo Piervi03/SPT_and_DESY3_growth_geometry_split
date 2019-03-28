@@ -1,10 +1,14 @@
 from __future__ import division
 import numpy as np
-
+import imp
 
 THRESHOLD = 1e-8
 
 class SetScaling:
+
+    def __init__(self, WLsimcalibfile):
+        WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
+        self.WLcalib = WLsimcalib.WLcalibration
 
     def execute(self, scaling):
         """Set total (or effective) bias and scatter for Megacam and DES using
@@ -30,7 +34,6 @@ class SetScaling:
         scaling['bWL_DES'] = self.WLcalib['DESsim'][0] + scaling['WLbias']*massModelErr + scaling['DESbias']*zDistShearErr
         # D^2 = Dint^2 + (DSim + DErrParam * err(DSim))^2
         scaling['DWL_DES'] = self.WLcalib['DESsim'][2] + scaling['WLscatter']*self.WLcalib['DESsim'][3]
-
 
         # HST
         zDistShearErr = (self.WLcalib['HSTzDistErr']**2 + self.WLcalib['HSTshearErr']**2)**.5

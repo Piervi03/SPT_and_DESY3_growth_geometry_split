@@ -1,16 +1,12 @@
 from __future__ import division
-import imp
 
 from cosmosis.datablock import option_section
 
 import set_scaling
 
 def setup(options):
-    scaling_setter = set_scaling.SetScaling()
-    # WL simulation calibration data
     WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
-    WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
-    scaling_setter.WLcalib = scaling_setter.WLcalibration
+    scaling_setter = set_scaling.SetScaling(WLsimcalibfile)
     return scaling_setter
 
 def execute(block, scaling_setter):
