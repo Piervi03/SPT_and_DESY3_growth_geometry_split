@@ -5,8 +5,6 @@ from multiprocessing import Pool
 from scipy.interpolate import RectBivariateSpline
 from scipy.stats import multivariate_normal
 
-from cosmosis.datablock import option_section
-
 import convolution, scaling_relations
 
 
@@ -17,23 +15,9 @@ def unwrap_self_f(arg):
 ################################################################################
 class MultiObsConvolution:
 
-    def __init__(self, options):
+    def __init__(self):
         self.pairnames_2d = ['Yx_SZ', 'Mgas_SZ', 'Megacam_SZ', 'DES_SZ', 'richness_SZ']
         self.pairnames_3d = ['Megacam_Yx_SZ', 'Megacam_Mgas_SZ', 'DES_Yx_SZ', 'DES_Mgas_SZ']
-        self.observable_pairs = options.get_string(option_section, 'observable_pairs').split()
-        for pair in self.observable_pairs:
-            assert (pair in self.pairnames_2d) or (pair in self.pairnames_3d), "Unknown pair of observables %s"%pair
-        if len(self.observable_pairs)==1:
-            self.pairs_zmin = [options.get_double(option_section, 'pairs_zmin')]
-            self.pairs_zmax = [options.get_double(option_section, 'pairs_zmax')]
-            self.pairs_Nz = [options.get_int(option_section, 'pairs_Nz')]
-        else:
-            self.pairs_zmin = options.get_double_array_1d(option_section, 'pairs_zmin')
-            self.pairs_zmax = options.get_double_array_1d(option_section, 'pairs_zmax')
-            self.pairs_Nz = options.get_int_array_1d(option_section, 'pairs_Nz')
-            assert len(self.pairs_zmin)==len(self.observable_pairs), "Bad length of pairs_zmin"
-            assert len(self.pairs_zmax)==len(self.observable_pairs), "Bad length of pairs_zmax"
-            assert len(self.pairs_Nz)==len(self.observable_pairs), "Bad length of pairs_Nz"
 
         self.obsnames_dict = {'Yx_SZ': 'Yx',
                               'Mgas_SZ': 'Mgas',
@@ -45,29 +29,15 @@ class MultiObsConvolution:
                               'DES_Yx_SZ': ['WLDES', 'Yx'],
                               'DES_Mgas_SZ': ['WLDES', 'Mgas'],
                               }
-        # Number of multi-processes
-        self.NPROC = options.get_int(option_section, 'NPROC')
         # Sigma-clipping in convolutions
         self.N_sigma = 4
         self.scaling = {}
+        self.covmat = {}
+
 
 
     ############################################################################
-    def execute(self, block):
-        ##### Extract from datablock
-        for p in ['Bsz', 'Bx', 'Brichness']:
-            self.scaling[p] = block.get_double('mor_parameters', p)
-        # Covariance matrices
-        self.covmat = {}
-        for c in ['cov_X_SZ', 'cov_Megacam_SZ', 'cov_DES_SZ', 'cov_richness_SZ', 'cov_Megacam_X_SZ', 'cov_DES_X_SZ']:
-            self.covmat[c] = block.get_double_array_nd('mor_parameters', c)
-        # Halo mass function
-        self.HMF = {
-            'M_arr': block.get_double_array_1d('HMF', 'M_arr'),
-            'z_arr': block.get_double_array_1d('HMF', 'z_arr'),
-            'dNdlnM': block.get_double_array_nd('HMF', 'dNdlnM')}
-        self.HMF['len_z'] = len(self.HMF['z_arr'])
-
+    def execute(self):
         ##### Set up interpolation for HMF
         HMF_in = self.HMF['dNdlnM'][1:,:]
         if np.any(HMF_in==0):
@@ -75,9 +45,10 @@ class MultiObsConvolution:
         self.HMF_interp = RectBivariateSpline(np.log(self.HMF['z_arr'][1:]), np.log(self.HMF['M_arr']), np.log(HMF_in))
 
         ##### Pre-compute the intrinsic scatter convolutions
+        output_dict = {}
         for pair_idx,pair_name in enumerate(self.observable_pairs):
             z_arr = np.linspace(self.pairs_zmin[pair_idx], self.pairs_zmax[pair_idx], self.pairs_Nz[pair_idx])
-            this_covmat_ = block.get_double_array_nd('mor_parameters', 'cov_%s'%pair_name)
+            this_covmat_ = self.covmat['cov_%s'%pair_name]
             obsname_s_ = self.obsnames_dict[pair_name]
             this_grid_ = self.get_P_multiobs_allz(obsname=obsname_s_,
                                                   pairname=pair_name,
@@ -85,8 +56,11 @@ class MultiObsConvolution:
                                                   z_arr=z_arr)
             if np.any(this_grid_==0):
                 this_grid_[np.where(this_grid_==0)] = np.nextafter(0, 1)
-            block.put_double_array_nd('dN_dmultiobs', pair_name, np.log(this_grid_))
-            block.put_double_array_nd('dN_dmultiobs', '%s_z'%pair_name, z_arr)
+
+            output_dict[pair_name] = np.log(this_grid_)
+            output_dict['%s_z'%pair_name] = z_arr
+
+        return output_dict
 
 
 
