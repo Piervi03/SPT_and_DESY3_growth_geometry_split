@@ -1,6 +1,7 @@
 from __future__ import division
 import numpy as np
 from numpy.lib import scimath as sm
+from scipy.interpolate import interp1d
 from scipy.stats import norm
 import h5py
 import imp
@@ -12,9 +13,13 @@ import cosmo
 ##### This class reads and stores shear data and calculates P(shear|P(M))
 class SPTlensing:
 
-    def __init__(self, catalog, WLsimcalibfile, HSTfile, MegacamFile, DESfile):
+    def __init__(self, catalog, WLsimcalibfile, HSTfile, MegacamFile, DESfile, DES_betabias_file):
         WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
         self.WLcalib = WLsimcalib.WLcalibration
+        # beta bias redshift-interpolation for DES
+        data_ = np.loadtxt(DES_betabias_file)[:,:3]
+        self.DES_betabias_mean = interp1d(data_[1], data_[0], kind='cubic')
+        self.DES_betabias_var = interp1d(data_[1], data_[2]**2, kind='cubic')
         # Lensing data
         self.HSTfile = HSTfile
         self.MegacamFile = MegacamFile
@@ -28,7 +33,7 @@ class SPTlensing:
 
     ########################################
     # Get P(Mwl) from dP/dMwl and shear data
-    def like(self, data, dataindex, mArr, cosmology, MCrel, lnM500_to_lnM200):
+    def like(self, data, dataindex, mArr, cosmology, MCrel, lnM500_to_lnM200, scaling):
         """Return likelihood of shear profile for a given cluster (index) given
         an array of cluster masses."""
         self.name = data['SPT_ID'][dataindex]
@@ -52,26 +57,38 @@ class SPTlensing:
 
 
         #################### Megacam and DES: no magnitude bin stuff
-        if self.WLdata['datatype']!='HST':
+        if self.WLdata['datatype'] in ('Megacam', 'DES'):
+            # Keep all radial bins (make cut in data)
+            rInclude = range(len(self.WLdata['r_deg']))
             # Sigma_crit, with c^2/4piG [h Msun/Mpc^2]
             Sigma_c = 1.6624541593797974e+18/Dl/self.beta_avg
 
-            # gamma_t [Radius][Mass]
-            gamma_2d = self.get_Delta_Sigma() / Sigma_c
+            if self.WLdata['datatype'] == 'Megacam':
+                # gamma_t [Radius][Mass]
+                gamma_2d = self.get_Delta_Sigma() / Sigma_c
+                # kappa [Radius][Mass]
+                kappa_2d = self.get_Sigma() / Sigma_c
+                # Reduced shear g_t [Radius][Mass]
+                g_2d = gamma_2d/(1-kappa_2d) * (1 + kappa_2d*(self.beta2_avg/self.beta_avg**2-1))
 
-            # kappa [Radius][Mass]
-            kappa_2d = self.get_Sigma() / Sigma_c
-
-            # Reduced shear g_t [Radius][Mass]
-            g_2d = gamma_2d/(1-kappa_2d) * (1 + kappa_2d*(self.beta2_avg/self.beta_avg**2-1))
-
-            # Keep all radial bins (make cut in data)
-            rInclude = range(len(self.WLdata['r_deg']))
+            elif self.WLdata['datatype']=='DES':
+                # Realization of shear and beta bias
+                betabias_mean_ = self.DES_betabias_mean(self.zcluster)
+                betabias_var_ = self.DES_betabias_sigma(self.zcluster)
+                total_var_ = betabias_var_ + self.WLcalib['DESshearErr']**2 + self.WLcalib['DEScontamCorr']**2
+                dev_ = betabias_mean_ + scaling['DESbias'] * np.sqrt(total_var_)
+                Sigma_c*= dev_
+                # gamma_t [Radius][Mass]
+                gamma_2d = self.get_Delta_Sigma() / Sigma_c
+                # kappa [Radius][Mass]
+                kappa_2d = self.get_Sigma() / Sigma_c
+                # Reduced shear g_t [Radius][Mass]
+                g_2d = gamma_2d/(1-kappa_2d)
 
 
         #################### HST data
         ##### HST: beta(r) because of magnitude bins
-        else:
+        elif self.WLdata['datatype'] == 'HST':
             # Sigma_crit, with c^2/4piG [h Msun/Mpc^2] [Radius]
             rangeR = range(len(self.WLdata['r_deg']))
             betaR = np.array([self.beta_avg[self.WLdata['magbinids'][i]] for i in rangeR])

@@ -29,9 +29,9 @@ class SetScaling:
 
         # DES
         massModelErr = (self.WLcalib['DESsim'][1]**2 + self.WLcalib['DESmcErr']**2 + self.WLcalib['DEScenterErr']**2)**.5
-        zDistShearErr = (self.WLcalib['DESzDistErr']**2 + self.WLcalib['DESshearErr']**2 + self.WLcalib['DEScontamCorr']**2)**.5
+        # zDistShearErr = (self.WLcalib['DESzDistErr']**2 + self.WLcalib['DESshearErr']**2 + self.WLcalib['DEScontamCorr']**2)**.5
         # bias = bSim + bFitParam * err(bSim)
-        scaling['bWL_DES'] = self.WLcalib['DESsim'][0] + scaling['WLbias']*massModelErr + scaling['DESbias']*zDistShearErr
+        scaling['bWL_DES'] = self.WLcalib['DESsim'][0] + scaling['WLbias']*massModelErr# + scaling['DESbias']*zDistShearErr
         # D^2 = Dint^2 + (DSim + DErrParam * err(DSim))^2
         scaling['DWL_DES'] = self.WLcalib['DESsim'][2] + scaling['WLscatter']*self.WLcalib['DESsim'][3]
 
