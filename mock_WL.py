@@ -22,12 +22,13 @@ def main():
 
     with h5py.File('mock_WL_%s.hdf5'%time.strftime("%y%m%d-%H%M%S"), 'w') as f:
         for i,name in enumerate(cat['SPT_ID']):
-            r_deg, g_2d, g_2d_err, source_dist = mock_WL(cat['Mwl_200'][i], cat['REDSHIFT'][i])
+            if cat['REDSHIFT'][i]>0:
+                r_deg, g_2d, g_2d_err, source_dist = mock_WL(cat['Mwl_200'][i], cat['REDSHIFT'][i])
 
-            g = f.create_group(name)
-            d = g.create_dataset('z_cluster', data=cat['REDSHIFT'][i])
-            d = g.create_dataset('shear_profile', data=((r_deg, g_2d, g_2d_err)))
-            d = g.create_dataset('Nz', data=source_dist)
+                g = f.create_group(name)
+                d = g.create_dataset('z_cluster', data=cat['REDSHIFT'][i])
+                d = g.create_dataset('shear_profile', data=((r_deg, g_2d, g_2d_err)))
+                d = g.create_dataset('Nz', data=source_dist)
 
 
 ##### Compute the inverse sec of the complex number z.
