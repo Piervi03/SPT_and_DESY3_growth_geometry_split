@@ -74,7 +74,7 @@ class SPTlensing:
             elif self.WLdata['datatype']=='DES':
                 # Realization of shear and beta bias
                 betabias_mean_ = self.DES_betabias_mean(self.zcluster)
-                betabias_var_ = self.DES_betabias_sigma(self.zcluster)
+                betabias_var_ = self.DES_betabias_var(self.zcluster)
                 total_var_ = betabias_var_ + self.WLcalib['DESshearErr']**2 + self.WLcalib['DEScontamCorr']**2
                 dev_ = betabias_mean_ + scaling['DESbias'] * np.sqrt(total_var_)
                 Sigma_c*= dev_
@@ -161,9 +161,12 @@ class SPTlensing:
         betaArr[bgIdx]/= np.exp(np.interp(np.log(self.WLdata['redshifts'][bgIdx]), self.dAs['lnz'], self.dAs['lndA']))
 
         ##### Weight beta(z) with N(z) distribution to get <beta> and <beta^2>
-        if self.WLdata['datatype']!='HST':
+        if self.WLdata['datatype']=='Megacam':
             self.beta_avg = np.sum(self.WLdata['Nz']*betaArr)/self.WLdata['Ntot']
             self.beta2_avg = np.sum(self.WLdata['Nz']*betaArr**2)/self.WLdata['Ntot']
+        elif self.WLdata['datatype']=='DES':
+            self.beta_avg = np.mean(betaArr)
+            self.beta2_avg = np.mean(betaArr**2)
         else:
             self.beta_avg, self.beta2_avg = {}, {}
             for i in self.WLdata['pzs'].keys():
@@ -243,4 +246,4 @@ class SPTlensing:
                     if name in f.keys():
                         catalog['WLdata'][i] = {'datatype':'DES',
                             'r_deg':f[name]['shear_profile'][0], 'shear':f[name]['shear_profile'][1], 'shearerr':f[name]['shear_profile'][2],
-                            'redshifts':f[name]['Nz'][0], 'Nz':f[name]['Nz'][1], 'Ntot':np.sum(f[name]['Nz'][1]),}
+                            'redshifts':f[name]['Nz'][:],}
