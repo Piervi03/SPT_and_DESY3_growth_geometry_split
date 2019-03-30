@@ -19,9 +19,10 @@ def setup(options):
     # Proceed with actual setup
     recalc_HMF = options.get_bool(option_section, 'recalc_HMF', default=True)
     save_HMF_to_disk = options.get_bool(option_section, 'save_HMF_to_disk', default=False)
+    Deltacrit = options.get_double(option_section, 'Deltacrit', default=500.)
+    
     if recalc_HMF:
-        HMF_calculator = compute_HMF.HMFCalculator()
-        HMF_calculator.Deltacrit = options.get_double(option_section, 'Deltacrit', default=500.)
+        HMF_calculator = compute_HMF.HMFCalculator(Deltacrit)
     else:
         HMF_calculator = EmptyClass()
         HMF_calculator.HMF = xr.open_dataset('HMF.nc')
