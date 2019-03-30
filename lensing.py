@@ -44,7 +44,6 @@ class SPTlensing:
         self.rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.zcluster, cosmology)**2 # [h^2 Msun/Mpc^3]
         Dl = cosmo.dA(self.zcluster, cosmology)
         self.get_beta(cosmology)
-
         ##### M200 and scale radius, wrt critical density, everything in h units
         M200c = np.exp(lnM500_to_lnM200(self.zcluster, np.log(mArr)))[0]
         r200c = (3.*M200c/4./np.pi/200./self.rho_c_z)**(1./3.)
@@ -54,7 +53,6 @@ class SPTlensing:
 
         ##### dimensionless radial distance [Radius][Mass]
         self.x_2d = self.WLdata['r_deg'][:,None] * Dl * np.pi/180. / self.rs[None,:]
-
 
         #################### Megacam and DES: no magnitude bin stuff
         if self.WLdata['datatype'] in ('Megacam', 'DES'):
@@ -157,7 +155,12 @@ class SPTlensing:
         bgIdx = np.where(self.WLdata['redshifts']>self.zcluster)[0]
 
         ##### Calculate beta(z_source)
-        betaArr[bgIdx] = np.array([cosmo.dA_two_z(self.zcluster, z, cosmology) for z in self.WLdata['redshifts'][bgIdx]])
+        # Set up interpolation
+        z_arr = np.linspace(np.amin(self.WLdata['redshifts'][bgIdx]), np.amax(self.WLdata['redshifts'][bgIdx]), 64)
+        dA_ls = np.array([cosmo.dA_two_z(self.zcluster, z, cosmology) for z in z_arr])
+        dA_ls_interp = interp1d(z_arr, dA_ls, kind='cubic')
+        # beta = dA_ls / dA_l
+        betaArr[bgIdx] = dA_ls_interp(self.WLdata['redshifts'][bgIdx])
         betaArr[bgIdx]/= np.exp(np.interp(np.log(self.WLdata['redshifts'][bgIdx]), self.dAs['lnz'], self.dAs['lndA']))
 
         ##### Weight beta(z) with N(z) distribution to get <beta> and <beta^2>
