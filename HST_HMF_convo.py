@@ -1,5 +1,6 @@
 from __future__ import division
 import numpy as np
+import imp
 from multiprocessing import Pool
 from scipy.interpolate import RectBivariateSpline
 from scipy.stats import multivariate_normal
@@ -14,8 +15,19 @@ def unwrap_self_f(arg):
 ################################################################################
 class MultiObsConvolution:
 
-    def __init__(self):
-        self.pairnames_2d = ['HST_SZ', ]
+    def __init__(self, WLsimcalibfile,
+                 observable_pairs, pairs_zmin, pairs_zmax, pairs_Nz,
+                 NPROC):
+        WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
+        self.WLcalib = WLsimcalib.WLcalibration
+
+        self.observable_pairs = observable_pairs
+        self.pairs_zmin = pairs_zmin
+        self.pairs_zmax = pairs_zmax
+        self.pairs_Nz = pairs_Nz
+        self.NPROC = NPROC
+
+        self.pairnames_2d = ['HST_SZ',]
         self.pairnames_3d = ['HST_Yx_SZ', 'HST_Mgas_SZ']
         self.obsnames_dict = {'HST_SZ': 'WLHST',
                               'HST_Yx_SZ': ['WLHST', 'Yx'],

@@ -1,28 +1,28 @@
 from __future__ import division
-import imp
 from cosmosis.datablock import option_section
 import HST_HMF_convo
 
 def setup(options):
-    multi_obs_convolution = HST_HMF_convo.MultiObsConvolution(options)
-
     # WL simulation calibration data
     WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
-    WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
-    multi_obs_convolution.WLcalib = WLsimcalib.WLcalibration
 
-    multi_obs_convolution.observable_pairs = options.get_string(option_section, 'observable_pairs').split()
-    for pair in multi_obs_convolution.observable_pairs:
-        assert pair in multi_obs_convolution.pairnames_2d or in multi_obs_convolution.pairnames_3d, "Unknown pair of observables %s"%pair
-    multi_obs_convolution.pairs_zmin = options.get_double_array_1d(option_section, 'pairs_zmin')
-    multi_obs_convolution.pairs_zmax = options.get_double_array_1d(option_section, 'pairs_zmax')
-    multi_obs_convolution.pairs_Nz = options.get_double_array_1d(option_section, 'pairs_Nz')
-    assert len(multi_obs_convolution.pairs_zmin)==len(multi_obs_convolution.observable_pairs), "Bad length of pairs_zmin"
-    assert len(multi_obs_convolution.pairs_zmax)==len(multi_obs_convolution.observable_pairs), "Bad length of pairs_zmax"
-    assert len(multi_obs_convolution.pairs_Nz)==len(multi_obs_convolution.observable_pairs), "Bad length of pairs_Nz"
+    observable_pairs = options.get_string(option_section, 'observable_pairs').split()
+    for pair in observable_pairs:
+        assert pair in pairnames_2d or in pairnames_3d, "Unknown pair of observables %s"%pair
+    pairs_zmin = options.get_double_array_1d(option_section, 'pairs_zmin')
+    pairs_zmax = options.get_double_array_1d(option_section, 'pairs_zmax')
+    pairs_Nz = options.get_double_array_1d(option_section, 'pairs_Nz')
+    assert len(pairs_zmin)==len(observable_pairs), "Bad length of pairs_zmin"
+    assert len(pairs_zmax)==len(observable_pairs), "Bad length of pairs_zmax"
+    assert len(pairs_Nz)==len(observable_pairs), "Bad length of pairs_Nz"
 
     # Number of multi-processes
-    multi_obs_convolution.NPROC = options.get_int(option_section, 'NPROC')
+    NPROC = options.get_int(option_section, 'NPROC')
+
+    multi_obs_convolution = HST_HMF_convo.MultiObsConvolution(WLsimcalibfile,
+                                                              observable_pairs,
+                                                              pairs_zmin, pairs_zmax, pairs_Nz,
+                                                              NPROC)
 
     return multi_obs_convolution
 
