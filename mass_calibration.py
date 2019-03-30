@@ -37,14 +37,15 @@ class MassCalibration:
         self.observable_pairs = observable_pairs
 
         # Read input files
-        SPT_survey = Table.read(SPT_survey_fields, format='ascii.commented_header')
+        self.SPT_survey = Table.read(SPT_survey_fields, format='ascii.commented_header')
         SPTdata = imp.load_source('SPTdata', SPT_doublecounts)
         self.SPTdoubleCount = SPTdata.SPTdoubleCount
         self.catalog = Table.read(SPTcatalogfile)
-
+        WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
+        self.WLcalib = WLsimcalib.WLcalibration
         if self.todo['WL']:
             self.WL = lensing.SPTlensing(self.catalog, WLsimcalibfile,
-                                         HSTfile, MegacamFile, DESfile, DESbiasfile)
+                                         HSTfile, MegacamFile, DESfile, DES_betabias_file)
 
         self.HMF_convo_names = [['Yx', 'Yx_SZ'],
                                 ['Mgas', 'Mgas_SZ'],

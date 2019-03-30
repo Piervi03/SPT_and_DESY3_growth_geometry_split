@@ -19,27 +19,27 @@ def setup(options):
     NPROC = options.get_int(option_section, 'NPROC')
     # SPT survey
     SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
-    SPT_survey = Table.read(SPT_survey_fields, format='ascii.commented_header')
     # Double counted clusters
     SPT_doublecounts = options.get_string(option_section, 'SPT_doublecounts')
-    SPTdata = imp.load_source('SPTdata', SPT_doublecounts)
-    SPTdoubleCount = SPTdata.SPTdoubleCount
     # Cluster catalog
     SPTcatalogfile = options.get_string(option_section, 'SPTcatalogfile')
-    catalog = Table.read(SPTcatalogfile)
-    ##### WL simulation calibration
-    WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
-    WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
-    WLcalib = WLsimcalib.WLcalibration
     ##### Multi-obs HMF convolution names
     observable_pairs = options.get_string(option_section, 'observable_pairs').split()
 
+    ##### WL data files
+    WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
+    DES_betabias_file = options.get_string(option_section, 'DES_betabias_file')
+    # Lensing data
+    HSTfile = options.get_string(option_section, 'HSTfile')
+    MegacamFile = options.get_string(option_section, 'MegacamFile')
+    DESfile = options.get_string(option_section, 'DESfile')
 
     masscalibration = mass_calibration.MassCalibration(todo, scaling, mcType,
                                                        surveyCutSZ, surveyCutRedshift,
                                                        SPT_survey_fields, SPT_doublecounts, SPTcatalogfile,
                                                        observable_pairs,
-                                                       WLsimcalibfile, DES_betabias_file, HSTfile, MegacamFile, DESfile)
+                                                       WLsimcalibfile, DES_betabias_file, HSTfile, MegacamFile, DESfile,
+                                                       NPROC)
 
     return masscalibration
 
