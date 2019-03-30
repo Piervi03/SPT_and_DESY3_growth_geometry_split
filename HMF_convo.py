@@ -67,7 +67,6 @@ class MultiObsConvolution:
 
             output_dict[pair_name] = np.log(this_grid_)
             output_dict['%s_z'%pair_name] = z_arr
-        print 'HMF_convo', self.covmat
         return output_dict
 
 
