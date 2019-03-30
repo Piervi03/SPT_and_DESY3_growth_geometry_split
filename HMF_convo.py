@@ -52,24 +52,24 @@ class MultiObsConvolution:
             obsname_s_ = self.obsnames_dict[pair_name]
             this_grid_ = self.get_P_multiobs_allz(obsname=obsname_s_,
                                                   pairname=pair_name,
-                                                  covmat=this_covmat_,
+                                                  pair_covmat=this_covmat_,
                                                   z_arr=z_arr)
             if np.any(this_grid_==0):
                 this_grid_[np.where(this_grid_==0)] = np.nextafter(0, 1)
 
             output_dict[pair_name] = np.log(this_grid_)
             output_dict['%s_z'%pair_name] = z_arr
-
+        print 'HMF_convo', self.covmat
         return output_dict
 
 
 
-    def get_P_multiobs_allz(self, obsname, pairname, covmat, z_arr):
+    def get_P_multiobs_allz(self, obsname, pairname, pair_covmat, z_arr):
         """Return P(obs, xi | M, z, p) for each redshift in z_arr. Optional
         multiprocess."""
         # Write to self to make function pickleable for multiprocessing
         self.obsname = obsname
-        self.covmat = covmat
+        self.pair_covmat = pair_covmat
         self.pairname = pairname
 
         if self.NPROC==0:
@@ -87,7 +87,7 @@ class MultiObsConvolution:
     def get_P_multiobs_z_fixedkernel(self, z):
         """Decide whether it's a 2D or 3D observable array."""
         # Unpack self (again, because of multiprocessing)
-        covmat = self.covmat
+        covmat = self.pair_covmat
         obsname = self.obsname
         pairname = self.pairname
         # Compute 2D or 3D multi-obs HMF convolution
