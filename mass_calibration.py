@@ -1,6 +1,7 @@
 from __future__ import division
 import numpy as np
 import os
+import imp
 from multiprocessing import Pool
 from astropy.table import Table
 
@@ -21,7 +22,30 @@ def unwrap_self_f(arg):
 ################################################################################
 class MassCalibration:
 
-    def __init__(self):
+    def __init__(self, todo, scaling, mcType, surveyCutSZ, surveyCutRedshift,
+                 SPT_survey_fields, SPT_doublecounts, SPTcatalogfile,
+                 observable_pairs,
+                 WLsimcalibfile, DES_betabias_file, HSTfile, MegacamFile, DESfile,
+                 NPROC):
+
+        self.NPROC = NPROC
+        self.todo = todo
+        self.scaling = scaling
+        self.mcType = mcType
+        self.surveyCutSZ = surveyCutSZ
+        self.surveyCutRedshift = surveyCutRedshift
+        self.observable_pairs = observable_pairs
+
+        # Read input files
+        SPT_survey = Table.read(SPT_survey_fields, format='ascii.commented_header')
+        SPTdata = imp.load_source('SPTdata', SPT_doublecounts)
+        self.SPTdoubleCount = SPTdata.SPTdoubleCount
+        self.catalog = Table.read(SPTcatalogfile)
+
+        if self.todo['WL']:
+            self.WL = lensing.SPTlensing(self.catalog, WLsimcalibfile,
+                                         HSTfile, MegacamFile, DESfile, DESbiasfile)
+
         self.HMF_convo_names = [['Yx', 'Yx_SZ'],
                                 ['Mgas', 'Mgas_SZ'],
                                 ['WLMegacam', 'Megacam_SZ'],
@@ -33,9 +57,6 @@ class MassCalibration:
                                 [['WLMegacam', 'Mgas'], 'Megacam_Mgas_SZ'],
                                 [['WLDES', 'Mgas'], 'DES_Mgas_SZ'],]
 
-    def init_WL(self, WLsimcalibfile, HSTfile, MegacamFile, DESfile, DESbiasfile):
-        self.WL = lensing.SPTlensing(self.catalog, WLsimcalibfile,
-                                     HSTfile, MegacamFile, DESfile, DESbiasfile)
 
 
     ############################################################################

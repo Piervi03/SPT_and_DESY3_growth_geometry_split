@@ -1,52 +1,45 @@
 from __future__ import division
 import numpy as np
-import imp
 from astropy.table import Table
 from cosmosis.datablock import option_section
 import mass_calibration
 
 def setup(options):
-    masscalibration = mass_calibration.MassCalibration()
-
     ##### Config parameters
-    masscalibration.todo = {}
+    todo = {}
     for opt in ['doWL', 'doYx', 'doMgas', 'doveldisp', 'dorichness']:
-        masscalibration.todo[opt[2:]] = options.get_bool(option_section, opt)
-    masscalibration.scaling = {}
+        todo[opt[2:]] = options.get_bool(option_section, opt)
+    scaling = {}
     for opt in ['SZmPivot', 'XraymPivot', 'richmPivot']:
-        masscalibration.scaling[opt] = options.get_double(option_section, opt)
-    masscalibration.scaling['YXPARAM'] = options.get_string(option_section, 'YXPARAM')
-    masscalibration.mcType = options.get_string(option_section, 'mcType')
-    masscalibration.surveyCutSZ = options.get_double_array_1d(option_section, 'surveyCutSZ')
-    masscalibration.surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
-    masscalibration.NPROC = options.get_int(option_section, 'NPROC')
+        scaling[opt] = options.get_double(option_section, opt)
+    scaling['YXPARAM'] = options.get_string(option_section, 'YXPARAM')
+    mcType = options.get_string(option_section, 'mcType')
+    surveyCutSZ = options.get_double_array_1d(option_section, 'surveyCutSZ')
+    surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
+    NPROC = options.get_int(option_section, 'NPROC')
     # SPT survey
     SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
-    masscalibration.SPT_survey = Table.read(SPT_survey_fields, format='ascii.commented_header')
+    SPT_survey = Table.read(SPT_survey_fields, format='ascii.commented_header')
     # Double counted clusters
     SPT_doublecounts = options.get_string(option_section, 'SPT_doublecounts')
     SPTdata = imp.load_source('SPTdata', SPT_doublecounts)
-    masscalibration.SPTdoubleCount = SPTdata.SPTdoubleCount
+    SPTdoubleCount = SPTdata.SPTdoubleCount
     # Cluster catalog
     SPTcatalogfile = options.get_string(option_section, 'SPTcatalogfile')
-    masscalibration.catalog = Table.read(SPTcatalogfile)
+    catalog = Table.read(SPTcatalogfile)
     ##### WL simulation calibration
     WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
     WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
-    masscalibration.WLcalib = WLsimcalib.WLcalibration
+    WLcalib = WLsimcalib.WLcalibration
     ##### Multi-obs HMF convolution names
-    masscalibration.observable_pairs = options.get_string(option_section, 'observable_pairs').split()
+    observable_pairs = options.get_string(option_section, 'observable_pairs').split()
 
-    if masscalibration.todo['WL']:
-        # WL simulation calibration data
-        WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
-        DES_betabias_file = options.get_string(option_section, 'DES_betabias_file')
-        # Lensing data
-        HSTfile = options.get_string(option_section, 'HSTfile')
-        MegacamFile = options.get_string(option_section, 'MegacamFile')
-        DESfile = options.get_string(option_section, 'DESfile')
 
-        masscalibration.init_WL(WLsimcalibfile, HSTfile, MegacamFile, DESfile, DES_betabias_file)
+    masscalibration = mass_calibration.MassCalibration(todo, scaling, mcType,
+                                                       surveyCutSZ, surveyCutRedshift,
+                                                       SPT_survey_fields, SPT_doublecounts, SPTcatalogfile,
+                                                       observable_pairs,
+                                                       WLsimcalibfile, DES_betabias_file, HSTfile, MegacamFile, DESfile)
 
     return masscalibration
 
