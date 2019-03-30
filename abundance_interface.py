@@ -7,20 +7,21 @@ from cosmosis.datablock import option_section
 import abundance
 
 def setup(options):
-    number_count = abundance.NumberCount()
     ##### Global variables
-    number_count.NPROC = options.get_int(option_section, 'NPROC')
-    number_count.surveyCutSZ = options.get_double_array_1d(option_section, 'surveyCutSZ')
-    number_count.surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
-    number_count.scaling = {'SZmPivot': options.get_double(option_section, 'SZmPivot')}
+    NPROC = options.get_int(option_section, 'NPROC')
+    surveyCutSZ = options.get_double_array_1d(option_section, 'surveyCutSZ')
+    surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
+    scaling = {'SZmPivot': options.get_double(option_section, 'SZmPivot')}
     # SPT survey
     SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
-    number_count.SPT_survey = Table.read(SPT_survey_fields, format='ascii.commented_header')
+    SPT_survey = Table.read(SPT_survey_fields, format='ascii.commented_header')
     # Cluster catalog
     SPTcatalogfile = options.get_string(option_section, 'SPTcatalogfile')
-    number_count.catalog = Table.read(SPTcatalogfile)
-    ##### Various observable arrays
-    number_count.set_arrays()
+    catalog = Table.read(SPTcatalogfile)
+    ##### Initialize abundance
+    number_count = abundance.NumberCount(catalog, SPT_survey, scaling,
+                                         surveyCutSZ, surveyCutRedshift,
+                                         NPROC)
 
     return number_count
 

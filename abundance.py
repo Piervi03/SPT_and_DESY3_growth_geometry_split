@@ -15,7 +15,16 @@ def unwrap_self_f(arg):
 ################################################################################
 class NumberCount:
 
-    def set_arrays(self):
+    def __init__(self, catalog, SPT_survey, scaling,
+                 surveyCutSZ, surveyCutRedshift, NPROC):
+        self.catalog = catalog
+        self.SPT_survey = SPT_survey
+        self.scaling = scaling
+        self.surveyCutSZ = surveyCutSZ
+        self.surveyCutRedshift = surveyCutRedshift
+        self.NPROC = NPROC
+
+        ##### Observable arrays
         # Lin spaced for convo with unit scatter (+3 sigma margin)
         Nxi = int((self.surveyCutSZ[1]+3 - 2.7)/.1 + 1)
         self.xi_bins = np.linspace(2.7, self.surveyCutSZ[1]+3, Nxi)
@@ -27,9 +36,9 @@ class NumberCount:
         # Arrays over which we'll integrate (survey cuts applied)
         Nxi = int(np.log10(self.surveyCutSZ[1]/self.surveyCutSZ[0])/.005 + 1)
         self.xi_arr = np.logspace(np.log10(self.surveyCutSZ[0]), np.log10(self.surveyCutSZ[1]), Nxi)
-        dz = .01 
+        dz = .01
         Nz = int((self.surveyCutRedshift[1]-self.surveyCutRedshift[0])/dz + 1)
-        self.z_arr = np.linspace(self.surveyCutRedshift[0], self.surveyCutRedshift[1], Nz) 
+        self.z_arr = np.linspace(self.surveyCutRedshift[0], self.surveyCutRedshift[1], Nz)
 
 
 
