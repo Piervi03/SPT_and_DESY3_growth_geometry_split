@@ -8,7 +8,10 @@ import cosmo, Mconversion_concentration
 
 ################################################################################
 class MarginalizeMass:
-    def __init__(self):
+    def __init__(self, SPTcatalogfile, SPT_survey_fields, SZmPivot):
+        self.catalog = Table.read(SPTcatalogfile)
+        self.SPT_survey = Table.read(SPT_survey_fields, format='ascii.commented_header')
+        self.SZmPivot = SZmPivot
         # M-c relation for M200
         self.MCrel = Mconversion_concentration.ConcentrationConversion('Duffy08')
 

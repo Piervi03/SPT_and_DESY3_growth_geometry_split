@@ -15,7 +15,15 @@ def unwrap_self_f(arg):
 ################################################################################
 class MultiObsConvolution:
 
-    def __init__(self):
+    def __init__(self, observable_pairs,
+                 pairs_zmin, pairs_zmax, pairs_Nz,
+                 NPROC):
+        self.observable_pairs = observable_pairs
+        self.pairs_zmin = pairs_zmin
+        self.pairs_zmax = pairs_zmax
+        self.pairs_Nz = pairs_Nz
+        self.NPROC = NPROC
+
         self.pairnames_2d = ['Yx_SZ', 'Mgas_SZ', 'Megacam_SZ', 'DES_SZ', 'richness_SZ']
         self.pairnames_3d = ['Megacam_Yx_SZ', 'Megacam_Mgas_SZ', 'DES_Yx_SZ', 'DES_Mgas_SZ']
 
@@ -59,7 +67,6 @@ class MultiObsConvolution:
 
             output_dict[pair_name] = np.log(this_grid_)
             output_dict['%s_z'%pair_name] = z_arr
-        print 'HMF_convo', self.covmat
         return output_dict
 
 

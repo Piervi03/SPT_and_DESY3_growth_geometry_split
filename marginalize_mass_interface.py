@@ -4,18 +4,15 @@ from cosmosis.datablock import option_section
 import marginalize_mass
 
 def setup(options):
-    marge_mass = marginalize_mass.MarginalizeMass()
-
     ##### Global variables
-    marge_mass.SZmPivot = options.get_double(option_section, 'SZmPivot')
+    SZmPivot = options.get_double(option_section, 'SZmPivot')
     # SPT survey
     SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
-    assert os.path.isfile(SPT_survey_fields), "SPT survey table does not exist"
-    marge_mass.SPT_survey = Table.read(SPT_survey_fields, format='ascii.commented_header')
     # Cluster catalog
     SPTcatalogfile = options.get_string(option_section, 'SPTcatalogfile')
-    assert os.path.isfile(SPTcatalogfile), "SPT catalog file does not exist"
-    marge_mass.catalog = Table.read(SPTcatalogfile)
+
+    marge_mass = marginalize_mass.MarginalizeMass(SPTcatalogfile, SPT_survey_fields,
+                                                  SZmPivot)
 
     return marge_mass
 
