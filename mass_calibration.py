@@ -33,9 +33,9 @@ class MassCalibration:
                                 [['WLMegacam', 'Mgas'], 'Megacam_Mgas_SZ'],
                                 [['WLDES', 'Mgas'], 'DES_Mgas_SZ'],]
 
-    def init_WL(self, WLsimcalibfile, HSTfile, MegacamFile, DESfile):
+    def init_WL(self, WLsimcalibfile, HSTfile, MegacamFile, DESfile, DESbiasfile):
         self.WL = lensing.SPTlensing(self.catalog, WLsimcalibfile,
-                                     HSTfile, MegacamFile, DESfile)
+                                     HSTfile, MegacamFile, DESfile, DESbiasfile)
 
 
     ############################################################################
@@ -300,7 +300,7 @@ class MassCalibration:
             if LSSnoise>0.:
                 dP_dobs = self.convolve_WL_LSS(obsArr, dP_dobs, LSSnoise)
             # P(Mwl) from data
-            Pwl = self.WL.like(self.catalog, dataID, obsArr, self.cosmology, self.MCrel, self.lnM500_to_lnM200)
+            Pwl = self.WL.like(self.catalog, dataID, obsArr, self.cosmology, self.MCrel, self.lnM500_to_lnM200, self.scaling)
             # Get likelihood
             likeli = np.trapz(Pwl*dP_dobs, obsArr)
 
@@ -371,7 +371,7 @@ class MassCalibration:
             if LSSnoise>0.:
                 dP_dobs0 = self.convolve_WL_LSS(obsArr[0], dP_dobs0, LSSnoise)
             # P(Mwl) from data
-            Pobs = self.WL.like(self.catalog, dataID, obsArr[0], self.cosmology, self.MCrel, self.lnM500_to_lnM200)
+            Pobs = self.WL.like(self.catalog, dataID, obsArr[0], self.cosmology, self.MCrel, self.lnM500_to_lnM200, self.scaling)
         else: print "not ready!"
 
         likeli0 = np.trapz(dP_dobs0*Pobs, obsArr[0])

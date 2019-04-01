@@ -40,12 +40,13 @@ def setup(options):
     if masscalibration.todo['WL']:
         # WL simulation calibration data
         WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
+        DES_betabias_file = options.get_string(option_section, 'DES_betabias_file')
         # Lensing data
         HSTfile = options.get_string(option_section, 'HSTfile')
         MegacamFile = options.get_string(option_section, 'MegacamFile')
         DESfile = options.get_string(option_section, 'DESfile')
 
-        masscalibration.init_WL(WLsimcalibfile, HSTfile, MegacamFile, DESfile)
+        masscalibration.init_WL(WLsimcalibfile, HSTfile, MegacamFile, DESfile, DES_betabias_file)
 
     return masscalibration
 
@@ -68,7 +69,7 @@ def execute(block, masscalibration):
     for p in ['Ax', 'Bx', 'Cx', 'Dx', 'Ex', 'dlnMg_dlnr']:
         masscalibration.scaling[p] = block.get_double('mor_parameters', p)
     # WL
-    for p in ['bWL_Megacam', 'bWL_DES', 'HSTscatterLSS', 'MegacamScatterLSS', 'DESscatterLSS']:
+    for p in ['bWL_Megacam', 'bWL_DES', 'DESbias', 'HSTscatterLSS', 'MegacamScatterLSS', 'DESscatterLSS']:
         masscalibration.scaling[p] = block.get_double('mor_parameters', p)
     # Richness
     for p in ['Arichness', 'Brichness', 'Crichness', 'Drichness']:

@@ -1,5 +1,6 @@
 from __future__ import division, print_function
 import sys
+import time
 import h5py
 import numpy as np
 from numpy.lib import scimath as sm
@@ -11,21 +12,23 @@ import cosmo, Mconversion_concentration
 
 
 def main():
-    configMod = importlib.import_module(sys.argv[1][:-3])
-    np.random.seed(configMod.random_seed)
-    cosmology = configMod.cosmology
-    MCrel = Mconversion_concentration.ConcentrationConversion(configMod.mcType, cosmology)
+    WLconfigMod = importlib.import_module(sys.argv[1][:-3])
+    mockconfigMod = importlib.import_module(sys.argv[2][:-3])
+    np.random.seed(WLconfigMod.random_seed)
+    cosmology = mockconfigMod.cosmology
+    MCrel = Mconversion_concentration.ConcentrationConversion(mockconfigMod.mcType, cosmology)
     mock_WL = MockUpWL(cosmology, MCrel)
-    cat = Table.read(sys.argv[2])
+    cat = Table.read(sys.argv[3])
 
-    with h5py.File('mock_WL.hdf5', 'w') as f:
+    with h5py.File('mock_WL_%s.hdf5'%time.strftime("%y%m%d-%H%M%S"), 'w') as f:
         for i,name in enumerate(cat['SPT_ID']):
-            r_deg, g_2d, g_2d_err, source_dist = mock_WL(cat['Mwl_200'][i], cat['REDSHIFT'][i])
+            if cat['REDSHIFT'][i]>0:
+                r_deg, g_2d, g_2d_err, source_dist = mock_WL(cat['Mwl_200'][i], cat['REDSHIFT'][i])
 
-            g = f.create_group(name)
-            d = g.create_dataset('z_cluster', data=cat['REDSHIFT'][i])
-            d = g.create_dataset('shear', data=((r_deg, g_2d, g_2d_err)))
-            d = g.create_dataset('N_z', data=source_dist)
+                g = f.create_group(name)
+                d = g.create_dataset('z_cluster', data=cat['REDSHIFT'][i])
+                d = g.create_dataset('shear_profile', data=((r_deg, g_2d, g_2d_err)))
+                d = g.create_dataset('Nz', data=source_dist)
 
 
 ##### Compute the inverse sec of the complex number z.

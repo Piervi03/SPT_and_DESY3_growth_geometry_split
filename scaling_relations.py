@@ -23,10 +23,10 @@ def mass2obs(name, mass, z, scaling, cosmology):
         return np.exp(lnzeta)
     elif name=='Yx':
         if scaling['YXPARAM']=='SPT_XVP':
-            return 3 * (self.cosmology['h']/.7)**-2.5 * (mass/1e14 /.7**(3/2) / scaling['Ax'] \
+            return 3 * (cosmology['h']/.7)**-2.5 * (mass/1e14 /.7**(3/2) / scaling['Ax'] \
                 / cosmo.Ez(z, cosmology)**scaling['Cx'])**(1/scaling['Bx'])
         elif scaling['YXPARAM']=='obs-mass':
-            return scaling['Ax'] * (self.cosmology['h']/.7)**-2.5 * (mass/cosmology['h']/scaling['XraymPivot'])**scaling['Bx'] \
+            return scaling['Ax'] * (cosmology['h']/.7)**-2.5 * (mass/cosmology['h']/scaling['XraymPivot'])**scaling['Bx'] \
                 * (cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology))**scaling['Cx']
     elif name=='Mgas':
         lnMgas = np.log(scaling['XraymPivot'] * scaling['Ax']) - 2.5 * np.log(cosmology['h']/.7) \
