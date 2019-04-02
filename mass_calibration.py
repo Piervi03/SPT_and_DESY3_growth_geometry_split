@@ -174,6 +174,11 @@ class MassCalibration:
         else:
             raise ValueError(name,"has",nobs,"follow-up observables. I don't know what to do!")
 
+        # Pmatch for RM richness
+        if 'richness' in obsnames:
+             probability*= (1-self.catalog['LAMBDA_PROB_MATCH'][i])
+
+
         if (probability<0) | (np.isnan(probability)):
             return 0
             # raise ValueError("P(obs|xi) =", probability, name)
