@@ -46,13 +46,13 @@ class SPTlensing:
         self.get_beta(cosmology)
         ##### M200 and scale radius, wrt critical density, everything in h units
         M200c = np.exp(lnM500_to_lnM200(self.zcluster, np.log(mArr)))[0]
-        r200c = (3.*M200c/4./np.pi/200./self.rho_c_z)**(1./3.)
+        r200c = (3*M200c/4/np.pi/200/self.rho_c_z)**(1/3)
         c200c = MCrel.calC200(M200c, self.zcluster)
-        self.delta_c = 200./3. * c200c**3. / (np.log(1.+c200c) - c200c/(1.+c200c))
+        self.delta_c = 200/3 * c200c**3 / (np.log(1+c200c) - c200c/(1+c200c))
         self.rs = r200c/c200c
 
         ##### dimensionless radial distance [Radius][Mass]
-        self.x_2d = self.WLdata['r_deg'][:,None] * Dl * np.pi/180. / self.rs[None,:]
+        self.x_2d = self.WLdata['r_deg'][:,None] * Dl * np.pi/180 / self.rs[None,:]
 
         #################### Megacam and DES: no magnitude bin stuff
         if self.WLdata['datatype'] in ('Megacam', 'DES'):
@@ -100,8 +100,8 @@ class SPTlensing:
             kappa_2d = self.get_Sigma() / Sigma_c[:,None]
 
             # [Radius][Mass]
-            mu0_2d = 1./((1.-kappa_2d)**2 - gamma_2d**2)
-            kappaFake = (mu0_2d-1)/2.
+            mu0_2d = 1/((1-kappa_2d)**2 - gamma_2d**2)
+            kappaFake = (mu0_2d-1)/2
 
             # Magnification correction [Radius][Mass]
             mykappa = kappaFake * 0.3/betaR[:,None]
@@ -118,7 +118,7 @@ class SPTlensing:
             # Only consider 500<r/kpc/1500 in reference cosmology
             cosmoRef = {'Omega_m':.3, 'Omega_l':.7, 'h':.7, 'w0':-1., 'wa':0}
             DlRef = cosmo.dA(self.zcluster, cosmoRef)
-            rPhysRef = self.WLdata['r_deg'] * DlRef * np.pi/180. /cosmoRef['h']
+            rPhysRef = self.WLdata['r_deg'] * DlRef * np.pi/180 /cosmoRef['h']
             rInclude = np.where((rPhysRef>.5)&(rPhysRef<1.5))[0]
 
 
@@ -182,7 +182,7 @@ class SPTlensing:
     # by Joerg Dietrich
     def arcsec(self, z):
         val1 = 1j / z
-        val2 = sm.sqrt(1 - 1./z**2)
+        val2 = sm.sqrt(1 - 1/z**2)
         val = 1j * np.log(val2 + val1)
         return .5 * np.pi + val
 
@@ -192,7 +192,7 @@ class SPTlensing:
     # by Joerg Dietrich
     def get_Delta_Sigma(self):
         fac = 2 * self.rs * self.rho_c_z * self.delta_c
-        val1 = 1. / (1 - self.x_2d**2)
+        val1 = 1 / (1 - self.x_2d**2)
         num = ((3 * self.x_2d**2) - 2) * self.arcsec(self.x_2d)
         div = self.x_2d**2 * (sm.sqrt(self.x_2d**2 - 1))**3
         val2 = (num / div).real
@@ -204,7 +204,7 @@ class SPTlensing:
     ##### Sigma_NFW[Radius][Mass]
     # by Joerg Dietrich
     def get_Sigma(self):
-        val1 = 1. / (self.x_2d**2 - 1)
+        val1 = 1 / (self.x_2d**2 - 1)
         val2 = (self.arcsec(self.x_2d) / (sm.sqrt(self.x_2d**2 - 1))**3).real
         return 2 * self.rs * self.rho_c_z * self.delta_c * (val1-val2)
 
