@@ -5,7 +5,7 @@ from scipy.stats import norm
 
 class MisCentering(object):
 
-    def __init__(self, kind, tau=None, fmis=None, SPT_kappa=None, SPT_beam=1.3, r200c=None):
+    def __init__(self, kind, tau=None, fmis=None, SPT_kappa=1, SPT_beam=1.3, r200c=None):
         assert kind in ['redmapper', 'r200', 'SPT'], 'unexpected kind %s, kind must be redmapper, r200, SPT'%kind
         self.kind = kind
         # redmapper miscentering

@@ -45,8 +45,8 @@ class SPTlensing:
         self.WLdata = data['WLdata'][dataindex]
 
         ##### Miscentering parameters
-        if self.WLcalib['DES_miscenter_kind']=='SPT':
-            self.DES_miscenterer.SPT_kappa = scaling['SPT_kappa']
+        # if self.WLcalib['DES_miscenter_kind']=='SPT':
+        #     self.DES_miscenterer.SPT_kappa = scaling['SPT_kappa']
 
         ##### Precalculate M and r independent stuff, everything in h units
         self.rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.zcluster, cosmology)**2 # [h^2 Msun/Mpc^3]
@@ -90,12 +90,6 @@ class SPTlensing:
                 kappa_2d = self.get_Sigma() / Sigma_c
                 # Reduced shear g_t [Radius][Mass]
                 g_2d = gamma_2d/(1-kappa_2d)
-                # Miscenter it
-                cov_miscenter = np.empty((len(mArr), len(self.WLdata['r_deg']), len(self.WLdata['r_deg'])))
-                for i in range(g_2d.shape[1]:
-                    g_2d[:,i], cov_miscenter[i] = self.DES_miscenterer(self.WLdata['r_deg'], g_2d[:,i], self.WLdata['r_deg']/2,
-                                                                         SPT_xi=data['XI'][dataindex],
-                                                                         SPT_thetac=data['THETA_CORE'][dataindex])
 
 
         #################### HST data
@@ -151,10 +145,13 @@ class SPTlensing:
             pOfMass = np.prod(likelihood, axis=0)
 
         else:
-            diff_ = self.WLdata['shear'][rInclude,None] - g_2d[rInclude,:]
             pOfMass = np.empty(len(mArr))
             for i in range(len(mArr)):
-                full_cov_ = cov_miscenter[i] + np.diag(self.WLdata['shearerr'][rInclude,None])
+                g_2d[:,i], cov_miscenter_ = self.DES_miscenterer.get_profile_mean_cov(self.WLdata['r_deg'], g_2d[:,i], .2,
+                                                                                      SPT_xi=data['XI'][dataindex],
+                                                                                      SPT_thetac=1)#data['THETA_CORE'][dataindex])
+                diff_ = self.WLdata['shear'][rInclude] - g_2d[rInclude,i]
+                full_cov_ = cov_miscenter_ + np.diag(self.WLdata['shearerr'][rInclude])
                 cho_f = cho_factor(full_cov_)
                 pOfMass[i] = np.dot(diff_, cho_solve(cho_f, diff_))
 
