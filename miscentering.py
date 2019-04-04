@@ -27,7 +27,7 @@ class MisCentering(object):
         Delta_Sigma_interp = interp1d(R, Delta_Sigma, kind='cubic', fill_value=0, bounds_error=False)
 
         # Integration variables
-        theta = np.linspace(0, 2*np.pi, 128)
+        theta = np.linspace(0, 2*np.pi, 32)
         R_mis = np.linspace(0, R_mis_max, 64)
 
         # Miscentering distribution
@@ -58,14 +58,14 @@ class MisCentering(object):
     def get_p_of_Rmis(self, R_mis):
         if self.kind=='redmapper':
             return self.pRmis_redmapper(R_mis)
-        elif self.kind=='r200c':
+        elif self.kind=='r200':
             return self.pRmis_r200(R_mis)
         elif self.kind=='SPT':
             return self.pRmis_SPT(R_mis)
 
     def pRmis_SPT(self, R_mis):
         """SPT miscentering"""
-        sigma_ = np.sqrt(self.SPT_beam**2 + (self.SPT_kappa*self.SPT_thetac)**2)/self.SPT_xi
+        sigma_ = np.sqrt((self.SPT_beam/60)**2 + (self.SPT_kappa*self.SPT_thetac/60)**2)/self.SPT_xi
         p = norm.pdf(R_mis, 0, sigma_)
         return p
 
