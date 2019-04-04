@@ -7,7 +7,7 @@ from astropy.table import Table
 
 import scipy.special as ss
 from scipy import integrate, signal
-from scipy.interpolate import RectBivariateSpline
+from scipy.interpolate import interp1d, RectBivariateSpline
 from scipy.stats import norm, lognorm, multivariate_normal
 
 import cosmo, lensing, Mconversion_concentration, scaling_relations
@@ -251,6 +251,25 @@ class MassCalibration:
         return dP_dobs
 
 
+    def downsample_distribution(self, x, y, N_target=48):
+        idx_zero = np.where(y>0)[0]
+        x_out = x[idx_zero]
+        y_out = x[idx_zero]
+        if len(x_out)<=N_target:
+            return x_out, y_out
+
+        y_interp = interp1d(x_out, y_out, kind='cubic')
+
+        mean = np.trapz(x_out*y_out, x_out)
+        std = np.sqrt(np.trapz((y_out-mean)**2, x_out))
+        x_min = np.amax((x_out[0], mean-4*std))
+        x_max = np.amin((x_out[-1], mean+4*std))
+        x_new = np.linspace(x_min, x_max, N_target)
+        y_new = y_interp(x_new)
+
+        return x_new, y_new        
+
+
     ############################################################################
     def get_P_1obs_xi(self, obsname, dataID, pairname):
         """Returns P(obs|xi,z,p) for a single type of follow-up data."""
@@ -321,6 +340,7 @@ class MassCalibration:
             # Convolve with Gaussian LSS scatter
             if LSSnoise>0.:
                 dP_dobs = self.convolve_WL_LSS(obsArr, dP_dobs, LSSnoise)
+            obsArr, dP_dobs = self.downsample_distribution(obsArr, dP_dobs)
             # P(Mwl) from data
             Pwl = self.WL.like(self.catalog, dataID, obsArr, self.cosmology, self.MCrel, self.lnM500_to_lnM200, self.scaling)
             # Get likelihood
