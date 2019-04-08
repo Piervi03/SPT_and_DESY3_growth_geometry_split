@@ -1,6 +1,6 @@
 from __future__ import division
 import numpy as np
-from scipy.interpolate import interp1d
+from scipy.interpolate import interp1d, RectBivariateSpline
 from scipy.stats import norm
 
 class MisCentering(object):
@@ -24,26 +24,22 @@ class MisCentering(object):
         self.lamb_red = lamb_red
 
         # Set up radial interpolation of Delta_Sigma
-        Delta_Sigma_interp = interp1d(R, Delta_Sigma, kind='cubic', fill_value=0, bounds_error=False)
+        Delta_Sigma_interp = interp1d(R, Delta_Sigma, kind='cubic', fill_value='extrapolate', bounds_error=False)
 
         # Integration variables
-        theta = np.linspace(0, 2*np.pi, 32)
-        R_mis = np.linspace(0, R_mis_max, 64)
+        theta = np.linspace(0, 2*np.pi, 16)
+        R_mis = np.linspace(0, R_mis_max, 16)
 
         # Miscentering distribution
         p_of_Rmis = self.get_p_of_Rmis(R_mis)
 
         # Delta_Sigma([R, R_mis, theta])
         R_eff = np.sqrt(R[:,None,None]**2 + R_mis[None,:,None]**2 + 2 * np.cos(theta)[None,None,:] * R[:,None,None] * R_mis[None,:,None])
-        Delta_Sigma_theta = Delta_Sigma_interp(R_eff)
+        Delta_Sigma_theta = Delta_Sigma_interp(R_eff)/2/np.pi
 
         ##### Mean miscentered profile
-        # Integrate over theta
-        # [R_mis, R]
-        Delta_Sigma_Rmis = np.trapz(Delta_Sigma_theta, theta, axis=-1)
-        # Integrate over R_mis
-        Delta_Sigma_mis = np.trapz(Delta_Sigma_Rmis * p_of_Rmis[None,:], R_mis, axis=-1)
-
+        Delta_Sigma_mis = np.array([RectBivariateSpline(R_mis, theta, p_of_Rmis[:,None]*Delta_Sigma_theta[i]).integral(0, R_mis_max, 0, 2*np.pi)
+                                        for i in range(len(R))])
 
         ##### Covariance matrix
         residuals = Delta_Sigma_theta.reshape(len(R),-1) - Delta_Sigma_mis[:,None]
@@ -66,7 +62,7 @@ class MisCentering(object):
     def pRmis_SPT(self, R_mis):
         """SPT miscentering"""
         sigma_ = np.sqrt((self.SPT_beam/60)**2 + (self.SPT_kappa*self.SPT_thetac/60)**2)/self.SPT_xi
-        p = norm.pdf(R_mis, 0, sigma_)
+        p = 2 * norm.pdf(R_mis, 0, sigma_)
         return p
 
 
