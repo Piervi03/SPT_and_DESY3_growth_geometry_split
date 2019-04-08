@@ -1,7 +1,7 @@
 from __future__ import division
 import numpy as np
 from numpy.lib import scimath as sm
-from scipy.interpolate import interp1d
+from scipy.interpolate import interp1d, RectBivariateSpline
 from scipy.stats import norm
 from scipy.linalg import cho_factor, cho_solve
 import h5py
@@ -60,7 +60,12 @@ class SPTlensing:
         self.rs = r200c/c200c
 
         ##### dimensionless radial distance [Radius][Mass]
-        self.x_2d = self.WLdata['r_deg'][:,None] * Dl * np.pi/180 / self.rs[None,:]
+        if self.WLdata['datatype']=='DES':
+            r_deg_interp = np.logspace(-3, np.log10(1.2*self.WLdata['r_deg'][-1]), 16)
+            self.x_2d = r_deg_interp[:,None] * Dl * np.pi/180 / self.rs[None,:]
+        else:
+            self.x_2d = self.WLdata['r_deg'][:,None] * Dl * np.pi/180 / self.rs[None,:]
+
 
         #################### Megacam and DES: no magnitude bin stuff
         if self.WLdata['datatype'] in ('Megacam', 'DES'):
@@ -147,10 +152,14 @@ class SPTlensing:
         else:
             pOfMass = np.empty(len(mArr))
             for i in range(len(mArr)):
-                g_2d[:,i], cov_miscenter_ = self.DES_miscenterer.get_profile_mean_cov(self.WLdata['r_deg'], g_2d[:,i], .2,
+                g_2d[:,i], cov_miscenter_ = self.DES_miscenterer.get_profile_mean_cov(r_deg_interp, g_2d[:,i], .2,
                                                                                       SPT_xi=data['XI'][dataindex],
                                                                                       SPT_thetac=1)#data['THETA_CORE'][dataindex])
-                diff_ = self.WLdata['shear'][rInclude] - g_2d[rInclude,i]
+                g_t_interp = interp1d(r_deg_interp, g_2d[:,i], kind='cubic')
+                g_t = g_t_interp(self.WLdata['r_deg'])
+                diff_ = self.WLdata['shear'][rInclude] - g_t[rInclude]
+                cov_miscenter_interp = RectBivariateSpline(r_deg_interp, r_deg_interp, cov_miscenter_)
+                cov_miscenter_ = cov_miscenter_interp(self.WLdata['r_deg'], self.WLdata['r_deg'])
                 full_cov_ = cov_miscenter_ + np.diag(self.WLdata['shearerr'][rInclude])
                 cho_f = cho_factor(full_cov_)
                 pOfMass[i] = np.dot(diff_, cho_solve(cho_f, diff_))
