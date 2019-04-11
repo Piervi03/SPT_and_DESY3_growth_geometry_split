@@ -42,13 +42,7 @@ class SPTlensing:
 
         ##### Cosmology and halo stuff, in 1/h units
         self.get_beta(cosmology)
-        rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.zcluster, cosmology)**2 # [h^2 Msun/Mpc^3]
-        Dl = cosmo.dA(self.zcluster, cosmology)
-        M200c = np.exp(lnM500_to_lnM200(self.zcluster, np.log(mArr)))[0]
-        r200c = (3*M200c/4/np.pi/200/rho_c_z)**(1/3)
-        c200c = MCrel.calC200(M200c, self.zcluster)
-        delta_c = 200/3 * c200c**3 / (np.log(1+c200c) - c200c/(1+c200c))
-        r_s = r200c/c200c
+        rho_c_z, Dl, delta_c, r_s = self.get_cluster_properties(mArr, lnM500_to_lnM200, MCrel, cosmology)
 
         ##### Likelihood
         if self.WLdata['datatype']=='DES':
@@ -64,6 +58,20 @@ class SPTlensing:
 
     ########################################
 
+    def get_cluster_properties(self, mArr, lnM500_to_lnM200, MCrel, cosmology):
+        """Return rho_c(z_cluster), luminosity distance (z_cluster), delta_c,
+        and r_s."""
+        Dl = cosmo.dA(self.zcluster, cosmology)
+        rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.zcluster, cosmology)**2 # [h^2 Msun/Mpc^3]
+        M200c = np.exp(lnM500_to_lnM200(self.zcluster, np.log(mArr)))[0]
+        r200c = (3*M200c/4/np.pi/200/rho_c_z)**(1/3)
+        c200c = MCrel.calC200(M200c, self.zcluster)
+        delta_c = 200/3 * c200c**3 / (np.log(1+c200c) - c200c/(1+c200c))
+        r_s = r200c/c200c
+        return rho_c_z, Dl, delta_c, r_s
+
+
+    ########################################
 
     def like_DES(self, rho_c_z, Dl, delta_c, r_s, xi, scaling):
         """Return array P(DES data|Mwl). Note that this is not normalized wrt
