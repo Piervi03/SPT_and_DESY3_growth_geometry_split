@@ -8,7 +8,7 @@ import cosmo
 
 class ConcentrationConversion:
 
-    def __init__(self, MCrelation, cosmology=None):
+    def __init__(self, MCrelation, cosmology=None, setup_interp=False, interp_massdef=500):
         self.MCrelation = MCrelation
         # if isinstance(MCrelation, str):
         if MCrelation=='Duffy08':
@@ -78,6 +78,17 @@ class ConcentrationConversion:
 
         else:
             raise ValueError('Unknown mass-concentration relation:', MCrelation)
+
+
+        if setup_interp:
+            Min = np.logspace(13,16,8)
+            z_arr = np.linspace(0,2,10)
+            M200 = np.array([np.array([self.MDelta_to_M200(m, interp_massdef, z) for m in Min]) for z in z_arr])
+            self.lnM_to_lnM200 = RectBivariateSpline(z_arr, np.log(Min), np.log(M200))
+
+            MDelta = np.array([np.array([self.M200_to_MDelta(m, interp_massdef, z) for m in Min]) for z in z_arr])
+            self.lnM200_to_lnM = RectBivariateSpline(z_arr, np.log(Min), np.log(MDelta))
+
 
 
     # 200crit from Duffy et al 2008, input [M200c/h]
