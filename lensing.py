@@ -29,12 +29,11 @@ class SPTlensing:
 
     ########################################
     # Get P(Mwl) from dP/dMwl and shear data
-    def like(self, data, dataindex, mArr, cosmology, MCrel, lnM500_to_lnM200, scaling):
+    def like(self, data, mArr, cosmology, MCrel, lnM500_to_lnM200, scaling):
         """Return likelihood of shear profile for a given cluster (index) given
         an array of cluster masses."""
-        self.name = data['SPT_ID'][dataindex]
-        self.zcluster = data['REDSHIFT'][dataindex]
-        self.WLdata = data['WLdata'][dataindex]
+        self.zcluster = data['REDSHIFT']
+        self.WLdata = data['WLdata']
 
         ##### Miscentering parameters
         # if self.WLcalib['DES_miscenter_kind']=='SPT':
@@ -46,7 +45,7 @@ class SPTlensing:
 
         ##### Likelihood
         if self.WLdata['datatype']=='DES':
-            pOfMass = self.like_DES(rho_c_z, Dl, delta_c, r_s, data['XI'][dataindex], scaling)
+            pOfMass = self.like_DES(rho_c_z, Dl, delta_c, r_s, data['XI'], scaling)
         elif self.WLdata['datatype']=='Megacam':
             pOfMass = self.like_Megacam(rho_c_z, Dl, delta_c, r_s)
         elif self.WLdata['datatype']=='HST':
@@ -100,7 +99,7 @@ class SPTlensing:
         for i in range(len(pOfMass)):
             g_2d[:,i], cov_miscenter_ = self.DES_miscenterer.get_profile_mean_cov(r_deg_interp, g_2d[:,i], .2,
                                                                                   SPT_xi=xi,
-                                                                                  SPT_thetac=1)#data['THETA_CORE'][dataindex])
+                                                                                  SPT_thetac=1)#data['THETA_CORE'])
             g_t_interp = interp1d(r_deg_interp, g_2d[:,i], kind='cubic')
             g_t = g_t_interp(self.WLdata['r_deg'])
             diff_ = self.WLdata['shear'] - g_t
