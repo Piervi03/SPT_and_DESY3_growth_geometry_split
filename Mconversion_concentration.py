@@ -10,8 +10,9 @@ class ConcentrationConversion:
 
     def __init__(self, MCrelation, cosmology=None, setup_interp=False, interp_massdef=500):
         self.MCrelation = MCrelation
-        # if isinstance(MCrelation, str):
-        if MCrelation=='Duffy08':
+        if isinstance(MCrelation, float):
+            self.MCrelation = float(MCrelation)
+        elif MCrelation=='Duffy08':
             pass
         elif MCrelation=='DK15':
             # We compute the c-M relation for an array of z_arr and
@@ -107,23 +108,23 @@ class ConcentrationConversion:
                 c = c[0]
             return c
         else:
-            return float(self.MCrelation)
+            return self.MCrelation
 
 
     ##### Actual input functions
     # Input in [Msun/h]
-    def MDelta_to_M200(self,mc,overdensity,z):
-        ratio = overdensity/200.
-        Mmin = mc * ratio / 4.
-        Mmax = mc * ratio * 4.
-        return op.brentq(self.mdiff_findM200, Mmin, Mmax, args=(mc,overdensity,z), xtol=1.e-6)
+    def MDelta_to_M200(self, mc, overdensity, z):
+        ratio = overdensity/200
+        Mmin = mc * ratio / 4
+        Mmax = mc * ratio * 4
+        return op.brentq(self.mdiff_findM200, Mmin, Mmax, args=(mc,overdensity,z), xtol=1e-6)
 
     # Input in [Msun/h]
     def M200_to_MDelta(self, Minput, overdensity, z):
-        ratio = 200./overdensity
-        Mmin = Minput * ratio / 4.
-        Mmax = Minput * ratio * 4.
-        return op.brentq(self.mdiff_findMDelta, Mmin, Mmax, args=(Minput,overdensity,z), xtol=1.e-6)
+        ratio = 200/overdensity
+        Mmin = Minput * ratio / 4
+        Mmax = Minput * ratio * 4
+        return op.brentq(self.mdiff_findMDelta, Mmin, Mmax, args=(Minput,overdensity,z), xtol=1e-6)
 
 
     ##### Functions used for conversion
@@ -137,9 +138,7 @@ class ConcentrationConversion:
 
     def findc(self, c200, overdensity):
         ratio = 200./overdensity
-        #if self.diffc(.1,c200,ratio)*self.diffc(100, c200, ratio)>0:
-        #    print c200
-        return op.brentq(self.diffc, .1, 40., args=(c200,ratio), xtol=1.e-6)
+        return op.brentq(self.diffc, .001, 40., args=(c200,ratio), xtol=1e-6)
 
     # Root function for mass
     def mdiff_findM200(self, m200, mc, overdensity, z):
@@ -147,7 +146,8 @@ class ConcentrationConversion:
         con2 = self.findc(con,overdensity)
         return m200/mc - self.calcoef(con)/self.calcoef(con2)
 
-    def mdiff_findMDelta(self,mguess,Minput,overdensity,z):
+    def mdiff_findMDelta(self, mguess, Minput, overdensity, z):
         conin =  self.calC200(Minput,z)
         conguess = self.findc(conin,overdensity)
         return Minput/mguess - self.calcoef(conin)/self.calcoef(conguess)
+
