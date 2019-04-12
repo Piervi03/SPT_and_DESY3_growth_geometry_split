@@ -87,8 +87,8 @@ class ConcentrationConversion:
             M200 = np.array([np.array([self.MDelta_to_M200(m, interp_massdef, z) for m in Min]) for z in z_arr])
             self.lnM_to_lnM200 = RectBivariateSpline(z_arr, np.log(Min), np.log(M200))
 
-            MDelta = np.array([np.array([self.M200_to_MDelta(m, interp_massdef, z) for m in Min]) for z in z_arr])
-            self.lnM200_to_lnM = RectBivariateSpline(z_arr, np.log(Min), np.log(MDelta))
+            #MDelta = np.array([np.array([self.M200_to_MDelta(m, interp_massdef, z) for m in Min]) for z in z_arr])
+            #self.lnM200_to_lnM = RectBivariateSpline(z_arr, np.log(Min), np.log(MDelta))
 
 
 
