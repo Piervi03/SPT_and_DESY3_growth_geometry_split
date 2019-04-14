@@ -33,7 +33,7 @@ def execute(block, number_count):
         'w0': block.get_double('cosmological_parameters', 'w'),
         'wa': block.get_double('cosmological_parameters', 'wa')}
     # SZ scaling relation parameters
-    for p in ['Asz', 'Bsz', 'Csz', 'Dsz', 'Bsz2', 'Csz2', 'Esz', 'DszM']:
+    for p in ['Asz', 'Bsz', 'Csz', 'Dsz', 'Bsz2', 'Csz2', 'Esz', 'DszM', 'SPECS_calib']:
         number_count.scaling[p] = block.get_double('mor_parameters', p)
     # Halo mass function
     number_count.HMF = {
