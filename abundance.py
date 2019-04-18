@@ -113,6 +113,8 @@ class NumberCount:
 
         # Apply field scaling factor
         zeta_m*= self.SPT_survey['GAMMA'][fieldidx]
+        if self.SPT_survey['SURVEY'][fieldidx]=='SPECS':
+            zeta_m*= self.scaling['SPECS_calib']
 
         # dN/dxi = dN/dlnzeta dlnzeta/dxi (unconvolved)
         # Unfortunately, the zeta_m table is not regular

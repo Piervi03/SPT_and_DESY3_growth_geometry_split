@@ -56,7 +56,7 @@ def execute(block, masscalibration):
     for p in ['Omega_m', 'Omega_b', 'wa']:
         masscalibration.cosmology[p] = block.get_double('cosmological_parameters', p)
     # SZ
-    for p in ['Asz', 'Bsz', 'Csz', 'Dsz', 'Bsz2', 'Csz2', 'Esz', 'DszM']:
+    for p in ['Asz', 'Bsz', 'Csz', 'Dsz', 'Bsz2', 'Csz2', 'Esz', 'DszM', 'SPECS_calib']:
         masscalibration.scaling[p] = block.get_double('mor_parameters', p)
     # X-ray
     for p in ['Ax', 'Bx', 'Cx', 'Dx', 'Ex', 'dlnMg_dlnr']:
