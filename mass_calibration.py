@@ -75,19 +75,8 @@ class MassCalibration:
 
         ##### Initialize mass-concentration relation class (for WL and dispersions)
         if self.todo['WL'] or self.todo['veldisp']:
-            self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, self.cosmology)
-
-        ##### Compute interpolation table for M500-M200
-        if self.todo['WL'] or self.todo['veldisp']:
-            z_arr = np.linspace(.1, 2, 20)
-            M500 = np.logspace(np.log10(self.HMF['M_arr'][0]), np.log10(self.HMF['M_arr'][-1]), 20)
-            M200 = np.array([np.array([self.MCrel.MDelta_to_M200(m, 500., z) for m in M500]) for z in z_arr])
-            self.lnM500_to_lnM200 = RectBivariateSpline(z_arr, np.log(M500), np.log(M200))
-        if self.todo['veldisp']:
-            z_arr = np.linspace(.1, 2, 20)
-            M200 = np.logspace(np.log10(np.amin(M200)), np.log10(np.amax(M200)), 20)
-            M500 = np.array([np.array([self.MCrel.M200_to_MDelta(m, 500., z) for m in M200]) for z in z_arr])
-            self.lnM200_to_lnM500 = RectBivariateSpline(z_arr, np.log(M200), np.log(M500))
+            self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, self.cosmology,
+                                                                           setup_interp=True, interp_massdef=500)
 
         ##### Evaluate the individual likelihoods
         len_data = len(self.catalog['SPT_ID'])
@@ -349,7 +338,7 @@ class MassCalibration:
                 dP_dobs = self.convolve_WL_LSS(obsArr, dP_dobs, LSSnoise)
             obsArr, dP_dobs = self.downsample_distribution(obsArr, dP_dobs)
             # P(Mwl) from data
-            Pwl = self.WL.like(self.catalog, dataID, obsArr, self.cosmology, self.MCrel, self.lnM500_to_lnM200, self.scaling)
+            Pwl = self.WL.like(self.catalog[dataID], obsArr, self.cosmology, self.MCrel, self.scaling)
             # Get likelihood
             likeli = np.trapz(Pwl*dP_dobs, obsArr)
 
@@ -420,7 +409,7 @@ class MassCalibration:
             if LSSnoise>0.:
                 dP_dobs0 = self.convolve_WL_LSS(obsArr[0], dP_dobs0, LSSnoise)
             # P(Mwl) from data
-            Pobs = self.WL.like(self.catalog, dataID, obsArr[0], self.cosmology, self.MCrel, self.lnM500_to_lnM200, self.scaling)
+            Pobs = self.WL.like(self.catalog[dataID], obsArr[0], self.cosmology, self.MCrel, self.scaling)
         else: print "not ready!"
 
         likeli0 = np.trapz(dP_dobs0*Pobs, obsArr[0])

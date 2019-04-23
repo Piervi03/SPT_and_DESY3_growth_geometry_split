@@ -1,16 +1,17 @@
 from __future__ import division
 import numpy as np
 from numpy.lib import scimath as sm
-from scipy.interpolate import interp1d, RectBivariateSpline
+from scipy.interpolate import interp1d, InterpolatedUnivariateSpline, RectBivariateSpline
 from scipy.stats import norm
 from scipy.linalg import cho_factor, cho_solve
 import h5py
 import imp
-import os
 
-import cosmo, miscentering
+import cosmo, Mconversion_concentration, miscentering
 
 ########################################
+marginalize_conc = True
+
 ##### This class reads and stores shear data and calculates P(shear|P(M))
 class SPTlensing:
 
@@ -29,12 +30,11 @@ class SPTlensing:
 
     ########################################
     # Get P(Mwl) from dP/dMwl and shear data
-    def like(self, data, dataindex, mArr, cosmology, MCrel, lnM500_to_lnM200, scaling):
+    def like(self, data, mArr, cosmology, MCrel, scaling):
         """Return likelihood of shear profile for a given cluster (index) given
         an array of cluster masses."""
-        self.name = data['SPT_ID'][dataindex]
-        self.zcluster = data['REDSHIFT'][dataindex]
-        self.WLdata = data['WLdata'][dataindex]
+        self.zcluster = data['REDSHIFT']
+        self.WLdata = data['WLdata']
 
         ##### Miscentering parameters
         # if self.WLcalib['DES_miscenter_kind']=='SPT':
@@ -42,17 +42,15 @@ class SPTlensing:
 
         ##### Cosmology and halo stuff, in 1/h units
         self.get_beta(cosmology)
-        rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.zcluster, cosmology)**2 # [h^2 Msun/Mpc^3]
-        Dl = cosmo.dA(self.zcluster, cosmology)
-        M200c = np.exp(lnM500_to_lnM200(self.zcluster, np.log(mArr)))[0]
-        r200c = (3*M200c/4/np.pi/200/rho_c_z)**(1/3)
-        c200c = MCrel.calC200(M200c, self.zcluster)
-        delta_c = 200/3 * c200c**3 / (np.log(1+c200c) - c200c/(1+c200c))
-        r_s = r200c/c200c
+        if not marginalize_conc:
+            rho_c_z, Dl, delta_c, r_s = self.get_cluster_properties(mArr, MCrel, cosmology)
 
         ##### Likelihood
         if self.WLdata['datatype']=='DES':
-            pOfMass = self.like_DES(rho_c_z, Dl, delta_c, r_s, data['XI'][dataindex], scaling)
+            if marginalize_conc:
+                pOfMass = self.like_DES_marginalize_conc(mArr, data['XI'], cosmology, scaling)
+            else:
+                pOfMass = self.like_DES(rho_c_z, Dl, delta_c, r_s, data['XI'], scaling)
         elif self.WLdata['datatype']=='Megacam':
             pOfMass = self.like_Megacam(rho_c_z, Dl, delta_c, r_s)
         elif self.WLdata['datatype']=='HST':
@@ -63,6 +61,47 @@ class SPTlensing:
 
 
     ########################################
+
+    def get_cluster_properties(self, mArr, MCrel, cosmology):
+        """Return rho_c(z_cluster), luminosity distance (z_cluster), delta_c,
+        and r_s."""
+        Dl = cosmo.dA(self.zcluster, cosmology)
+        rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.zcluster, cosmology)**2 # [h^2 Msun/Mpc^3]
+        if marginalize_conc:
+            M200c = np.exp(MCrel.lnM_to_lnM200(np.log(mArr)))
+        else:
+            M200c = np.exp(MCrel.lnM_to_lnM200(self.zcluster, np.log(mArr)))[0]
+        r200c = (3*M200c/4/np.pi/200/rho_c_z)**(1/3)
+        c200c = MCrel.calC200(M200c, self.zcluster)
+        delta_c = 200/3 * c200c**3 / (np.log(1+c200c) - c200c/(1+c200c))
+        r_s = r200c/c200c
+        return rho_c_z, Dl, delta_c, r_s
+
+
+    ########################################
+
+    def like_DES_marginalize_conc(self, mArr, xi, cosmology, scaling):
+        """Return array P(DES data|Mwl), marginalized over concentration in the
+        range 0<c<30. Note that this is not normalized wrt the mArr for a good
+        reason: In general, the mArr will not cover the full pOfMass range, and
+        it varies as a function of SZ parameters. However, pOfMass is a product
+        of normalized distributions, and so its normalization is constant
+        throughout parameter space."""
+        # Compute P(DES WL|Mwl) for an array of c and marginalize over c
+        c_arr = np.logspace(-2, np.log10(30), 8)
+        p_M_c = np.empty((len(c_arr), len(mArr)))
+        Min = np.logspace(13,16,8)
+        for i,c in enumerate(c_arr):
+            this_MCrel = Mconversion_concentration.ConcentrationConversion(c, setup_interp=False)
+            M200 = np.array([this_MCrel.MDelta_to_M200(m, 500, self.zcluster) for m in Min])
+            this_MCrel.lnM_to_lnM200 = InterpolatedUnivariateSpline(np.log(Min), np.log(M200))
+            rho_c_z, Dl, delta_c, r_s = self.get_cluster_properties(mArr, this_MCrel, cosmology)
+            p_M_c[i] = self.like_DES(rho_c_z, Dl, delta_c, r_s, xi, scaling)
+        # Marginalize over concentration
+        pOfMass = [InterpolatedUnivariateSpline(c_arr, p_M_c[:,i]).integral(c_arr[0], c_arr[1]) for i in range(len(mArr))]
+
+        return np.array(pOfMass)
+
 
 
     def like_DES(self, rho_c_z, Dl, delta_c, r_s, xi, scaling):
@@ -92,7 +131,7 @@ class SPTlensing:
         for i in range(len(pOfMass)):
             g_2d[:,i], cov_miscenter_ = self.DES_miscenterer.get_profile_mean_cov(r_deg_interp, g_2d[:,i], .2,
                                                                                   SPT_xi=xi,
-                                                                                  SPT_thetac=1)#data['THETA_CORE'][dataindex])
+                                                                                  SPT_thetac=1)#data['THETA_CORE'])
             g_t_interp = interp1d(r_deg_interp, g_2d[:,i], kind='cubic')
             g_t = g_t_interp(self.WLdata['r_deg'])
             diff_ = self.WLdata['shear'] - g_t
