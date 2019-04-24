@@ -14,20 +14,24 @@ class MisCentering(object):
         # SPT miscentering
         self.SPT_kappa = SPT_kappa
         self.SPT_beam = SPT_beam
+        # Gupta model
+        self.rho0 = 0.802
+        self.sigma0 = .044
+        self.sigma1 = .184
 
 
-    def get_profile_mean_cov(self, R, Delta_Sigma, R_mis_max, SPT_xi=None, SPT_thetac=None, r200c=None, lamb_red=None):
-        """Return mis-centered Delta_Sigma profile."""
+    def get_profile_mean_cov(self, R, profile, R_mis_max, SPT_xi=None, SPT_thetac=None, r200c=None, lamb_red=None):
+        """Return mis-centered profile."""
         self.SPT_xi = SPT_xi
         self.SPT_thetac = SPT_thetac
         self.r200c = r200c
         self.lamb_red = lamb_red
 
-        # Set up radial interpolation of Delta_Sigma
-        Delta_Sigma_interp = interp1d(R, Delta_Sigma, kind='cubic', fill_value='extrapolate', bounds_error=False)
+        # Set up radial interpolation of profile
+        profile_interp = interp1d(R, profile, kind='cubic', fill_value='extrapolate', bounds_error=False)
 
         # Integration variables
-        theta = np.linspace(0, 2*np.pi, 16)
+        theta = np.linspace(0, np.pi, 16)
         R_mis = np.linspace(0, R_mis_max, 16)
 
         # Miscentering distribution
@@ -35,18 +39,18 @@ class MisCentering(object):
 
         # Delta_Sigma([R, R_mis, theta])
         R_eff = np.sqrt(R[:,None,None]**2 + R_mis[None,:,None]**2 + 2 * np.cos(theta)[None,None,:] * R[:,None,None] * R_mis[None,:,None])
-        Delta_Sigma_theta = Delta_Sigma_interp(R_eff)/2/np.pi
+        profile_theta = profile_interp(R_eff)/np.pi
 
         ##### Mean miscentered profile
-        Delta_Sigma_mis = np.array([RectBivariateSpline(R_mis, theta, p_of_Rmis[:,None]*Delta_Sigma_theta[i]).integral(0, R_mis_max, 0, 2*np.pi)
-                                        for i in range(len(R))])
+        profile_mis = np.array([RectBivariateSpline(R_mis, theta, p_of_Rmis[:,None]*profile_theta[i]).integral(0, R_mis_max, 0, np.pi)
+                                for i in range(len(R))])
 
         ##### Covariance matrix
-        residuals = Delta_Sigma_theta.reshape(len(R),-1) - Delta_Sigma_mis[:,None]
-        weights = (p_of_Rmis[:,None] * np.ones(Delta_Sigma_theta.shape[1:])).flatten()
+        residuals = profile_theta.reshape(len(R),-1) - profile_mis[:,None]
+        weights = (p_of_Rmis[:,None] * np.ones(profile_theta.shape[1:])).flatten()
         cov = np.cov(residuals, aweights=weights)
 
-        return Delta_Sigma_mis, cov
+        return profile_mis, cov
 
 
 
@@ -60,10 +64,17 @@ class MisCentering(object):
             return self.pRmis_SPT(R_mis)
 
     def pRmis_SPT(self, R_mis):
-        """SPT miscentering"""
+        """SPT positional uncertainty"""
         sigma_ = np.sqrt((self.SPT_beam/60)**2 + (self.SPT_kappa*self.SPT_thetac/60)**2)/self.SPT_xi
-        p = 2 * norm.pdf(R_mis, 0, sigma_)
-        return p
+        p = R_mis * norm.pdf(R_mis, 0, sigma_)
+        A = sigma_**2 * norm.pdf(0, 0, sigma_)
+        return p/A
+
+    def pRmis_SPT_Magneticum(self, R_mis):
+        """SZ error according to Magneticum (Gupta+ 16)"""
+        p = x * (self.rho0*norm.pdf(x, 0, self.sigma0) + (1-self.rho0)*norm.pdf(x, 0, self.sigma1))
+        A = self.rho0*self.sigma0**2 * norm.pdf(0, 0, self.sigma0) + (1-self.rho0)*self.sigma1**2 * norm.pdf(0, 0, self.sigma1)
+        return p/A
 
 
     def pRmis_redmapper(self, R_mis):
