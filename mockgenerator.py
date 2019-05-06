@@ -24,7 +24,7 @@ def main():
     scaling = configMod.scaling
     np.random.seed(configMod.random_seed)
     # Initialize c(M) calculator
-    MCrel = Mconversion_concentration.ConcentrationConversion(configMod.mcType, cosmology)
+    MCrel = Mconversion_concentration.ConcentrationConversion(configMod.mcType, cosmology, setup_interp=True)
 
     # [WL, X-ray, SZ, richness]
     cov = [[scaling['DWL_Megacam']**2, scaling['rhoWLX']*scaling['DWL_Megacam']*scaling['Dx'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_Megacam'], scaling['rhoWLrichness']*scaling['DWL_Megacam']*scaling['Drichness']],
@@ -51,38 +51,44 @@ def main():
 
 
     for fieldidx,field in enumerate(SPT_survey['FIELD']):
-
+        print(field, fieldidx, 'out of %d'%len(SPT_survey['FIELD']))
         massfunc = np.exp(HMF_dNdM_V(np.log(z_arr), np.log(HMF['m']))) * SPT_survey['AREA'][fieldidx] * dz
 
         # Poisson realization
         N = np.random.poisson(massfunc)
 
+        obs_0 = [scaling_relations.mass2obs(name, np.array(HMF['m'])[None,:], z_arr[:,None], scaling, cosmology)
+                 for name in ('WLMegacam', configMod.Xray_obs, 'zeta', 'richness')]
+        # Reshape WL array (no z-dependence...)
+        obs_0[0] = np.ones((len(z_arr), len(HMF['m']))) * obs_0[0]
+        # Field depth
+        obs_0[2]*= SPT_survey['GAMMA'][fieldidx]
+        obs_0 = np.array(obs_0)
+
+
         for i, z in enumerate(z_arr):
             for j, M in enumerate(HMF['m']):
                 if N[i,j]==0:
                     continue
-                # draw (Mwl,Yx,zeta,richness)|M
-                obs_0 = [scaling_relations.mass2obs(name, M, z, scaling, cosmology)
-                         for name in ('WLMegacam', configMod.Xray_obs, 'zeta', 'richness')]
-                obs_0[2]*= SPT_survey['GAMMA'][fieldidx]
-                obs = np.exp(np.random.multivariate_normal(np.log(obs_0), cov, N[i,j]))
-                for k in range(N[i,j]):
-                    # Apply P(zeta)
-                    if obs[k,2]>2.:
-                        # draw xi|zeta
-                        xi = np.random.normal(scaling_relations.zeta2xi(obs[k,2]), scale=1.)
-                        if xi>=configMod.surveyCutSZ[0]:
-                            # Apply observational error to Mgas
-                            Mg = np.random.lognormal(np.log(obs[k,1]), sigma=configMod.Xerr)
-                            # Convert WL mass to 200c
-                            M200h_WL = MCrel.MDelta_to_M200(obs[k,0],500.,z)
 
-                            # Observed richness
-                            richness_int = np.random.lognormal(np.log(obs[k,3]), obs[k,3]**-.5)
-                            richness_obs = np.random.normal(richness_int, configMod.richness_err)
+                obs = np.exp(np.random.multivariate_normal(np.log(obs_0[:,i,j]), cov, N[i,j]))
 
-                            mock.append((M, z, xi, Mg, M200h_WL, richness_obs))
-                            fieldnames.append(field)
+                keep = (obs[:,2]>2).nonzero()[0]
+                for k in keep:
+                    # draw xi|zeta
+                    xi = np.random.normal(scaling_relations.zeta2xi(obs[k,2]), scale=1.)
+                    if xi>=configMod.surveyCutSZ[0]:
+                        # Apply observational error to Mgas
+                        Mg = np.random.lognormal(np.log(obs[k,1]), sigma=configMod.Xerr)
+                        # Convert WL mass to 200c
+                        M200h_WL = np.exp(MCrel.lnM_to_lnM200(z, np.log(obs[k,0]))[0,0])
+
+                        # Observed richness
+                        richness_int = np.random.lognormal(np.log(obs[k,3]), obs[k,3]**-.5)
+                        richness_obs = np.random.normal(richness_int, configMod.richness_err)
+
+                        mock.append((M, z, xi, Mg, M200h_WL, richness_obs))
+                        fieldnames.append(field)
 
         # False detections
         dNdxiFalse = SPT_survey['BETA'][fieldidx] * SPT_survey['AREA'][fieldidx]/2500. * SPT_survey['ALPHA'][fieldidx] * np.exp(-SPT_survey['BETA'][fieldidx]*(xiArrBin-5.)) * dxi
@@ -155,7 +161,7 @@ def main():
 
     ##### Bookkeeping of names
     XraySample = names[np.where(mock[:,3]!=0.)[0]]
-    print(XraySample)
+    # print(XraySample)
 
     # False detections
     redshiftLim = np.zeros(nCluster)
@@ -164,12 +170,15 @@ def main():
     # M500 estimate, neede for defining X-ray observable
     M500_noh = np.random.lognormal(np.log(mock[:,0]/cosmology['h']), scaling['Dsz']/scaling['Bsz'])
 
+    # Theta_core (random)
+    theta_core = .25 * np.random.randint(1, 13, len(names))
+
     ##### Save catalog file
-    names_arr = ['SPT_ID', 'FIELD', 'XI', 'REDSHIFT', 'REDSHIFT_UNC', 'REDSHIFT_LIMIT',
+    names_arr = ['SPT_ID', 'FIELD', 'XI', 'THETA_CORE', 'REDSHIFT', 'REDSHIFT_UNC', 'REDSHIFT_LIMIT',
                  'Mg_MM', 'lnMg_err_MM', 'lnYx_err_MM',
                  'M_true', 'Tx_MM', 'M500', 'Mwl_200',
                  'LAMBDA_RM', 'LAMBDA_RM_UNC']
-    data_arr = [names, fieldnames, mock[:,2], mock[:,1], np.zeros(nCluster), redshiftLim,
+    data_arr = [names, fieldnames, mock[:,2], theta_core, mock[:,1], np.zeros(nCluster), redshiftLim,
                 Mgas, Xerrarr, Xerrarr, mock[:,0], 1e14*np.ones(nCluster),
                 M500_noh, mock[:,4],
                 mock[:,5], configMod.richness_err*np.ones(nCluster)]

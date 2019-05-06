@@ -10,6 +10,8 @@ from astropy.table import Table
 
 import cosmo, Mconversion_concentration
 
+# Syntax
+# python mock_WL.py WLconfig mockconfig catalog.fits
 
 def main():
     WLconfigMod = importlib.import_module(sys.argv[1][:-3])
@@ -22,7 +24,7 @@ def main():
 
     with h5py.File('mock_WL_%s.hdf5'%time.strftime("%y%m%d-%H%M%S"), 'w') as f:
         for i,name in enumerate(cat['SPT_ID']):
-            if cat['REDSHIFT'][i]>0:
+            if cat['REDSHIFT'][i]>0 and cat['REDSHIFT'][i]<=WLconfigMod.WL_z_max:
                 r_deg, g_2d, g_2d_err, source_dist = mock_WL(cat['Mwl_200'][i], cat['REDSHIFT'][i])
 
                 g = f.create_group(name)
@@ -67,8 +69,6 @@ class MockUpWL:
         self.cosmology = cosmology
         self.MCrel = MCrel
         self.config_mod = importlib.import_module('WL_input')
-        Delta_r = self.config_mod.r_deg[1] - self.config_mod.r_deg[0]
-        self.area_bin_arcmin = np.pi * 60**2 * ((self.config_mod.r_deg+Delta_r/2)**2 - (self.config_mod.r_deg-Delta_r/2)**2)
 
 
     def get_gt(self, M200c, z, beta_avg, beta2_avg):
@@ -85,20 +85,26 @@ class MockUpWL:
 
         ##### Now let's do WL!
         # dimensionless radial distance
-        x = self.config_mod.r_deg * Dl * np.pi/180 / rs
+        x = self.config_mod.r_bin_Mpc*self.cosmology['h'] / rs
+        r_deg = self.config_mod.r_bin_Mpc*self.cosmology['h'] / Dl * 180/np.pi
+
         # Sigma_crit, with c^2/4piG [h Msun/Mpc^2]
         Sigma_c = 1.6624541593797974e+18/Dl/beta_avg
         gamma_t = get_Delta_Sigma(x, rs, rho_c_z, delta_c) / Sigma_c
         kappa_t = get_Sigma(x, rs, rho_c_z, delta_c) / Sigma_c
         g_2d = gamma_t/(1-kappa_t) * (1 + kappa_t*(beta2_avg/beta_avg**2 - 1))
 
-        return g_2d
+        return r_deg, g_2d
 
 
     def get_source_gals(self, z):
         """Return stochastic realization of source galaxy redshifts with `z>z_cl
         + z_offset` for each radial bin."""
-        N = np.random.poisson(self.area_bin_arcmin * self.config_mod.source_p_arcmin2)
+        Dl = cosmo.dA(z, self.cosmology)
+        r_arcmin = self.config_mod.r_edge_Mpc*self.cosmology['h'] / Dl * 180*60/np.pi
+        area_bin_arcmin = np.pi * (r_arcmin[1:]**2 - r_arcmin[:-1]**2)
+
+        N = np.random.poisson(area_bin_arcmin * self.config_mod.source_p_arcmin2)
         z_dist = [np.random.lognormal(np.log(self.config_mod.source_lognorm_dist_mean),
                                      self.config_mod.source_lognorm_dist_sigma,
                                      this_N) for this_N in N]
@@ -122,13 +128,13 @@ class MockUpWL:
         """Wrapper function: Call all workers and return everything."""
         source_dist_r, source_dist = self.get_source_gals(z_cl)
         beta_avg, beta2_avg = self.get_beta(z_cl, source_dist)
-        g_2d = self.get_gt(M200c, z_cl, beta_avg, beta2_avg)
+        r_deg, g_2d = self.get_gt(M200c, z_cl, beta_avg, beta2_avg)
         # Error on shear is shape_noise / sqrt(N(r))
         N_r = np.array([len(source_dist_r[i]) for i in range(len(source_dist_r))])
         g_2d_err = self.config_mod.shape_noise / np.sqrt(N_r)
         g_2d+= np.random.normal(0, g_2d_err)
 
-        return self.config_mod.r_deg, g_2d, g_2d_err, source_dist
+        return r_deg, g_2d, g_2d_err, source_dist
 
 
 
