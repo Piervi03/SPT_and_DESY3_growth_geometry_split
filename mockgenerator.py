@@ -24,7 +24,7 @@ def main():
     scaling = configMod.scaling
     np.random.seed(configMod.random_seed)
     # Initialize c(M) calculator
-    MCrel = Mconversion_concentration.ConcentrationConversion(configMod.mcType, cosmology, setup_interp=True)
+    # MCrel = Mconversion_concentration.ConcentrationConversion(configMod.mcType, cosmology, setup_interp=True)
 
     # [WL, X-ray, SZ, richness]
     cov = [[scaling['DWL_Megacam']**2, scaling['rhoWLX']*scaling['DWL_Megacam']*scaling['Dx'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_Megacam'], scaling['rhoWLrichness']*scaling['DWL_Megacam']*scaling['Drichness']],
@@ -81,13 +81,13 @@ def main():
                         # Apply observational error to Mgas
                         Mg = np.random.lognormal(np.log(obs[k,1]), sigma=configMod.Xerr)
                         # Convert WL mass to 200c
-                        M200h_WL = np.exp(MCrel.lnM_to_lnM200(z, np.log(obs[k,0]))[0,0])
+                        # M200h_WL = np.exp(MCrel.lnM_to_lnM200(z, np.log(obs[k,0]))[0,0])
 
                         # Observed richness
                         richness_int = np.random.lognormal(np.log(obs[k,3]), obs[k,3]**-.5)
                         richness_obs = np.random.normal(richness_int, configMod.richness_err)
 
-                        mock.append((M, z, xi, Mg, M200h_WL, richness_obs))
+                        mock.append((M, z, xi, Mg, obs[k,0], richness_obs))
                         fieldnames.append(field)
 
         # False detections
@@ -176,7 +176,7 @@ def main():
     ##### Save catalog file
     names_arr = ['SPT_ID', 'FIELD', 'XI', 'THETA_CORE', 'REDSHIFT', 'REDSHIFT_UNC', 'REDSHIFT_LIMIT',
                  'Mg_MM', 'lnMg_err_MM', 'lnYx_err_MM',
-                 'M_true', 'Tx_MM', 'M500', 'Mwl_200',
+                 'M_true', 'Tx_MM', 'M500', 'Mwl_500',
                  'LAMBDA_RM', 'LAMBDA_RM_UNC']
     data_arr = [names, fieldnames, mock[:,2], theta_core, mock[:,1], np.zeros(nCluster), redshiftLim,
                 Mgas, Xerrarr, Xerrarr, mock[:,0], 1e14*np.ones(nCluster),
