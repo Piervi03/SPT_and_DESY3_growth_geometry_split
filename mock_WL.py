@@ -173,7 +173,6 @@ class MockUpWL:
         + z_offset` for each radial bin."""
         r_deg = self.config_mod.r_edge_Mpc*self.cosmology['h'] / self.Dl * 180/np.pi
         area_bin_arcmin = np.pi * 60**2 * (r_deg[1:]**2 - r_deg[:-1]**2)
-
         N = np.random.poisson(area_bin_arcmin * self.config_mod.source_p_arcmin2)
         z_dist = [np.random.lognormal(np.log(self.config_mod.source_lognorm_dist_mean),
                                      self.config_mod.source_lognorm_dist_sigma,
@@ -215,10 +214,16 @@ class MockUpWL:
         # r_deg, g_2d = self.get_gt(z_cl, beta_avg, beta2_avg)
         # Error on shear is shape_noise / sqrt(N(r))
         N_r = np.array([len(source_dist_r[i]) for i in range(len(source_dist_r))])
+
+        good_idx = (N_r>4).nonzero()[0]
+
+        N_r = N_r[good_idx]
+        g_2d = g_2d[good_idx]
+
         g_2d_err = self.config_mod.shape_noise / np.sqrt(N_r)
         g_2d+= np.random.normal(0, g_2d_err)
 
-        return r_deg, g_2d, g_2d_err, source_dist
+        return r_deg[good_idx], g_2d, g_2d_err, source_dist
 
 
 
