@@ -67,12 +67,6 @@ class MassCalibration:
         if self.todo['WL']:
             self.WL.get_dAs(self.cosmology)
 
-        ##### Set up interpolation for HMF
-        HMF_in = self.HMF['dNdlnM'][1:,:]
-        if np.any(HMF_in==0):
-            HMF_in[np.where(HMF_in==0)] = np.nextafter(0, 1)
-        self.HMF_interp = RectBivariateSpline(np.log(self.HMF['z_arr'][1:]), np.log(self.HMF['M_arr']), np.log(HMF_in))
-
         ##### Initialize mass-concentration relation class (for WL and dispersions)
         if self.todo['WL'] or self.todo['veldisp']:
             self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, self.cosmology,
@@ -182,13 +176,13 @@ class MassCalibration:
     def conversion_factor_Xray_obs_r500ref(self, redshift):
         """Account for the cosmological dependence of the X-ray observable and
         convert to the model expectation at r500ref using the slope of the
-        radial profile. This is done for the mass array self.HMF['M_arr']."""
+        radial profile. This is done for the mass array."""
         # Angular diameter distances in current and reference cosmology [Mpc]
         dA = cosmo.dA(redshift, self.cosmology)/self.cosmology['h']
         dAref = cosmo.dA(redshift, cosmologyRef)/cosmologyRef['h']
         # R500 [kpc]
         rho_c_z = cosmo.RHOCRIT * cosmo.Ez(redshift, self.cosmology)**2
-        r500 = 1000 * (3*self.HMF['M_arr']/(4*np.pi*500*rho_c_z))**(1/3) / self.cosmology['h']
+        r500 = 1000 * (3*self.HMF_convos['M_arr']/(4*np.pi*500*rho_c_z))**(1/3) / self.cosmology['h']
         # r500 in reference cosmology [kpc]
         r500ref = r500 * dAref/dA
         # Xray observable at fiducial r500...
@@ -263,7 +257,7 @@ class MassCalibration:
         x_new = np.linspace(x_min, x_max, N_target)
         y_new = y_interp(x_new)
 
-        return x_new, y_new        
+        return x_new, y_new
 
 
     ############################################################################
@@ -287,10 +281,10 @@ class MassCalibration:
             LSSnoise = self.WLcalib['DES_LSS'][0] + self.scaling['DESscatterLSS'] * self.WLcalib['DES_LSS'][1]
 
         ##### Observable arrays
-        zeta_arr = self.thisSPTfield_gamma * scaling_relations.mass2obs('zeta', self.HMF['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
+        zeta_arr = self.thisSPTfield_gamma * scaling_relations.mass2obs('zeta', self.HMF_convos['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
         lnzeta_arr = np.log(zeta_arr)
         xi_arr = scaling_relations.zeta2xi(zeta_arr)
-        obsArr = scaling_relations.mass2obs(obsname, self.HMF['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
+        obsArr = scaling_relations.mass2obs(obsname, self.HMF_convos['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
         # Account for radial dependence for X-ray observables
         if obsname in ('Mgas', 'Yx'):
             correction = self.conversion_factor_Xray_obs_r500ref(self.catalog['REDSHIFT'][dataID])
@@ -376,12 +370,12 @@ class MassCalibration:
                 LSSnoise = self.WLcalib['DES_LSS'][0] + self.scaling['DESscatterLSS'] * self.WLcalib['DES_LSS'][1]
 
         ##### Observable arrays
-        zeta_arr = self.thisSPTfield_gamma * scaling_relations.mass2obs('zeta', self.HMF['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
+        zeta_arr = self.thisSPTfield_gamma * scaling_relations.mass2obs('zeta', self.HMF_convos['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
         lnzeta_arr = np.log(zeta_arr)
         xi_arr = scaling_relations.zeta2xi(zeta_arr)
         obsArr, lnobsArr = [], []
         for i in range(2):
-            obsArrTemp = scaling_relations.mass2obs(obsnames[i], self.HMF['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
+            obsArrTemp = scaling_relations.mass2obs(obsnames[i], self.HMF_convos['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
             # Account for radial dependence for X-ray observables
             if obsnames[i] in ('Mgas', 'Yx'):
                 correction = self.conversion_factor_Xray_obs_r500ref(self.catalog['REDSHIFT'][dataID])

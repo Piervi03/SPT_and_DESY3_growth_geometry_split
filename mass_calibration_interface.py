@@ -72,15 +72,10 @@ def execute(block, masscalibration):
         masscalibration.scaling[p] = block.get_double('mor_parameters', p)
     # Get multi-obs HMF convolutions
     masscalibration.HMF_convos = {}
+    masscalibration.HMF_convos['M_arr'] = block.get_double_array_1d('dN_dmultiobs', 'M_arr')
     for pair_name in masscalibration.observable_pairs:
         masscalibration.HMF_convos[pair_name] = block.get_double_array_nd('dN_dmultiobs', pair_name)
         masscalibration.HMF_convos['%s_z'%pair_name] = block.get_double_array_nd('dN_dmultiobs', '%s_z'%pair_name)
-    # Halo mass function
-    masscalibration.HMF = {
-        'M_arr': block.get_double_array_1d('HMF', 'M_arr'),
-        'z_arr': block.get_double_array_1d('HMF', 'z_arr'),
-        'dNdlnM': block.get_double_array_nd('HMF', 'dNdlnM')}
-    masscalibration.HMF['len_z'] = len(masscalibration.HMF['z_arr'])
 
     ##### Compute likelihood
     lnlike = masscalibration.lnlike()
