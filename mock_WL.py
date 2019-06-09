@@ -73,6 +73,9 @@ class MockUpWL:
         self.MCrel = MCrel
         self.config_mod = importlib.import_module('WL_input')
 
+        data_ = np.loadtxt(self.config_mod.beta_bias_file, unpack=True)[:3]
+        self.betabias_mean = InterpolatedUnivariateSpline(data_[1], data_[0])
+
         self.rho0 = .63
         self.sigma0 = .07
         self.sigma1 = .25
@@ -115,10 +118,10 @@ class MockUpWL:
         else:
             R_draw = self.sigma1 * np.random.randn()
 
-        theta = np.pi * np.random.rand()
-        draw = np.sqrt(SPT_draw**2 + R_draw**2 + 2*np.cos(theta)*SPT_draw*R_draw)
+        # theta = np.pi * np.random.rand()
+        # draw = np.sqrt(SPT_draw**2 + R_draw**2 + 2*np.cos(theta)*SPT_draw*R_draw)
 
-        return draw
+        return R_draw
 
 
 
@@ -139,6 +142,9 @@ class MockUpWL:
         # Sigma_crit, with c^2/4piG [h Msun/Mpc^2]
         Sigma_c = 1.6624541593797974e+18/self.Dl/beta_avg
 
+        # Beta bias
+        Sigma_c*= self.betabias_mean(z)
+
         # Miscentered Sigma(r)
         r_mis = self.get_Rmis_SPT()
         Sigma = get_Sigma(x, rs, self.rho_c_z, delta_c) / Sigma_c
@@ -147,7 +153,7 @@ class MockUpWL:
         integrand = InterpolatedUnivariateSpline(r_arr, r_arr*Sigma_mis)
         Delta_Sigma_mis = np.array([2/r_**2 * integrand.integral(0, r_) for r_ in r_arr])
 
-        g_t = Delta_Sigma_mis/(1-Sigma_mis) * (1 + Sigma_mis*(beta2_avg/beta_avg**2 - 1))
+        g_t = Delta_Sigma_mis/(1-Sigma_mis)# * (1 + Sigma_mis*(beta2_avg/beta_avg**2 - 1))
 
         r_deg = self.config_mod.r_bin_Mpc*self.cosmology['h'] / self.Dl * 180/np.pi
         g_t_interp = InterpolatedUnivariateSpline(r_arr, g_t)
@@ -204,7 +210,7 @@ class MockUpWL:
         self.Dl = cosmo.dA(z_cl, self.cosmology)
 
         self.r500c = (3*M500c/4/np.pi/500/self.rho_c_z)**(1/3)
-        self.M200c = self.MCrel.lnM_to_lnM200(z_cl, M500c)[0,0]
+        self.M200c = np.exp(self.MCrel.lnM_to_lnM200(z_cl, np.log(M500c)))[0,0]
         self.r200c = (3*self.M200c/4/np.pi/200/self.rho_c_z)**(1/3)
 
 
