@@ -28,11 +28,8 @@ grid_lgr_fine_max = 1
 grid_sigma_SPT_min = np.sqrt(1.3**2+.25**2)/50
 grid_sigma_SPT_max = np.sqrt(1.3**2+3.1**2)/5
 
-def unwrap_self_precompute_sigmaSPT(arg):
+def unwrap_self_precompute(arg):
     return SPTlensing.compute_grid_c_sigmaSPT(*arg)
-
-def unwrap_self_precompute_optical(arg):
-    return SPTlensing.compute_grid_c(*arg)
 
 def unwrap_self_like_cluster(arg):
     return SPTlensing.like_cluster(*arg)
@@ -80,7 +77,7 @@ class SPTlensing:
         # Pre-compute angular diameter distance and miscentered shear profiles
         self.get_dAs(cosmology)
         # t0 = time.time()
-        self.compute_on_grid(cosmology)
+        self.compute_on_grid_SPTcenter(cosmology)
         # print "precompute done", time.time()-t0
 
         # Go through all clusters with WL data
@@ -160,39 +157,25 @@ class SPTlensing:
 
         p_M_c = np.empty((len(mArr), len(self.c_arr)))
 
-        ##### Interpolate to z (and sigma_SPT for SPT miscentering)
-        # Interpolate to z
+        # Interpolate to [sigma_SPT, z]
+        this_sigmaSPT = np.sqrt(1.3**2 + self.cat_cl['THETA_CORE']**2)/self.cat_cl['XI']
+        idx_sig_lo = (self.sigmaSPT_arr<=this_sigmaSPT).nonzero()[0][-1]
+        Delta_sig = this_sigmaSPT - self.sigmaSPT_arr[idx_sig_lo]
         idx_z_lo = (self.z_arr<=self.cat_cl['REDSHIFT']).nonzero()[0][-1]
         Delta_lnz = np.log(self.cat_cl['REDSHIFT'] / self.z_arr[idx_z_lo])
 
-        if self.DES_miscenterer=='r200c':
-            # [c, M, draw]
-            y_lo = self.Sigma_weights[:,idx_z_lo,:,:]
-            weights = y_lo + Delta_lnz * (self.Sigma_weights[:,idx_z_lo+1,:,:]-y_lo)
-            # [c, M, r, draw]
-            y_lo = self.lnSigma_draws[:,idx_z_lo,:,:,:]
-            lnSigma_draws = y_lo + Delta_lnz * (self.lnSigma_draws[:,idx_z_lo+1,:,:,:]-y_lo)
-            y_lo = self.lnDelta_Sigma_draws[:,idx_z_lo,:,:,:]
-            lnDelta_Sigma_draws = y_lo + Delta_lnz * (self.lnDelta_Sigma_draws[:,idx_z_lo+1,:,:,:]-y_lo)
-
-        elif self.DES_miscenterer=='SPT':
-            # Interpolate to sigma_SPT
-            this_sigmaSPT = np.sqrt(1.3**2 + self.cat_cl['THETA_CORE']**2)/self.cat_cl['XI']
-            idx_sig_lo = (self.sigmaSPT_arr<=this_sigmaSPT).nonzero()[0][-1]
-            Delta_sig = this_sigmaSPT - self.sigmaSPT_arr[idx_sig_lo]
-            # [c, M, draw]
-            y_lo = self.Sigma_weights[:,idx_sig_lo,idx_z_lo,:,:]
-            weights = y_lo + Delta_sig * (self.Sigma_weights[:,idx_sig_lo+1,idx_z_lo,:,:]-y_lo) \
-                                + Delta_lnz * (self.Sigma_weights[:,idx_sig_lo,idx_z_lo+1,:,:]-y_lo)
-            # [c, M, r, draw]
-            y_lo = self.lnSigma_draws[:,idx_sig_lo,idx_z_lo,:,:,:]
-            lnSigma_draws = y_lo + Delta_sig * (self.lnSigma_draws[:,idx_sig_lo+1,idx_z_lo,:,:,:]-y_lo) \
-                                      + Delta_lnz * (self.lnSigma_draws[:,idx_sig_lo,idx_z_lo+1,:,:,:]-y_lo)
-            y_lo = self.lnDelta_Sigma_draws[:,idx_sig_lo,idx_z_lo,:,:,:]
-            lnDelta_Sigma_draws = y_lo + Delta_sig * (self.lnDelta_Sigma_draws[:,idx_sig_lo+1,idx_z_lo,:,:,:]-y_lo) \
-                                      + Delta_lnz * (self.lnDelta_Sigma_draws[:,idx_sig_lo,idx_z_lo+1,:,:,:]-y_lo)
-
-        ##### Reduced shear profile
+        # [c, M, draw]
+        y_lo = self.Sigma_weights[:,idx_sig_lo,idx_z_lo,:,:]
+        weights = y_lo + Delta_sig * (self.Sigma_weights[:,idx_sig_lo+1,idx_z_lo,:,:]-y_lo) \
+                            + Delta_lnz * (self.Sigma_weights[:,idx_sig_lo,idx_z_lo+1,:,:]-y_lo)
+        # [c, M, r, draw]
+        y_lo = self.lnSigma_draws[:,idx_sig_lo,idx_z_lo,:,:,:]
+        lnSigma_draws = y_lo + Delta_sig * (self.lnSigma_draws[:,idx_sig_lo+1,idx_z_lo,:,:,:]-y_lo) \
+                                  + Delta_lnz * (self.lnSigma_draws[:,idx_sig_lo,idx_z_lo+1,:,:,:]-y_lo)
+        y_lo = self.lnDelta_Sigma_draws[:,idx_sig_lo,idx_z_lo,:,:,:]
+        lnDelta_Sigma_draws = y_lo + Delta_sig * (self.lnDelta_Sigma_draws[:,idx_sig_lo+1,idx_z_lo,:,:,:]-y_lo) \
+                                  + Delta_lnz * (self.lnDelta_Sigma_draws[:,idx_sig_lo,idx_z_lo+1,:,:,:]-y_lo)
+>>>>>>> 732b5864f51c58a3689fea3e82e3f65b42eb08c7
         g_t_draws = np.exp(lnDelta_Sigma_draws)/Sigma_c / (1 - np.exp(lnSigma_draws)/Sigma_c)
         del lnSigma_draws
         del lnDelta_Sigma_draws
@@ -211,6 +194,7 @@ class SPTlensing:
         return likeli
 
 
+<<<<<<< HEAD
     ########################################
 
     def compute_grid_c(self, i):
@@ -299,6 +283,30 @@ class SPTlensing:
                     lnDelta_Sigma_draws[h,j,k] = np.log(Delta_Sigma[self.r_data_idx[0]:self.r_data_idx[1],:])
 
         return lnSigma_draws, lnDelta_Sigma_draws, Sigma_weights
+
+
+    ########################################
+
+    def compute_on_grid_SPTcenter(self, cosmology):
+        """Pre-compute shear profiles for grid [c, z, M, r]"""
+        # z-dependent
+        self.Dl_arr = np.array([cosmo.dA(z, cosmology) for z in self.z_arr])
+        self.rho_c_z = cosmo.RHOCRIT * np.array([cosmo.Ez(z, cosmology)**2  for z in self.z_arr]) # [h^2 Msun/Mpc^3]
+        # [z, M]
+        r500c = (3*self.M_arr[None,:]/4/np.pi/500/self.rho_c_z[:,None])**(1/3)
+        self.r500_deg = r500c / self.Dl_arr[:,None] * 180/np.pi
+
+        if self.NPROC==0:
+            out = [self.compute_grid_c_sigmaSPT(i) for i in range(self.len_c_arr)]
+        else:
+            pool = Pool(processes=self.NPROC)
+            argin = zip([self]*len(self.c_arr), range(self.len_c_arr))
+            out = pool.map(unwrap_self_precompute, argin)
+            pool.close()
+
+        self.lnSigma_draws = np.array([out[i][0] for i in range(self.len_c_arr)])
+        self.Sigma_weights = np.array([out[i][2] for i in range(self.len_c_arr)])
+        self.lnDelta_Sigma_draws = np.array([out[i][1] for i in range(self.len_c_arr)])
 
 
     ########################################
