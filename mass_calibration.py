@@ -336,10 +336,11 @@ class MassCalibration:
                 dP_dobs = self.convolve_WL_LSS(obsArr, dP_dobs, LSSnoise)
             # obsArr, dP_dobs = self.downsample_distribution(obsArr, dP_dobs)
             # P(Mwl) from data
-            WL_interp = InterpolatedUnivariateSpline(np.log(self.WL.M_arr), np.log(self.catalog['p_Mwl'][dataID]))
+            lnM200c = self.MCrel.lnM_to_lnM200(self.catalog['REDSHIFT'][dataID], np.log(obsArr))[0]
+            WL_interp = InterpolatedUnivariateSpline(np.log(self.WL.M200c), np.log(self.catalog['p_Mwl'][dataID]))
             # Pwl = self.WL.like(self.catalog[dataID], obsArr, self.cosmology, self.MCrel, self.scaling)
             # Get likelihood
-            likeli = np.trapz(np.exp(WL_interp(np.log(obsArr)))*dP_dobs, obsArr)
+            likeli = np.trapz(np.exp(WL_interp(lnM200c))*dP_dobs, obsArr)
 
 
         if ((likeli<0)|(np.isnan(likeli))):

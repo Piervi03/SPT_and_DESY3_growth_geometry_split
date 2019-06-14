@@ -49,6 +49,7 @@ class SPTlensing:
         self.DES_betabias_var = InterpolatedUnivariateSpline(data_[1], data_[2]**2)
         # Miscentering
         self.DES_miscenterer = miscentering.MisCentering(kind=self.WLcalib['DES_miscenter_kind'])
+        self.Delta_crit = self.WLcalib['Delta_crit']
 
         self.len_c_arr = 8
         self.c_arr = np.logspace(-2, np.log10(30), self.len_c_arr)
@@ -220,12 +221,10 @@ class SPTlensing:
         """Pre-compute shear profile grid [sigma_SPT, z, M, r] for a given
         concentration `c`."""
         c = self.c_arr[i]
-        delta_c = 200/3 * c**3 / (np.log(1+c) - c/(1+c))
-        MCrel = Mconversion_concentration.ConcentrationConversion(c, setup_interp=True)
+        delta_c = self.Delta_crit/3 * c**3 / (np.log(1+c) - c/(1+c))
         # [z, M]
-        M200c = np.exp(MCrel.lnM_to_lnM200(self.z_arr, np.log(self.M_arr)))
-        r200c = (3*M200c/4/np.pi/200/self.rho_c_z[:,None])**(1/3)
-        r_s = r200c/c
+        r_Delta = (3*self.M_arr/4/np.pi/self.Delta_crit/self.rho_c_z[:,None])**(1/3)
+        r_s = r_Delta/c
         # [z, M, r]
         x = self.r_fine[None,None,:] / r_s[:,:,None]
         Sigma = get_Sigma(x, r_s[:,:,None], self.rho_c_z[:,None,None], delta_c)
@@ -238,7 +237,7 @@ class SPTlensing:
 
         for j,z in enumerate(self.z_arr):
             for k,m in enumerate(self.M_arr):
-                mean_, draws_, weights_ = self.DES_miscenterer.get_profile_mean_draws(r_deg[j], Sigma[j,k], .6*self.r500_deg[j,k],
+                mean_, draws_, weights_ = self.DES_miscenterer.get_profile_mean_draws(r_deg[j], Sigma[j,k], 1/6,
                                                                                       r200c=r200c[j,k],)
 
                 draws_[draws_<=0] = np.nextafter(0,1)
@@ -265,12 +264,11 @@ class SPTlensing:
         """Pre-compute shear profile grid [sigma_SPT, z, M, r] for a given
         concentration `c`."""
         c = self.c_arr[i]
-        delta_c = 200/3 * c**3 / (np.log(1+c) - c/(1+c))
-        MCrel = Mconversion_concentration.ConcentrationConversion(c, setup_interp=True)
+        delta_c = self.Delta_crit/3 * c**3 / (np.log(1+c) - c/(1+c))
+        # MCrel = Mconversion_concentration.ConcentrationConversion(c, setup_interp=True)
         # [z, M]
-        M200c = np.exp(MCrel.lnM_to_lnM200(self.z_arr, np.log(self.M_arr)))
-        r200c = (3*M200c/4/np.pi/200/self.rho_c_z[:,None])**(1/3)
-        r_s = r200c/c
+        r_Delta = (3*self.M_arr/4/np.pi/self.Delta_crit/self.rho_c_z[:,None])**(1/3)
+        r_s = r_Delta/c
         # [z, M, r]
         x = self.r_fine[None,None,:] / r_s[:,:,None]
         Sigma = get_Sigma(x, r_s[:,:,None], self.rho_c_z[:,None,None], delta_c)
