@@ -72,6 +72,7 @@ class MockUpWL:
         self.cosmology = cosmology
         self.MCrel = MCrel
         self.config_mod = importlib.import_module('WL_input')
+        self.Delta_crit = self.config_mod.Delta_crit
 
         data_ = np.loadtxt(self.config_mod.beta_bias_file, unpack=True)[:3]
         self.betabias_mean = InterpolatedUnivariateSpline(data_[1], data_[0])
@@ -85,9 +86,9 @@ class MockUpWL:
         """Return the predicted radial shear profile for a given mass, redshift,
         and betas."""
         ##### M200 and scale radius, wrt critical density, everything in h units
-        c200c = self.MCrel.calC200(self.M200c, z)
-        delta_c = 200/3 * c200c**3 / (np.log(1+c200c) - c200c/(1+c200c))
-        rs = self.r200c/c200c
+        c = self.MCrel.calC200(self.M_Delta, z)
+        delta_c = self.Delta_crit/3 * c**3 / (np.log(1+c) - c/(1+c))
+        rs = self.r_Delta/c
 
         ##### Now let's do WL!
         # dimensionless radial distance
@@ -140,10 +141,9 @@ class MockUpWL:
         """Return the predicted radial shear profile for a given mass, redshift,
         and betas."""
         ##### M200 and scale radius, wrt critical density, everything in h units
-
-        c200c = self.MCrel.calC200(self.M200c, z)
-        delta_c = 200/3 * c200c**3 / (np.log(1+c200c) - c200c/(1+c200c))
-        rs = self.r200c/c200c
+        c = self.MCrel.calC200(self.M_Delta, z)
+        delta_c = self.Delta_crit/3 * c**3 / (np.log(1+c) - c/(1+c))
+        rs = self.r_Delta/c
 
         ##### Now let's do WL!
         # dimensionless radial distance
@@ -215,14 +215,12 @@ class MockUpWL:
         z_cl = cat['REDSHIFT']
         self.xi = cat['XI']
         self.theta_c = cat['THETA_CORE']
-        M500c = cat['Mwl_500']
+        self.M_Delta = cat['Mwl_500']
 
         self.rho_c_z = cosmo.RHOCRIT * cosmo.Ez(z_cl, self.cosmology)**2
         self.Dl = cosmo.dA(z_cl, self.cosmology)
 
-        self.r500c = (3*M500c/4/np.pi/500/self.rho_c_z)**(1/3)
-        self.M200c = np.exp(self.MCrel.lnM_to_lnM200(z_cl, np.log(M500c)))[0,0]
-        self.r200c = (3*self.M200c/4/np.pi/200/self.rho_c_z)**(1/3)
+        self.r_Delta = (3*self.M_Delta/4/np.pi/self.Delta_crit/self.rho_c_z)**(1/3)
 
 
         source_dist_r, source_dist = self.get_source_gals(z_cl)
