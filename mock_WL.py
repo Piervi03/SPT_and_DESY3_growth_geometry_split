@@ -106,20 +106,31 @@ class MockUpWL:
     def get_Rmis_SPT(self):
         """Draw from SPT positional uncertainty and from double-Rayleigh
         miscentering probability."""
-        # SPT positional uncertainty
+        # SPT positional uncertainty and offset
         sigma_SPT_arcmin = np.sqrt(1.3**2 + self.theta_c**2)/self.xi
-        sigma_SPT = sigma_SPT_arcmin/60 * np.pi/180 * self.Dl
-        SPT_draw = sigma_SPT*np.random.randn()
+        sigma_SPT_Mpc = sigma_SPT_arcmin/60 * np.pi/180 * self.Dl
+
+        sigma0 = np.sqrt(self.sigma0**2 + (sigma_SPT_Mpc/self.r500c)**2)
+        sigma1 = np.sqrt(self.sigma1**2 + (sigma_SPT_Mpc/self.r500c)**2)
 
         # Double Rayleigh
         temp = np.random.rand()
         if temp<self.rho0:
-            R_draw = self.sigma0 * np.random.randn()
+            R_draw = stats.rayleigh.rvs(scale=sigma0)
         else:
-            R_draw = self.sigma1 * np.random.randn()
+            R_draw = stats.rayleigh.rvs(scale=sigma1)
 
-        # theta = np.pi * np.random.rand()
-        # draw = np.sqrt(SPT_draw**2 + R_draw**2 + 2*np.cos(theta)*SPT_draw*R_draw)
+        return R_draw
+
+
+    def get_Rmis_r200c(self):
+        """Draw from double-Rayleigh miscentering probability."""
+        # Double Rayleigh
+        temp = np.random.rand()
+        if temp<self.rho0:
+            R_draw = stats.rayleigh.rvs(scale=self.sigma0)
+        else:
+            R_draw = stats.rayleigh.rvs(scale=self.sigma1)
 
         return R_draw
 
@@ -146,7 +157,7 @@ class MockUpWL:
         Sigma_c*= self.betabias_mean(z)
 
         # Miscentered Sigma(r)
-        r_mis = self.get_Rmis_SPT()
+        r_mis = self.get_Rmis_r200c()
         Sigma = get_Sigma(x, rs, self.rho_c_z, delta_c) / Sigma_c
         Sigma_mis = self.miscenter_profile(r_arr, Sigma, r_mis)
 
