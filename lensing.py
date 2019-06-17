@@ -21,7 +21,7 @@ grid_lgM_min = 12.5
 grid_lgM_max = 15.5
 # Radius [Mpc/h]
 len_r_fine = 64
-grid_lgr_fine_min = -3
+grid_lgr_fine_min = -4
 grid_lgr_fine_max = 1
 
 # SPT positional uncertainty
@@ -240,15 +240,21 @@ class SPTlensing:
                 mean_, draws_, weights_ = self.DES_miscenterer.get_profile_mean_draws(r_deg[j], Sigma[j,k], 1/6,
                                                                                       r200c=r200c[j,k],)
 
-                draws_[draws_<=0] = np.nextafter(0,1)
-                # [r, draws]
-                lnSigma_draws[j,k] = np.log(draws_[self.r_data_idx[0]:self.r_data_idx[1],:])
+                # Weights
                 Sigma_weights[j,k] = weights_
 
+                # Sigma (surface mass density) [r, draws]
+                draws_[draws_<=0] = np.nextafter(0,1)
+                lnSigma_draws[j,k] = np.log(draws_[self.r_data_idx[0]:self.r_data_idx[1],:])
+
+                # Sigma_bar (avg. density inside radius r)
                 integrands = [InterpolatedUnivariateSpline(self.r_fine, self.r_fine*draws_[:,l])
                               for l in range(draws_.shape[1])]
-                Delta_Sigma = np.array([2/r**2 * integrands[l].integral(0,r)
+                mean_Sigma = np.array([2/r**2 * integrands[l].integral(0,r)
                                         for r in self.r_fine for l in range(draws_.shape[1])]).reshape(len(self.r_fine),-1)
+
+                # Delta Sigma
+                Delta_Sigma = mean_Sigma - draws_
                 Delta_Sigma[Delta_Sigma<=0] = np.nextafter(0,1)
                 lnDelta_Sigma_draws[j,k] = np.log(Delta_Sigma[self.r_data_idx[0]:self.r_data_idx[1],:])
 
@@ -287,15 +293,21 @@ class SPTlensing:
                                                                                           sigma_SPT=sigma_SPT/60
                                                                                           )
 
-                    draws_[draws_<=0] = np.nextafter(0,1)
-                    # [r, draws]
-                    lnSigma_draws[h,j,k] = np.log(draws_[self.r_data_idx[0]:self.r_data_idx[1],:])
+                    # Weights
                     Sigma_weights[h,j,k] = weights_
 
+                    # Sigma (surface mass density) [r, draws]
+                    draws_[draws_<=0] = np.nextafter(0,1)
+                    lnSigma_draws[h,j,k] = np.log(draws_[self.r_data_idx[0]:self.r_data_idx[1],:])
+
+                    # Sigma_bar (avg. density inside radius r)
                     integrands = [InterpolatedUnivariateSpline(self.r_fine, self.r_fine*draws_[:,l])
                                   for l in range(draws_.shape[1])]
-                    Delta_Sigma = np.array([2/r**2 * integrands[l].integral(0,r)
+                    mean_Sigma = np.array([2/r**2 * integrands[l].integral(0,r)
                                             for r in self.r_fine for l in range(draws_.shape[1])]).reshape(len(self.r_fine),-1)
+
+                    # Delta Sigma
+                    Delta_Sigma = mean_Sigma - draws_
                     Delta_Sigma[Delta_Sigma<=0] = np.nextafter(0,1)
                     lnDelta_Sigma_draws[h,j,k] = np.log(Delta_Sigma[self.r_data_idx[0]:self.r_data_idx[1],:])
 
