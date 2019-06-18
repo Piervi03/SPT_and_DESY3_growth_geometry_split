@@ -112,6 +112,6 @@ class MisCentering(object):
     def pRmis_r200(self, R_mis):
         """Offset distribution with r200"""
         x = R_mis/self.r200c
-        res = self.rho0 * rayleigh.pdf(x, self.sigma0) + (1-self.rho0) * rayleigh(x, self.sigma1)
+        res = self.rho0 * rayleigh.pdf(x, scale=self.sigma0) + (1-self.rho0) * rayleigh.pdf(x, scale=self.sigma1)
 
         return res
