@@ -9,21 +9,21 @@ class MisCentering(object):
                  # SPT_kappa=1, SPT_beam=1.3,
                  sigma_SPT=None,
                  r200c=None):
-        assert kind in ['redmapper', 'r200', 'SPT'], 'unexpected kind %s, kind must be redmapper, r200, SPT'%kind
+        assert kind in ['redmapper', 'r200', 'SPT', 'arcmin'], "unexpected kind %s, kind must be redmapper, r200, SPT, arcmin"%kind
         self.kind = kind
         # redmapper miscentering
         # self.tau = tau
         # self.fmis = fmis
 
         # SPT miscentering with double Rayleigh
-        self.rho0 = 0.802
-        self.sigma0 = .044
-        self.sigma1 = .184
+        self.rho0 = 0.6
+        self.sigma0 = .1
+        self.sigma1 = .2
         # self.rho0 = 0.63
         # self.sigma0 = .07
         # self.sigma1 = .25
 
-        self.len_theta = 8
+        self.len_theta = 32
         self.len_Rmis = 16
 
 
@@ -45,7 +45,8 @@ class MisCentering(object):
 
         # Integration variables
         theta = np.linspace(0, np.pi, self.len_theta)
-        R_mis = np.insert(np.logspace(np.log10(R_mis_max)-2.5, np.log10(R_mis_max), self.len_Rmis-1), 0, 0)
+        # R_mis = np.insert(np.logspace(np.log10(R_mis_max)-2.5, np.log10(R_mis_max), self.len_Rmis-1), 0, 0)
+        R_mis = np.linspace(0, R_mis_max, self.len_Rmis)
         self.R_mis = R_mis
 
         # Miscentering distribution
@@ -59,14 +60,15 @@ class MisCentering(object):
         profile_Rmis = np.trapz(profile_theta, theta, axis=-1)
 
         # Mean miscentered profile
-        profile_mis = None#np.array([RectBivariateSpline(R_mis, theta, p_of_Rmis[:,None]*profile_theta[i]).integral(0, R_mis_max, 0, np.pi)
+        # profile_mis = np.array([RectBivariateSpline(R_mis, theta, p_of_Rmis[:,None]*profile_theta[i]).integral(0, R_mis_max, 0, np.pi)
         #                        for i in range(len(R))])
 
         # Draws from P(R_mis)
-        weights = .5*(p_of_Rmis[:-1]+p_of_Rmis[1:]) * np.diff(R_mis)
-        profile_Rmis_trapz = .5*(profile_Rmis[:,:-1]+profile_Rmis[:,1:])
+        # weights = .5*(p_of_Rmis[:-1]+p_of_Rmis[1:]) * np.diff(R_mis)
+        # weights = np.diff(R_mis)
+        # profile_Rmis_trapz = .5*(p_of_Rmis[:-1]*profile_Rmis[:,:-1] + p_of_Rmis[1:]*profile_Rmis[:,1:])
 
-        return profile_mis, profile_Rmis_trapz, weights
+        return profile_Rmis, R_mis, p_of_Rmis
 
 
 
@@ -78,6 +80,8 @@ class MisCentering(object):
             return self.pRmis_r200(R_mis)
         elif self.kind=='SPT':
             return self.pRmis_SPT(R_mis)
+        elif self.kind=='arcmin':
+            return self.pRmis_arcmin(R_mis)
 
 
     def pRmis_SPT(self, R_mis):
@@ -115,3 +119,8 @@ class MisCentering(object):
         res = self.rho0 * rayleigh.pdf(x, scale=self.sigma0) + (1-self.rho0) * rayleigh.pdf(x, scale=self.sigma1)
 
         return res
+
+    def pRmis_arcmin(self, R_mis):
+        """Offset distribution [arcmin]"""
+        return self.rho0 * rayleigh.pdf(R_mis, scale=self.sigma0) + (1-self.rho0) * rayleigh.pdf(R_mis, scale=self.sigma1)
+
