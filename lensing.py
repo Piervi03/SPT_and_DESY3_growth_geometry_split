@@ -52,10 +52,10 @@ class SPTlensing:
         self.Delta_crit = self.WLcalib['Delta_crit']
 
         self.len_c_arr = 8
-        self.c_arr = np.logspace(-2, np.log10(30), self.len_c_arr)
+        self.c_arr = np.logspace(0, np.log10(30), 8)
         self.z_arr = np.logspace(np.log10(grid_z_min), np.log10(grid_z_max), 8)
         self.r_fine = np.logspace(grid_lgr_fine_min, grid_lgr_fine_max, len_r_fine)
-        self.r_data_idx = (self.r_fine<.2).nonzero()[0][-1], (self.r_fine>3).nonzero()[0][1]
+        self.r_data_idx = (self.r_fine<.7*.25).nonzero()[0][-1], (self.r_fine>.7*3).nonzero()[0][0]
 
         self.len_M_arr = 8
         self.M_arr = np.logspace(grid_lgM_min, grid_lgM_max, self.len_M_arr)
@@ -149,8 +149,7 @@ class SPTlensing:
         # Sigma_crit, with c^2/4piG [h Msun/Mpc^2]
         Dl = cosmo.dA(self.cat_cl['REDSHIFT'], cosmology)
         Sigma_c = 1.6624541593797974e+18/Dl/self.beta_avg
-        r_deg = self.r_fine[self.r_data_idx[0]:self.r_data_idx[1]] / Dl * 180/np.pi
-
+        r_arcmin = self.r_fine[self.r_data_idx[0]:self.r_data_idx[1]] / Dl * 60*180/np.pi
 
         # Realization of shear and beta bias
         betabias_mean_ = self.DES_betabias_mean(self.cat_cl['REDSHIFT'])
@@ -159,17 +158,12 @@ class SPTlensing:
         dev_ = betabias_mean_ + scaling['DESbias'] * np.sqrt(total_var_)
         Sigma_c*= dev_
 
-        p_M_c = np.empty((len(mArr), len(self.c_arr)))
-
-        # Interpolate to [sigma_SPT, z]
-        this_sigmaSPT = np.sqrt(1.3**2 + self.cat_cl['THETA_CORE']**2)/self.cat_cl['XI']
-        idx_sig_lo = (self.sigmaSPT_arr<=this_sigmaSPT).nonzero()[0][-1]
-        Delta_sig = this_sigmaSPT - self.sigmaSPT_arr[idx_sig_lo]
+        # Interpolate to z
         idx_z_lo = (self.z_arr<=self.cat_cl['REDSHIFT']).nonzero()[0][-1]
         Delta_lnz = np.log(self.cat_cl['REDSHIFT'] / self.z_arr[idx_z_lo])
 
 
-        if self.DES_miscenterer.kind=='r200':
+        if self.DES_miscenterer.kind in ['r200', 'arcmin']:
             # [c, M, draw]
             y_lo = self.Sigma_weights[:,idx_z_lo,:,:]
             weights = y_lo + Delta_lnz * (self.Sigma_weights[:,idx_z_lo+1,:,:]-y_lo)
@@ -196,20 +190,19 @@ class SPTlensing:
             lnDelta_Sigma_draws = y_lo + Delta_sig * (self.lnDelta_Sigma_draws[:,idx_sig_lo+1,idx_z_lo,:,:,:]-y_lo) \
                                       + Delta_lnz * (self.lnDelta_Sigma_draws[:,idx_sig_lo,idx_z_lo+1,:,:,:]-y_lo)
 
-        ##### Reduced shear profile
+        ##### Reduced shear profile [c,M,r,draw]
         g_t_draws = np.exp(lnDelta_Sigma_draws)/Sigma_c / (1 - np.exp(lnSigma_draws)/Sigma_c)
         del lnSigma_draws
         del lnDelta_Sigma_draws
 
-        for i,m in enumerate(mArr):
+        p_M_c_draw = np.empty((self.len_M_arr, self.len_c_arr, self.DES_miscenterer.len_Rmis))
+        for i in range(self.len_M_arr):
             for j in range(self.len_c_arr):
-                p_M_c_draw = np.empty(len(weights[j,i,:]))
-                for k in range(len(weights[j,i,:])):
-                    g_t_interp = InterpolatedUnivariateSpline(r_deg, g_t_draws[j,i,:,k])
-                    this_g_t = g_t_interp(self.cat_cl['WLdata']['r_deg'])
-                    p_M_c_draw[k] = self.likelihood_DES(this_g_t)
-                p_M_c[i,j] = np.sum(p_M_c_draw * weights[j,i,:])
-
+                for k in range(self.DES_miscenterer.len_Rmis):
+                    g_t_interp = InterpolatedUnivariateSpline(r_arcmin, g_t_draws[j,i,:,k])
+                    this_g_t = g_t_interp(self.cat_cl['WLdata']['r_arcmin'])
+                    p_M_c_draw[i,j,k] = self.likelihood_DES(this_g_t) * weights[j,i,k]
+        p_M_c = np.sum(p_M_c_draw, axis=-1)
         likeli = np.trapz(p_M_c, self.c_arr, axis=1)
 
         return likeli
@@ -229,19 +222,21 @@ class SPTlensing:
         x = self.r_fine[None,None,:] / r_s[:,:,None]
         Sigma = get_Sigma(x, r_s[:,:,None], self.rho_c_z[:,None,None], delta_c)
         # [z, r]
-        r_deg = self.r_fine[None,:] / self.Dl_arr[:,None] * 180/np.pi
+        r_arcmin = self.r_fine[None,:] / self.Dl_arr[:,None] * 60*180/np.pi
 
-        lnSigma_draws = np.empty((len(self.z_arr),self.len_M_arr,self.r_data_idx[1]-self.r_data_idx[0],self.DES_miscenterer.len_Rmis-1))
-        Sigma_weights = np.empty((len(self.z_arr),self.len_M_arr,self.DES_miscenterer.len_Rmis-1))
-        lnDelta_Sigma_draws = np.empty((len(self.z_arr),self.len_M_arr,self.r_data_idx[1]-self.r_data_idx[0],self.DES_miscenterer.len_Rmis-1))
+        lnSigma_draws = np.empty((len(self.z_arr),self.len_M_arr,self.r_data_idx[1]-self.r_data_idx[0],self.DES_miscenterer.len_Rmis))
+        Sigma_weights = np.empty((len(self.z_arr),self.len_M_arr,self.DES_miscenterer.len_Rmis))
+        lnDelta_Sigma_draws = np.empty((len(self.z_arr),self.len_M_arr,self.r_data_idx[1]-self.r_data_idx[0],self.DES_miscenterer.len_Rmis))
 
         for j,z in enumerate(self.z_arr):
             for k,m in enumerate(self.M_arr):
-                mean_, draws_, weights_ = self.DES_miscenterer.get_profile_mean_draws(r_deg[j], Sigma[j,k], 1/6,
-                                                                                      r200c=r200c[j,k],)
+                draws_, Rmis_, p_Rmis_ = self.DES_miscenterer.get_profile_mean_draws(r_arcmin[j,:], Sigma[j,k],
+                                                                                     4*np.amax((self.DES_miscenterer.sigma0, self.DES_miscenterer.sigma1)),
+                                                                                      # r200c=r_Delta[j,k],
+                                                                                     )
 
                 # Weights
-                Sigma_weights[j,k] = weights_
+                Sigma_weights[j,k] = p_Rmis_ * Rmis_[-1]/self.DES_miscenterer.len_Rmis
 
                 # Sigma (surface mass density) [r, draws]
                 draws_[draws_<=0] = np.nextafter(0,1)
@@ -250,7 +245,7 @@ class SPTlensing:
                 # Sigma_bar (avg. density inside radius r)
                 integrands = [InterpolatedUnivariateSpline(self.r_fine, self.r_fine*draws_[:,l])
                               for l in range(draws_.shape[1])]
-                mean_Sigma = np.array([2/r**2 * integrands[l].integral(0,r)
+                mean_Sigma = np.array([2/r**2 * integrands[l].integral(self.r_fine[0], r)
                                         for r in self.r_fine for l in range(draws_.shape[1])]).reshape(len(self.r_fine),-1)
 
                 # Delta Sigma
@@ -279,7 +274,7 @@ class SPTlensing:
         x = self.r_fine[None,None,:] / r_s[:,:,None]
         Sigma = get_Sigma(x, r_s[:,:,None], self.rho_c_z[:,None,None], delta_c)
         # [z, r]
-        r_deg = self.r_fine[None,:] / self.Dl_arr[:,None] * 180/np.pi
+        r_arcmin = self.r_fine[None,:] / self.Dl_arr[:,None] * 60*180/np.pi
 
         lnSigma_draws = np.empty((len(self.sigmaSPT_arr),len(self.z_arr),self.len_M_arr,self.r_data_idx[1]-self.r_data_idx[0],self.DES_miscenterer.len_Rmis-1))
         Sigma_weights = np.empty((len(self.sigmaSPT_arr),len(self.z_arr),self.len_M_arr,self.DES_miscenterer.len_Rmis-1))
@@ -288,8 +283,8 @@ class SPTlensing:
         for h,sigma_SPT in enumerate(self.sigmaSPT_arr):
             for j,z in enumerate(self.z_arr):
                 for k,m in enumerate(self.M_arr):
-                    mean_, draws_, weights_ = self.DES_miscenterer.get_profile_mean_draws(r_deg[j], Sigma[j,k], .6*self.r500_deg[j,k],
-                                                                                          r500_deg=self.r500_deg[j,k],
+                    mean_, draws_, weights_ = self.DES_miscenterer.get_profile_mean_draws(r_arcmin[j], Sigma[j,k], .6*self.r500_deg[j,k],
+                                                                                          r500_arcmin=self.r500_arcmin[j,k],
                                                                                           sigma_SPT=sigma_SPT/60
                                                                                           )
 
@@ -303,7 +298,7 @@ class SPTlensing:
                     # Sigma_bar (avg. density inside radius r)
                     integrands = [InterpolatedUnivariateSpline(self.r_fine, self.r_fine*draws_[:,l])
                                   for l in range(draws_.shape[1])]
-                    mean_Sigma = np.array([2/r**2 * integrands[l].integral(0,r)
+                    mean_Sigma = np.array([2/r**2 * integrands[l].integral(self.r_fine[0], r)
                                             for r in self.r_fine for l in range(draws_.shape[1])]).reshape(len(self.r_fine),-1)
 
                     # Delta Sigma
@@ -324,17 +319,17 @@ class SPTlensing:
         self.rho_c_z = cosmo.RHOCRIT * np.array([cosmo.Ez(z, cosmology)**2  for z in self.z_arr]) # [h^2 Msun/Mpc^3]
         # [z, M]
         r500c = (3*self.M_arr[None,:]/4/np.pi/500/self.rho_c_z[:,None])**(1/3)
-        self.r500_deg = r500c / self.Dl_arr[:,None] * 180/np.pi
+        self.r500_arcmin = r500c / self.Dl_arr[:,None] * 60*180/np.pi
 
         if self.NPROC==0:
-            if self.DES_miscenterer.kind=='r200':
+            if self.DES_miscenterer.kind==['r200', 'arcmin']:
                 out = [self.compute_grid_c(i) for i in range(self.len_c_arr)]
             elif self.DES_miscenterer.kind=='SPT':
                 out = [self.compute_grid_c_sigmaSPT(i) for i in range(self.len_c_arr)]
         else:
             pool = Pool(processes=self.NPROC)
             argin = zip([self]*len(self.c_arr), range(self.len_c_arr))
-            if self.DES_miscenterer.kind=='r200':
+            if self.DES_miscenterer.kind in ['r200', 'arcmin']:
                 out = pool.map(unwrap_self_precompute_optical, argin)
             elif self.DES_miscenterer.kind=='SPT':
                 out = pool.map(unwrap_self_precompute_sigmaSPT, argin)
@@ -545,5 +540,6 @@ def readdata(catalog, HSTfile, MegacamFile, DESfile):
             for i,name in enumerate(catalog['SPT_ID']):
                 if name in f.keys():
                     catalog['WLdata'][i] = {'datatype':'DES',
-                        'r_deg':f[name]['shear_profile'][0], 'shear':f[name]['shear_profile'][1], 'shearerr':f[name]['shear_profile'][2],
-                        'redshifts':f[name]['Nz'][:],}
+                        'r_arcmin':f[name]['shear_profile'][0], 'shear':f[name]['shear_profile'][1], 'shearerr':f[name]['shear_profile'][2],
+                        'redshifts':f[name]['Nz'][:],
+                        'R_mis_arcmin':f[name]['R_mis_arcmin'][()],}
