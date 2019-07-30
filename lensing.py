@@ -14,7 +14,6 @@ import cosmo, Mconversion_concentration, miscentering
 
 ########################################
 marginalize_conc = True
-len_M_interp = 8
 grid_z_min = .25
 grid_z_max = 1
 grid_lgM_min = 12.5
@@ -52,7 +51,7 @@ class SPTlensing:
         self.Delta_crit = self.WLcalib['Delta_crit']
 
         self.len_c_arr = 8
-        self.c_arr = np.logspace(0, np.log10(30), 8)
+        self.c_arr = np.logspace(0, np.log10(30), self.len_c_arr)
         self.z_arr = np.logspace(np.log10(grid_z_min), np.log10(grid_z_max), 8)
         self.r_fine = np.logspace(grid_lgr_fine_min, grid_lgr_fine_max, len_r_fine)
         self.r_data_idx = (self.r_fine<.7*.25).nonzero()[0][-1], (self.r_fine>.7*3).nonzero()[0][0]
