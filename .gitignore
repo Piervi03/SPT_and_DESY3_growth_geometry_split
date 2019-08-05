@@ -102,3 +102,9 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# HDF5
+*.hdf5
+
+# FITS tables
+*.fits
