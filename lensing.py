@@ -66,8 +66,8 @@ class SPTlensing:
 
         # Pre-compute Cholesky decomposition
         WL_idx = ((catalog['WLdata'] != None)&(catalog['REDSHIFT']<1)).nonzero()[0]
-        for i in WL_idx:
-            catalog[i]['WLdata']['cho_factor'] = cho_factor(np.diag(catalog[i]['WLdata']['shearerr']))
+        # for i in WL_idx:
+        #     catalog[i]['WLdata']['cho_factor'] = cho_factor(np.diag(catalog[i]['WLdata']['shearerr']))
 
 
     ########################################
@@ -129,9 +129,9 @@ class SPTlensing:
     def likelihood_DES(self, g_t):
         """Return P(DES data|Mwl)"""
         diff_ = self.cat_cl['WLdata']['shear'] - g_t
-
-        cho_f = self.cat_cl['WLdata']['cho_factor']
-        likeli = 1/np.prod(np.diag(cho_f[0])) * np.exp(-.5*np.dot(diff_, cho_solve(cho_f, diff_)))
+        # chi2 = np.dot(diff_, cho_solve(self.cat_cl['WLdata']['cho_factor'], diff_))
+        chi2 = np.sum((diff_/self.cat_cl['WLdata']['shearerr'])**2)
+        likeli = np.exp(-.5 * chi2)
 
         return likeli
 
