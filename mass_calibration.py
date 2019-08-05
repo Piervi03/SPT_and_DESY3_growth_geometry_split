@@ -7,7 +7,7 @@ from astropy.table import Table
 
 import scipy.special as ss
 from scipy import integrate, signal
-from scipy.interpolate import interp1d, RectBivariateSpline
+from scipy.interpolate import InterpolatedUnivariateSpline, RectBivariateSpline
 from scipy.stats import norm, lognorm, multivariate_normal
 
 import cosmo, lensing, Mconversion_concentration, scaling_relations
@@ -63,14 +63,18 @@ class MassCalibration:
     ############################################################################
     def lnlike(self):
         """Returns ln-likelihood for mass calibration of the whole cluster sample."""
-        ##### WL: Precompute array of angular diameter distances
-        if self.todo['WL']:
-            self.WL.get_dAs(self.cosmology)
-
         ##### Initialize mass-concentration relation class (for WL and dispersions)
         if self.todo['WL'] or self.todo['veldisp']:
             self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, self.cosmology,
                                                                            setup_interp=True, interp_massdef=500)
+        ##### WL: Precompute array of angular diameter distances
+        if self.todo['WL']:
+            self.WL.like_all(self.catalog, self.cosmology, self.scaling, self.MCrel)
+        #     self.WL.get_dAs(self.cosmology)
+        #     import time
+        #     t0 = time.time()
+        #     self.WL.compute_on_grid_SPTcenter(self.cosmology)
+        #     print "precompute", time.time()-t0
 
         ##### Evaluate the individual likelihoods
         len_data = len(self.catalog['SPT_ID'])
@@ -176,7 +180,7 @@ class MassCalibration:
     def conversion_factor_Xray_obs_r500ref(self, redshift):
         """Account for the cosmological dependence of the X-ray observable and
         convert to the model expectation at r500ref using the slope of the
-        radial profile. This is done for the mass array."""
+        radial profile. This is done for the mass array self.HMF_convos['M_arr']."""
         # Angular diameter distances in current and reference cosmology [Mpc]
         dA = cosmo.dA(redshift, self.cosmology)/self.cosmology['h']
         dAref = cosmo.dA(redshift, cosmologyRef)/cosmologyRef['h']
@@ -244,11 +248,11 @@ class MassCalibration:
     def downsample_distribution(self, x, y, N_target=48):
         idx_zero = np.where(y>0)[0]
         x_out = x[idx_zero]
-        y_out = x[idx_zero]
+        y_out = y[idx_zero]
         if len(x_out)<=N_target:
             return x_out, y_out
 
-        y_interp = interp1d(x_out, y_out, kind='cubic')
+        y_interp = InterpolatedUnivariateSpline(x_out, y_out)
 
         mean = np.trapz(x_out*y_out, x_out)
         std = np.sqrt(np.trapz((y_out-mean)**2, x_out))
@@ -330,11 +334,12 @@ class MassCalibration:
             # Convolve with Gaussian LSS scatter
             if LSSnoise>0.:
                 dP_dobs = self.convolve_WL_LSS(obsArr, dP_dobs, LSSnoise)
-            obsArr, dP_dobs = self.downsample_distribution(obsArr, dP_dobs)
+            # obsArr, dP_dobs = self.downsample_distribution(obsArr, dP_dobs)
             # P(Mwl) from data
-            Pwl = self.WL.like(self.catalog[dataID], obsArr, self.cosmology, self.MCrel, self.scaling)
+            WL_interp = InterpolatedUnivariateSpline(np.log(self.WL.M_arr), np.log(self.catalog['p_Mwl'][dataID]))
+            # Pwl = self.WL.like(self.catalog[dataID], obsArr, self.cosmology, self.MCrel, self.scaling)
             # Get likelihood
-            likeli = np.trapz(Pwl*dP_dobs, obsArr)
+            likeli = np.trapz(np.exp(WL_interp(np.log(obsArr)))*dP_dobs, obsArr)
 
 
         if ((likeli<0)|(np.isnan(likeli))):
@@ -403,7 +408,9 @@ class MassCalibration:
             if LSSnoise>0.:
                 dP_dobs0 = self.convolve_WL_LSS(obsArr[0], dP_dobs0, LSSnoise)
             # P(Mwl) from data
-            Pobs = self.WL.like(self.catalog[dataID], obsArr[0], self.cosmology, self.MCrel, self.scaling)
+            WL_interp = InterpolatedUnivariateSpline(np.log(self.WL.M_arr), np.log(self.catalog['p_Mwl'][dataID]))
+            Pobs = np.exp(WL_interp(np.log(obsArr[0])))
+            # Pobs = self.WL.like(self.catalog[dataID], obsArr[0], self.cosmology, self.MCrel, self.scaling)
         else: print "not ready!"
 
         likeli0 = np.trapz(dP_dobs0*Pobs, obsArr[0])
