@@ -66,8 +66,8 @@ class SPTlensing:
 
         # Pre-compute Cholesky decomposition
         WL_idx = ((catalog['WLdata'] != None)&(catalog['REDSHIFT']<1)).nonzero()[0]
-        for i in WL_idx:
-            catalog[i]['WLdata']['cho_factor'] = cho_factor(np.diag(catalog[i]['WLdata']['shearerr']))
+        # for i in WL_idx:
+        #     catalog[i]['WLdata']['cho_factor'] = cho_factor(np.diag(catalog[i]['WLdata']['shearerr']))
 
 
     ########################################
@@ -129,9 +129,9 @@ class SPTlensing:
     def likelihood_DES(self, g_t):
         """Return P(DES data|Mwl)"""
         diff_ = self.cat_cl['WLdata']['shear'] - g_t
-
-        cho_f = self.cat_cl['WLdata']['cho_factor']
-        likeli = 1/np.prod(np.diag(cho_f[0])) * np.exp(-.5*np.dot(diff_, cho_solve(cho_f, diff_)))
+        # chi2 = np.dot(diff_, cho_solve(self.cat_cl['WLdata']['cho_factor'], diff_))
+        chi2 = np.sum((diff_/self.cat_cl['WLdata']['shearerr'])**2)
+        likeli = np.exp(-.5 * chi2)
 
         return likeli
 
@@ -316,12 +316,14 @@ class SPTlensing:
         # z-dependent
         self.Dl_arr = np.array([cosmo.dA(z, cosmology) for z in self.z_arr])
         self.rho_c_z = cosmo.RHOCRIT * np.array([cosmo.Ez(z, cosmology)**2  for z in self.z_arr]) # [h^2 Msun/Mpc^3]
-        # [z, M]
-        r500c = (3*self.M_arr[None,:]/4/np.pi/500/self.rho_c_z[:,None])**(1/3)
-        self.r500_arcmin = r500c / self.Dl_arr[:,None] * 60*180/np.pi
+
+        if self.DES_miscenterer.kind=='SPT':
+            # [z, M]
+            r500c = (3*self.M_arr[None,:]/4/np.pi/500/self.rho_c_z[:,None])**(1/3)
+            self.r500_arcmin = r500c / self.Dl_arr[:,None] * 60*180/np.pi
 
         if self.NPROC==0:
-            if self.DES_miscenterer.kind==['r200', 'arcmin']:
+            if self.DES_miscenterer.kind in ['r200', 'arcmin']:
                 out = [self.compute_grid_c(i) for i in range(self.len_c_arr)]
             elif self.DES_miscenterer.kind=='SPT':
                 out = [self.compute_grid_c_sigmaSPT(i) for i in range(self.len_c_arr)]
