@@ -74,7 +74,7 @@ class NumberCount:
             Nbin = self.scaling['Dsz'] / dlnzeta
             self.dN_dlnzeta_unitSolidAng = scipy.ndimage.gaussian_filter1d(dN_dlnzeta_noScatter, Nbin, axis=1, mode='constant')
         else:
-            scatter = (self.scaling['Dsz']**2 + self.scaling['DszM']**2*(self.HMF['M_arr']/3e14)**(2*scaling['DszMslope']))**.5
+            scatter = np.sqrt(self.scaling['Dsz']**2 + self.scaling['DszM']**2*(self.HMF['M_arr']/3e14)**(2*scaling['DszMslope']))
             scatter[np.where(scatter<.01)[0]] = .01
             self.dN_dlnzeta_unitSolidAng = np.empty((self.HMF['len_z'],self.HMF['len_M']))
             for i in range(self.HMF['len_z']):

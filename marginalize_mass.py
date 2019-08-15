@@ -65,7 +65,7 @@ class MarginalizeMass:
     ########## Utility functions
     def xi2zeta(self, xi):
         if xi>2.65:
-            return (xi**2 - 3)**.5
+            return np.sqrt(xi**2 - 3)
         else:
             return 0
 

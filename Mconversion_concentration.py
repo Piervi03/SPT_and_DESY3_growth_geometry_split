@@ -27,7 +27,7 @@ class ConcentrationConversion:
 
             # Eisenstein&Hu'99 transfer function (no wiggles)
             # EQ 6
-            sound_horizon = 44.5 * np.log(9.83/Omh2) / (1 + 10*Obh2**.75)**.5
+            sound_horizon = 44.5 * np.log(9.83/Omh2) / np.sqrt(1 + 10*Obh2**.75)
             # EQ 31
             alphaGamma = 1 - .328 * np.log(431 * Omh2) * fb + .38 * np.log(22.3*Omh2) * fb**2
             # EQ 30
@@ -60,7 +60,7 @@ class ConcentrationConversion:
             integrand_sigma2 = PK_EHsmooth[None,:] * window[:,:]**2 * k_arr[None,:]**2
             # sigma^2 [z_arr, M_arr]
             sigma2 = .5/np.pi**2 * np.trapz(integrand_sigma2, k_arr, axis=-1)
-            sigma = sigma2[:-1]**.5 * cosmology['sigma8']/sigma2[-1]**.5
+            sigma = np.sqrt(sigma2[:-1]) * cosmology['sigma8']/np.sqrt(sigma2[-1])
 
             # EQ 12, DK15
             k_R = .69 * 2 * np.pi / R[:-1]
@@ -150,4 +150,3 @@ class ConcentrationConversion:
         conin =  self.calC200(Minput,z)
         conguess = self.findc(conin,overdensity)
         return Minput/mguess - self.calcoef(conin)/self.calcoef(conguess)
-

@@ -49,7 +49,7 @@ class HMFCalculator:
         ##### Compute Tinker HMF (unit volume)
         A, a, b, c = np.array([self.Tinker_params(z_arr[i], Deltamean[i]) for i in range(len(z_arr))]).T
         # HMF [z_arr, M_arr]
-        fsigma = A[:,None] * ((sigma2**.5/b[:,None])**-a[:,None] + 1) * np.exp(-c[:,None]/sigma2)
+        fsigma = A[:,None] * ((np.sqrt(sigma2)/b[:,None])**-a[:,None] + 1) * np.exp(-c[:,None]/sigma2)
         dNdlnM_noVol = - fsigma * rho_m * dsigma2dM/2/sigma2
 
         ##### Apply redshift volume

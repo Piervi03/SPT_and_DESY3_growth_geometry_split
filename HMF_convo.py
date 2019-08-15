@@ -1,5 +1,6 @@
 from __future__ import division
 import numpy as np
+from math import sqrt as msqrt
 
 from multiprocessing import Pool
 from scipy.interpolate import RectBivariateSpline
@@ -118,13 +119,13 @@ class MultiObsConvolution:
                              [dlnobs_dlnM*dlnzeta_dlnM, dlnzeta_dlnM**2]])
         covmat_lnM = covmat * Jacobian
 
-        Nbins_obs = int(2 * self.N_sigma * covmat_lnM[0,0]**.5 / Delta_lnM)
+        Nbins_obs = int(2 * self.N_sigma * msqrt(covmat_lnM[0,0]) / Delta_lnM)
         if Nbins_obs%2 != 0:
             Nbins_obs+= 1
         minmax_ = (Nbins_obs-1)/2 * Delta_lnM
         lnobs_arr = np.linspace(-minmax_, minmax_, Nbins_obs)
 
-        Nbins_zeta = int(2 * self.N_sigma * covmat_lnM[1,1]**.5 / Delta_lnM)
+        Nbins_zeta = int(2 * self.N_sigma * msqrt(covmat_lnM[1,1]) / Delta_lnM)
         if Nbins_zeta%2 != 0:
             Nbins_zeta+= 1
         minmax_ = (Nbins_zeta-1)/2 * Delta_lnM
@@ -155,14 +156,14 @@ class MultiObsConvolution:
                              [dlnobs_dlnM[0]*dlnzeta_dlnM,   dlnobs_dlnM[1]*dlnzeta_dlnM,   dlnzeta_dlnM**2]])
         covmat_lnM = covmat * Jacobian
 
-        Nbins_obs = [int(2 * self.N_sigma * covmat_lnM[i,i]**.5 / Delta_lnM) for i in range(2)]
+        Nbins_obs = [int(2 * self.N_sigma * msqrt(covmat_lnM[i,i]) / Delta_lnM) for i in range(2)]
         for i in range(2):
             if Nbins_obs[i]%2 != 0:
                 Nbins_obs[i]+= 1
         minmax_ = [(Nbins_obs[i]-1)/2 * Delta_lnM for i in range(2)]
         lnobs_arr = [np.linspace(-minmax_[i], minmax_[i], Nbins_obs[i]) for i in range(2)]
 
-        Nbins_zeta = int(2 * self.N_sigma * covmat_lnM[2,2]**.5 / Delta_lnM)
+        Nbins_zeta = int(2 * self.N_sigma * msqrt(covmat_lnM[2,2]) / Delta_lnM)
         if Nbins_zeta%2 != 0:
             Nbins_zeta+= 1
         minmax_ = (Nbins_zeta-1)/2 * Delta_lnM

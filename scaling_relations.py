@@ -6,9 +6,9 @@ import cosmo
 ####################
 ##### xi--zeta relations
 def xi2zeta(xi):
-    return (xi**2 - 3)**.5
+    return np.sqrt(xi**2 - 3)
 def zeta2xi(zeta):
-    return (zeta**2 + 3)**.5
+    return np.sqrt(zeta**2 + 3)
 def dlnzeta_dxi(xi):
     return xi / (xi**2 - 3)
 

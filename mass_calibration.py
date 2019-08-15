@@ -230,7 +230,7 @@ class MassCalibration:
     def apply_sys_Poisson_scatter_richness(self, obs_arr, lnobs_arr, dP_dlnobs):
         """Convolve dP/dlnlambda with lognormal scatter of width var=1/lambda.
         This mimics the Poisson error on counting member galaxies."""
-        integrand = dP_dlnobs[None,:] * norm.pdf(lnobs_arr[:,None], lnobs_arr[None,:], 1/obs_arr[None,:]**.5)
+        integrand = dP_dlnobs[None,:] * norm.pdf(lnobs_arr[:,None], lnobs_arr[None,:], 1/np.sqrt(obs_arr[None,:]))
         dP_dlnobs = np.trapz(integrand, lnobs_arr, axis=1)
         return dP_dlnobs
 
