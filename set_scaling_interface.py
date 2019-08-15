@@ -14,7 +14,7 @@ def execute(block, scaling_setter):
     scaling = {}
     for p in ['Dsz', 'Dx', 'Drichness', 'WLbias', 'WLscatter']:
         scaling[p] = block.get_double('mor_parameters', p)
-    for p in ['MegacamBias', 'DESbias', 'HSTbias']:
+    for p in ['MegacamBias', 'HSTbias']:
         scaling[p] = block.get_double('mor_parameters', p)
     for p in ['rhoSZWL', 'rhoSZX', 'rhoWLX', 'rhoSZrichness', 'rhoXdisp', 'rhoSZdisp']:
         scaling[p] = block.get_double('mor_parameters', p)

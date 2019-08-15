@@ -1,5 +1,6 @@
 from __future__ import division
 import numpy as np
+from math import sqrt as msqrt
 import imp
 
 THRESHOLD = 1e-8
@@ -20,27 +21,26 @@ class SetScaling:
         determinants are >= THRESHOLD) """
 
         # Megacam
-        massModelErr = (self.WLcalib['MegacamSim'][1]**2 + self.WLcalib['MegacamMcErr']**2 + self.WLcalib['MegacamCenterErr']**2)**.5
-        zDistShearErr = (self.WLcalib['MegacamzDistErr']**2 + self.WLcalib['MegacamShearErr']**2 + self.WLcalib['MegacamContamCorr']**2)**.5
+        massModelErr = msqrt(self.WLcalib['MegacamSim'][1]**2 + self.WLcalib['MegacamMcErr']**2 + self.WLcalib['MegacamCenterErr']**2)
+        zDistShearErr = msqrt(self.WLcalib['MegacamzDistErr']**2 + self.WLcalib['MegacamShearErr']**2 + self.WLcalib['MegacamContamCorr']**2)
         # bias = bSim + bMassModel + (bN(z)+bShearCal)
         scaling['bWL_Megacam'] = self.WLcalib['MegacamSim'][0] + scaling['WLbias']*massModelErr + scaling['MegacamBias']*zDistShearErr
         # lognormal scatter
         scaling['DWL_Megacam'] = self.WLcalib['MegacamSim'][2] + scaling['WLscatter']*self.WLcalib['MegacamSim'][3]
 
         # DES
-        massModelErr = (self.WLcalib['DESsim'][1]**2 + self.WLcalib['DESmcErr']**2 + self.WLcalib['DEScenterErr']**2)**.5
-        # zDistShearErr = (self.WLcalib['DESzDistErr']**2 + self.WLcalib['DESshearErr']**2 + self.WLcalib['DEScontamCorr']**2)**.5
+        massModelErr = msqrt(self.WLcalib['DESsim'][1]**2 + self.WLcalib['DESmcErr']**2 + self.WLcalib['DEScenterErr']**2)
         # bias = bSim + bFitParam * err(bSim)
-        scaling['bWL_DES'] = self.WLcalib['DESsim'][0] + scaling['WLbias']*massModelErr# + scaling['DESbias']*zDistShearErr
-        # D^2 = Dint^2 + (DSim + DErrParam * err(DSim))^2
+        scaling['bWL_DES'] = self.WLcalib['DESsim'][0] + scaling['WLbias']*massModelErr
+        # lognormal scatter
         scaling['DWL_DES'] = self.WLcalib['DESsim'][2] + scaling['WLscatter']*self.WLcalib['DESsim'][3]
 
         # HST
-        zDistShearErr = (self.WLcalib['HSTzDistErr']**2 + self.WLcalib['HSTshearErr']**2)**.5
+        zDistShearErr = msqrt(self.WLcalib['HSTzDistErr']**2 + self.WLcalib['HSTshearErr']**2)
         scaling['bWL_HST'] = {}
         for name in self.WLcalib['HSTsim'].keys():
             # bias = bSim + bMassModel + (bN(z)+bShearCal)
-            mass_model_err = (self.WLcalib['HSTsim'][name][1]**2 + self.WLcalib['HSTmcErr']**2 + self.WLcalib['HSTcenterErr']**2)**.5
+            mass_model_err = msqrt(self.WLcalib['HSTsim'][name][1]**2 + self.WLcalib['HSTmcErr']**2 + self.WLcalib['HSTcenterErr']**2)
             scaling['bWL_HST'][name] = self.WLcalib['HSTsim'][name][0] \
                 + scaling['WLbias'] * mass_model_err \
                 + scaling['HSTbias'] * zDistShearErr
