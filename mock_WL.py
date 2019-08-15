@@ -76,7 +76,7 @@ class MockUpWL:
         self.Delta_crit = self.config_mod.Delta_crit
 
         data_ = np.loadtxt(self.config_mod.beta_bias_file, unpack=True)[:3]
-        self.betabias_mean = InterpolatedUnivariateSpline(data_[1], data_[0])
+        self.betatrue_betameas = InterpolatedUnivariateSpline(data_[1], data_[0])
 
         self.rho0 = self.config_mod.rho0
         self.sigma0 = self.config_mod.sigma0
@@ -98,8 +98,6 @@ class MockUpWL:
 
         # Sigma_crit, with c^2/4piG [h Msun/Mpc^2]
         Sigma_c = 1.6624541593797974e+18/self.Dl/beta_avg
-        # Beta bias
-        Sigma_c*= self.betabias_mean(z)
 
         gamma_t = get_Delta_Sigma(x, rs, self.rho_c_z, delta_c) / Sigma_c
         kappa_t = get_Sigma(x, rs, self.rho_c_z, delta_c) / Sigma_c
@@ -166,9 +164,6 @@ class MockUpWL:
         # Sigma_crit, with c^2/4piG [h Msun/Mpc^2]
         Sigma_c = 1.6624541593797974e+18/self.Dl/beta_avg
 
-        # Beta bias
-        Sigma_c*= self.betabias_mean(z)
-
         # Miscentered Sigma(r)
         r_mis = self.get_Rmis_arcmin() * self.Dl * np.pi/(60*180)
         Sigma = get_Sigma(x, rs, self.rho_c_z, delta_c)
@@ -220,8 +215,11 @@ class MockUpWL:
     def get_beta(self, z_cl, z_dist):
         """Return `<beta>` and `<beta**2>` given a redshift distribution."""
         beta = np.array([cosmo.dA_two_z(z_cl, z, self.cosmology)/cosmo.dA(z, self.cosmology) for z in z_dist])
+        # Apply beta bias
+        beta*= self.betatrue_betameas(z)
         beta_avg = np.mean(beta)
         beta2_avg = np.mean(beta**2)
+
         return beta_avg, beta2_avg
 
     def __call__(self, cat):

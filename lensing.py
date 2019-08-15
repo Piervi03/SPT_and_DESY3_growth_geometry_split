@@ -43,6 +43,7 @@ class SPTlensing:
         WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
         self.WLcalib = WLsimcalib.WLcalibration
         # beta bias redshift-interpolation for DES
+        # beta_true/beta_meas = Sigma_crit,meas/Sigma_crit,true
         data_ = np.loadtxt(DES_betabias_file, unpack=True)[:3]
         self.DES_betabias_mean = InterpolatedUnivariateSpline(data_[1], data_[0])
         self.DES_betabias_var = InterpolatedUnivariateSpline(data_[1], data_[2]**2)
@@ -155,7 +156,7 @@ class SPTlensing:
         betabias_var_ = self.DES_betabias_var(self.cat_cl['REDSHIFT'])
         total_var_ = betabias_var_ + self.WLcalib['DESshearErr']**2 + self.WLcalib['DEScontamCorr']**2
         dev_ = betabias_mean_ + scaling['DESbias'] * np.sqrt(total_var_)
-        Sigma_c*= dev_
+        Sigma_c/= dev_
 
         # Interpolate to z
         idx_z_lo = (self.z_arr<=self.cat_cl['REDSHIFT']).nonzero()[0][-1]
