@@ -56,7 +56,9 @@ class MassCalibration:
                                 [['WLMegacam', 'Yx'], 'Megacam_Yx_SZ'],
                                 [['WLDES', 'Yx'], 'DES_Yx_SZ'],
                                 [['WLMegacam', 'Mgas'], 'Megacam_Mgas_SZ'],
-                                [['WLDES', 'Mgas'], 'DES_Mgas_SZ'],]
+                                [['WLDES', 'Mgas'], 'DES_Mgas_SZ'],
+                                [['WLDES', 'richness'], 'DES_richness_SZ'],
+                                ]
 
 
 

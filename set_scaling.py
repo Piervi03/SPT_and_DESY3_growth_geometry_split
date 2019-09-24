@@ -110,4 +110,12 @@ class SetScaling:
             return False
         scaling['cov_DES_X_SZ'] = np.array(cov)
 
+        # Richness and WL: [WL, richness, SZ]
+        cov = [[scaling['DWL_DES']**2, scaling['rhoWLrichness']*scaling['DWL_DES']*scaling['Drichness'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_DES']],
+            [scaling['rhoWLrichness']*scaling['DWL_DES']*scaling['Drichness'], scaling['Dx']**2, scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness']],
+            [scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_DES'], scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness'], scaling['Dsz']**2]]
+        if np.linalg.det(cov) < THRESHOLD:
+            return False
+        scaling['cov_DES_richness_SZ'] = np.array(cov)
+
         return True

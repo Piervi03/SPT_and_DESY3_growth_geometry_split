@@ -16,14 +16,14 @@ def execute(block, scaling_setter):
         scaling[p] = block.get_double('mor_parameters', p)
     for p in ['MegacamBias', 'HSTbias']:
         scaling[p] = block.get_double('mor_parameters', p)
-    for p in ['rhoSZWL', 'rhoSZX', 'rhoWLX', 'rhoSZrichness', 'rhoXdisp', 'rhoSZdisp']:
+    for p in ['rhoSZWL', 'rhoSZX', 'rhoWLX', 'rhoSZrichness', 'rhoXdisp', 'rhoSZdisp', 'rhoWLrichness']:
         scaling[p] = block.get_double('mor_parameters', p)
     # Set everything
     if scaling_setter.execute(scaling):
         # Put into block
         for p in ['bWL_Megacam', 'DWL_Megacam', 'bWL_DES', 'DWL_DES']:
             block.put_double('mor_parameters', p, scaling[p])
-        for p in ['cov_X_SZ', 'cov_richness_SZ', 'cov_Megacam_SZ', 'cov_DES_SZ', 'cov_Megacam_X_SZ', 'cov_DES_X_SZ']:
+        for p in ['cov_X_SZ', 'cov_richness_SZ', 'cov_Megacam_SZ', 'cov_DES_SZ', 'cov_Megacam_X_SZ', 'cov_DES_X_SZ', 'cov_DES_richness_SZ']:
             block.put_double_array_nd('mor_parameters', p, scaling[p])
         for name in scaling_setter.WLcalib['HSTsim'].keys():
             block.put_double_array_nd('mor_parameters', 'cov_HST_SZ_%s'%name, scaling['cov_HST_SZ_%s'%name])
