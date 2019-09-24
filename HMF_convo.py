@@ -26,7 +26,7 @@ class MultiObsConvolution:
         self.NPROC = NPROC
 
         self.pairnames_2d = ['Yx_SZ', 'Mgas_SZ', 'Megacam_SZ', 'DES_SZ', 'richness_SZ']
-        self.pairnames_3d = ['Megacam_Yx_SZ', 'Megacam_Mgas_SZ', 'DES_Yx_SZ', 'DES_Mgas_SZ']
+        self.pairnames_3d = ['Megacam_Yx_SZ', 'Megacam_Mgas_SZ', 'DES_Yx_SZ', 'DES_Mgas_SZ', 'DES_richness_SZ']
 
         self.obsnames_dict = {'Yx_SZ': 'Yx',
                               'Mgas_SZ': 'Mgas',
@@ -37,6 +37,7 @@ class MultiObsConvolution:
                               'Megacam_Mgas_SZ': ['WLMegacam', 'Mgas'],
                               'DES_Yx_SZ': ['WLDES', 'Yx'],
                               'DES_Mgas_SZ': ['WLDES', 'Mgas'],
+                              'DES_richness_SZ': ['WLDES', 'richness'],
                               }
         # Sigma-clipping in convolutions
         self.N_sigma = 4
@@ -59,14 +60,11 @@ class MultiObsConvolution:
             z_arr = np.linspace(self.pairs_zmin[pair_idx], self.pairs_zmax[pair_idx], self.pairs_Nz[pair_idx])
             this_covmat_ = self.covmat['cov_%s'%pair_name]
             obsname_s_ = self.obsnames_dict[pair_name]
-            this_grid_ = self.get_P_multiobs_allz(obsname=obsname_s_,
-                                                  pairname=pair_name,
-                                                  pair_covmat=this_covmat_,
-                                                  z_arr=z_arr)
-            if np.any(this_grid_==0):
-                this_grid_[np.where(this_grid_==0)] = np.nextafter(0, 1)
+            output_dict[pair_name] = self.get_P_multiobs_allz(obsname=obsname_s_,
+                                                              pairname=pair_name,
+                                                              pair_covmat=this_covmat_,
+                                                              z_arr=z_arr)
 
-            output_dict[pair_name] = np.log(this_grid_)
             output_dict['%s_z'%pair_name] = z_arr
         return output_dict
 
@@ -87,8 +85,9 @@ class MultiObsConvolution:
             # Launch and execute a multiprocessing pool
             pool = Pool(processes=self.NPROC)
             argin = zip([self]*len(z_arr), z_arr)
-            P_obs_grid = pool.map(unwrap_self_f, argin, chunksize=len_z//self.NPROC)
+            P_obs_grid = pool.map(unwrap_self_f, argin, chunksize=len(z_arr)//self.NPROC)
             pool.close()
+
         return P_obs_grid
 
 
@@ -138,7 +137,10 @@ class MultiObsConvolution:
 
         HMF_2d = convolution.convolve_HMF_2obs_fixedkernel(dN_dlnM, kernel)
 
-        return HMF_2d
+        # Remove 0
+        HMF_2d[(HMF_2d==0).nonzero()] = np.nextafter(0, 1)
+
+        return np.log(HMF_2d)
 
 
     def get_P_3obs_z_fixedkernel(self, obsnames, covmat, z):
@@ -170,10 +172,14 @@ class MultiObsConvolution:
         lnzeta_arr = np.linspace(-minmax_, minmax_, Nbins_zeta)
 
         # Get the scatter kernel [lnobs, lnzeta]
-        pos = np.empty((len_obs[0], len_obs[1], len_zeta, 3))
-        pos[:,:,0], pos[:,:,1], pos[:,:,2] = np.meshgrid(lnobs_arr[0], lnobs_arr[1], lnzeta_arr, indexing='ij')
+        pos = np.empty((Nbins_obs[0], Nbins_obs[1], Nbins_zeta, 3))
+        pos[:,:,:,0], pos[:,:,:,1], pos[:,:,:,2] = np.meshgrid(lnobs_arr[0], lnobs_arr[1], lnzeta_arr, indexing='ij')
         kernel = multivariate_normal.pdf(pos, mean=(0,0,0), cov=covmat)
 
         HMF_3d = convolution.convolve_HMF_3obs_fixedkernel(dN_dlnM, kernel)
 
-        return HMF_3d
+        # Remove 0
+        HMF_3d[(HMF_3d==0).nonzero()] = np.nextafter(0, 1)
+
+        return np.log(HMF_3d)
+
