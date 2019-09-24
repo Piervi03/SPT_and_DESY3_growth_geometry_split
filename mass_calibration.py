@@ -399,31 +399,16 @@ class MassCalibration:
         ##### Go to linear space [obs0][obs1]
         dP_dobs01 = dP_dlnobs/obsArr[0][:,None]/obsArr[1][None,:]
 
-        ##### P0
-        dP_dobs0 = np.trapz(dP_dobs01, obsArr[1], axis=1)
-        dP_dobs0/= np.trapz(dP_dobs0, obsArr[0])
+        ##### Normalize
+        N = np.trapz(np.trapz(dP_dobs01, obsArr[1], axis=1), obsArr[0])
+        dP_dobs01/= N
 
-        if obsnames[0] in ('WLHST', 'WLMegacam', 'WLDES'):
-            # Convolve with Gaussian LSS scatter
-            if LSSnoise>0.:
-                dP_dobs0 = self.convolve_WL_LSS(obsArr[0], dP_dobs0, LSSnoise)
-            # P(Mwl) from data
-            WL_interp = InterpolatedUnivariateSpline(np.log(self.WL.M_arr), np.log(self.catalog['p_Mwl'][dataID]))
-            Pobs = np.exp(WL_interp(np.log(obsArr[0])))
-            # Pobs = self.WL.like(self.catalog[dataID], obsArr[0], self.cosmology, self.MCrel, self.scaling)
-        else: print "not ready!"
+        ##### P(obs0, obs1)
+        Pwl = self.WL.like(self.catalog[dataID], obsArr[0], self.cosmology, self.MCrel, self.scaling)
+        Px = norm.pdf(obsmeas[1], obsArr[1], obserr[1])
+        Pobs = Pwl[:,None] * Px[None,:]
 
-        likeli0 = np.trapz(dP_dobs0*Pobs, obsArr[0])
-
-        ##### P1 (Yx)
-        dP_dobs1 = np.trapz(dP_dobs01, obsArr[0], axis=0)
-
-        # Normalize (in principe, multiply with dlnX/dlnXfid, but this is mass-independent)
-        dP_dobs1/= np.trapz(dP_dobs1, obsArr[1])
-        likeli1 = np.trapz(dP_dobs1*norm.pdf(obsmeas[1], obsArr[1], obserr[1]), obsArr[1])
-
-
-        ##### Probability
-        likeli = likeli0*likeli1
+        ##### Likelihood
+        likeli = np.trapz(np.trapz(dP_dobs01*Pobs, obsArr[1], axis=1), obsArr[0])
 
         return likeli
