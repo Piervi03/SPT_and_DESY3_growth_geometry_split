@@ -72,11 +72,6 @@ class MassCalibration:
         ##### WL: Precompute array of angular diameter distances
         if self.todo['WL']:
             self.WL.like_all(self.catalog, self.cosmology, self.scaling, self.MCrel)
-        #     self.WL.get_dAs(self.cosmology)
-        #     import time
-        #     t0 = time.time()
-        #     self.WL.compute_on_grid_SPTcenter(self.cosmology)
-        #     print "precompute", time.time()-t0
 
         ##### Evaluate the individual likelihoods
         len_data = len(self.catalog['SPT_ID'])
@@ -339,15 +334,13 @@ class MassCalibration:
             # obsArr, dP_dobs = self.downsample_distribution(obsArr, dP_dobs)
             # P(Mwl) from data
             WL_interp = InterpolatedUnivariateSpline(np.log(self.WL.M_arr), np.log(self.catalog['p_Mwl'][dataID]))
-            # Pwl = self.WL.like(self.catalog[dataID], obsArr, self.cosmology, self.MCrel, self.scaling)
             # Get likelihood
             likeli = np.trapz(np.exp(WL_interp(np.log(obsArr)))*dP_dobs, obsArr)
 
 
         if ((likeli<0)|(np.isnan(likeli))):
             print self.catalog['SPT_ID'][dataID], obsname, likeli
-            #np.savetxt(self.catalog['SPT_ID'][dataID],np.transpose((obsArr, dP_dobs)))
-            return 0.
+            return 0
 
         return likeli
 
