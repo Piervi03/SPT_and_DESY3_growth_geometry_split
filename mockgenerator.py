@@ -177,11 +177,11 @@ def main():
     names_arr = ['SPT_ID', 'FIELD', 'XI', 'THETA_CORE', 'REDSHIFT', 'REDSHIFT_UNC', 'REDSHIFT_LIMIT',
                  'Mg_MM', 'lnMg_err_MM', 'lnYx_err_MM',
                  'M_true', 'Tx_MM', 'M500', 'Mwl_500',
-                 'LAMBDA_RM', 'LAMBDA_RM_UNC']
+                 'LAMBDA_RM', 'LAMBDA_RM_UNC', 'LAMBDA_PROB_MATCH']
     data_arr = [names, fieldnames, mock[:,2], theta_core, mock[:,1], np.zeros(nCluster), redshiftLim,
                 Mgas, Xerrarr, Xerrarr, mock[:,0], 1e14*np.ones(nCluster),
                 M500_noh, mock[:,4],
-                mock[:,5], configMod.richness_err*np.ones(nCluster)]
+                mock[:,5], configMod.richness_err*np.ones(nCluster), np.zeros(nCluster)]
     # Save to fits
     cat = Table(data_arr, names=names_arr)
     cat.write('mock_%s.fits'%time.strftime("%y%m%d-%H%M%S"))
