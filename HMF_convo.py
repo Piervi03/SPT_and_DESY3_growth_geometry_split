@@ -8,7 +8,6 @@ from scipy.stats import multivariate_normal
 
 import convolution, scaling_relations
 
-
 # Because multiprocessing within classes doesn't really work...
 def unwrap_self_f(arg):
     return MultiObsConvolution.get_P_multiobs_z_fixedkernel(*arg)
@@ -43,6 +42,7 @@ class MultiObsConvolution:
         self.N_sigma = 4
         self.scaling = {}
         self.covmat = {}
+        self.compression = 10
 
 
 
@@ -54,8 +54,11 @@ class MultiObsConvolution:
             HMF_in[np.where(HMF_in==0)] = np.nextafter(0, 1)
         self.HMF_interp = RectBivariateSpline(np.log(self.HMF['z_arr'][1:]), np.log(self.HMF['M_arr']), np.log(HMF_in))
 
+        # Check length of HMF mass array for compression factor
+        assert (len(self.HMF['M_arr'])-1)%self.compression==0, "HMF has non-standard shape"
+
         ##### Pre-compute the intrinsic scatter convolutions
-        output_dict = {}
+        output_dict = {'M_arr': self.HMF['M_arr'][::self.compression]}
         for pair_idx,pair_name in enumerate(self.observable_pairs):
             z_arr = np.linspace(self.pairs_zmin[pair_idx], self.pairs_zmax[pair_idx], self.pairs_Nz[pair_idx])
             this_covmat_ = self.covmat['cov_%s'%pair_name]
@@ -137,6 +140,9 @@ class MultiObsConvolution:
 
         HMF_2d = convolution.convolve_HMF_2obs_fixedkernel(dN_dlnM, kernel)
 
+        # Compress
+        HMF_2d = HMF_2d[::self.compression,::self.compression]
+
         # Remove 0
         HMF_2d[(HMF_2d==0).nonzero()] = np.nextafter(0, 1)
 
@@ -178,8 +184,10 @@ class MultiObsConvolution:
 
         HMF_3d = convolution.convolve_HMF_3obs_fixedkernel(dN_dlnM, kernel)
 
+        # Compress
+        HMF_3d = HMF_3d[::self.compression,::self.compression,::self.compression]
+
         # Remove 0
         HMF_3d[(HMF_3d==0).nonzero()] = np.nextafter(0, 1)
 
         return np.log(HMF_3d)
-
