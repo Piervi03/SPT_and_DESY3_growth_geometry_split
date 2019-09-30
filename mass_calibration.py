@@ -160,7 +160,7 @@ class MassCalibration:
                 if obsnames==obs[0]:
                     pair_name = obs[1]
 
-            probability = self.get_P_2obs_xi(obsnames, i, pairname)
+            probability = self.get_P_2obs_xi(obsnames, i, pair_name)
 
         else:
             raise ValueError(name,"has",nobs,"follow-up observables. I don't know what to do!")
@@ -368,7 +368,7 @@ class MassCalibration:
             elif obsnames[i]=='disp':
                 obsmeas[i], obserr[i] = self.catalog['veldisp'][dataID], self.scaling['DdispN']/self.catalog['Ngal'][dataID]
             elif obsnames[i]=='richness':
-                obsmeas[i], obserr[i] = self.catalog['richness'][dataID], self.catalog['richness_err'][dataID]
+                obsmeas[i], obserr[i] = self.catalog['LAMBDA_RM'][dataID], self.catalog['LAMBDA_RM_UNC'][dataID]
             elif obsnames[i]=='WLMegacam':
                 LSSnoise = self.WLcalib['Megacam_LSS'][0] + self.scaling['MegacamScatterLSS'] * self.WLcalib['Megacam_LSS'][1]
             elif obsnames[i]=='WLHST':
