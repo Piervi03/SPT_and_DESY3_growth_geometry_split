@@ -209,18 +209,37 @@ class MassCalibration:
         """Return P(ln(multi-obs) | xi). Start from multi-obs `HMF[ln(obs0),
         ln(obs1), ..., ln(zeta)]`, set elements with zeta<2 to 0, convolve with
         unit variance in xi and evaluate at `xi`."""
+        # We only need the whole thing "close" to xi
+        xi_lo = np.amax((2.7, xi-5))
+        xi_hi = np.amin((xi_arr[-1]-.01, xi+4))
+        xi_arr_int = np.linspace(xi_lo, xi_hi, 32)
+
         shape = HMF.shape
+        ln_HMF = np.log(HMF)
         if len(shape)==2:
-            this_xi_arr = xi_arr[None,:]
-            HMF[:,np.where(zeta_arr<2)] = 0
+            HMF_integrand = np.empty((shape[0], 32))
+            for i in range(32):
+                idx_lo = (xi_arr<xi_arr_int[i]).nonzero()[0][-1]
+                Delta_lnxi = np.log(xi_arr_int[i]) - np.log(xi_arr[idx_lo])
+                Delta_lny = ln_HMF[:,idx_lo+1] - ln_HMF[:,idx_lo]
+                HMF_integrand[:,i] = np.exp(ln_HMF[:,idx_lo] + Delta_lnxi*Delta_lny)
+            this_xi_arr = xi_arr_int[None,:]
+
         elif len(shape)==3:
-            this_xi_arr = xi_arr[None,None,:]
-            HMF[:,:,np.where(zeta_arr<2)] = 0
+            HMF_integrand = np.empty((shape[0], shape[1], 32))
+            for i in range(32):
+                idx_lo = (xi_arr<xi_arr_int[i]).nonzero()[0][-1]
+                Delta_lnxi = np.log(xi_arr_int[i]) - np.log(xi_arr[idx_lo])
+                Delta_lny = ln_HMF[:,:,idx_lo+1] - ln_HMF[:,:,idx_lo]
+                HMF_integrand[:,:,i] = np.exp(ln_HMF[:,:,idx_lo] + Delta_lnxi*Delta_lny)
+            this_xi_arr = xi_arr_int[None,None,:]
+
         # dP/dxi = dP/dlnzeta dlnzeta/dxi
-        HMF_xi = HMF * scaling_relations.dlnzeta_dxi(this_xi_arr)
+        HMF_xi = HMF_integrand * scaling_relations.dlnzeta_dxi(this_xi_arr)
         # Simultaneous convolution and evaluation at xi
         unit_var_kernel = norm.pdf(xi, this_xi_arr, 1)
         HMF_at_xi = np.trapz(HMF_xi * unit_var_kernel, this_xi_arr, axis=-1)
+
         return HMF_at_xi
 
 
