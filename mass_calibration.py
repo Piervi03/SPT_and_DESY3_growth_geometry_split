@@ -406,7 +406,9 @@ class MassCalibration:
         dP_dobs01/= N
 
         ##### P(obs0, obs1)
-        Pwl = self.WL.like(self.catalog[dataID], obsArr[0], self.cosmology, self.MCrel, self.scaling)
+        # P(Mwl) from data
+        WL_interp = InterpolatedUnivariateSpline(np.log(self.WL.M_arr), np.log(self.catalog['p_Mwl'][dataID]))
+        Pwl = np.exp(WL_interp(lnobsArr[0]))
         Px = norm.pdf(obsmeas[1], obsArr[1], obserr[1])
         Pobs = Pwl[:,None] * Px[None,:]
 
