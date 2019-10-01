@@ -30,7 +30,8 @@ def main():
 
                 g = f.create_group(name)
                 d = g.create_dataset('z_cluster', data=cat['REDSHIFT'][i])
-                d = g.create_dataset('shear_profile', data=((r_arcmin, g_2d, g_2d_err)))
+                d = g.create_dataset('shear_profile', data=((r_arcmin, g_2d)))
+                d = g.create_dataset('shear_profile_cov', data=g_2d_err)
                 d = g.create_dataset('shear_profile_fid', data=((r_arcmin_full, g_2d_fid)))
                 d = g.create_dataset('Nz', data=source_dist)
                 d = g.create_dataset('R_mis_arcmin', data=((WLconfigMod.rho0, WLconfigMod.sigma0, WLconfigMod.sigma1)))
@@ -77,6 +78,9 @@ class MockUpWL:
 
         data_ = np.loadtxt(self.config_mod.beta_bias_file, unpack=True)[:3]
         self.betatrue_betameas = InterpolatedUnivariateSpline(data_[1], data_[0])
+
+        self.LSS_z = np.load(self.config_mod.LSS_cov_z_file)
+        self.LSS_cov = np.load(self.config_mod.LSS_cov_file)
 
         self.rho0 = self.config_mod.rho0
         self.sigma0 = self.config_mod.sigma0
@@ -246,8 +250,18 @@ class MockUpWL:
         N_r = N_r[good_idx]
         g_2d = g_2d_fid[good_idx]
 
+        # Shape and shot noise
         g_2d_err = self.config_mod.shape_noise / np.sqrt(N_r)
-        g_2d+= np.random.normal(0, g_2d_err)
+
+        # WL LSS scatter
+        idx_lo = (self.LSS_z<z_cl).nonzero()[0][-1]
+        Delta_z = z_cl - self.LSS_z[idx_lo]
+        Delta_cov = self.LSS_cov[idx_lo+1,:,:] - self.LSS_cov[idx_lo,:,:]
+        this_cov = self.LSS_cov[idx_lo,:,:] + Delta_z*Delta_cov
+        g_2d_err = np.diag(g_2d_err**2) + this_cov[good_idx,:][:,good_idx]
+
+        # Apply scatter
+        g_2d+= np.random.multivariate_normal(np.zeros(len(g_2d)), g_2d_err)
 
         return r_arcmin, g_2d_fid, r_arcmin[good_idx], g_2d, g_2d_err, source_dist
 

@@ -6,7 +6,11 @@ Delta_crit = 500
 
 WL_z_max = 1
 
-beta_bias_file = '../SPT_cluster_data/sci_uncertainty_zdiff_01_40bins_new.dat'
+beta_bias_file = '/home/bocquet/SPT_cluster_data/sci_uncertainty_zdiff_01_40bins_new.dat'
+
+# LSS covariance matrix
+LSS_cov_z_file = '/home/bocquet/clustercosmo19/mock_DESWL/z_cluster.npy'
+LSS_cov_file = '/home/bocquet/clustercosmo19/mock_DESWL/LSS_covs.npy'
 
 # Radial range, will be converted in arcmin
 r_minmax = .25, 3
@@ -20,7 +24,7 @@ sigma0 = .1
 sigma1 = .2
 
 # DES Y3
-source_p_arcmin2 = 30
+source_p_arcmin2 = 10
 
 # Completely arbitrary
 source_lognorm_dist_mean = .7
