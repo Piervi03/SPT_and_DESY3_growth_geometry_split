@@ -26,7 +26,7 @@ def main():
     with h5py.File('mock_WL_%s.hdf5'%time.strftime("%y%m%d-%H%M%S"), 'w') as f:
         for i,name in enumerate(cat['SPT_ID']):
             if cat['REDSHIFT'][i]>0 and cat['REDSHIFT'][i]<=WLconfigMod.WL_z_max:
-                r_arcmin_full, g_2d_fid, r_arcmin, g_2d, g_2d_err, source_dist = mock_WL(cat[i])
+                r_arcmin_full, g_2d_fid, r_arcmin, g_2d, g_2d_err, source_dist, R_mis = mock_WL(cat[i])
 
                 g = f.create_group(name)
                 d = g.create_dataset('z_cluster', data=cat['REDSHIFT'][i])
@@ -35,6 +35,7 @@ def main():
                 d = g.create_dataset('shear_profile_fid', data=((r_arcmin_full, g_2d_fid)))
                 d = g.create_dataset('Nz', data=source_dist)
                 d = g.create_dataset('R_mis_arcmin', data=((WLconfigMod.rho0, WLconfigMod.sigma0, WLconfigMod.sigma1)))
+                d = g.create_dataset('R_mis', data=R_mis)
 
 
 ##### Compute the inverse sec of the complex number z.
@@ -169,10 +170,10 @@ class MockUpWL:
         Sigma_c = 1.6624541593797974e+18/self.Dl/beta_avg
 
         # Miscentered Sigma(r)
-        r_mis = self.get_Rmis_arcmin() * self.Dl * np.pi/(60*180)
+        self.r_mis = self.get_Rmis_arcmin() * self.Dl * np.pi/(60*180)
         Sigma = get_Sigma(x, rs, self.rho_c_z, delta_c)
 
-        Sigma_mis = self.miscenter_profile(r_arr, Sigma, r_mis)
+        Sigma_mis = self.miscenter_profile(r_arr, Sigma, self.r_mis)
 
         integrand = InterpolatedUnivariateSpline(r_arr, r_arr*Sigma_mis)
         Delta_Sigma_mis = np.array([2/r_**2 * integrand.integral(r_arr[0], r_) for r_ in r_arr]) - Sigma_mis
@@ -220,7 +221,7 @@ class MockUpWL:
         """Return `<beta>` and `<beta**2>` given a redshift distribution."""
         beta = np.array([cosmo.dA_two_z(z_cl, z, self.cosmology)/cosmo.dA(z, self.cosmology) for z in z_dist])
         # Apply beta bias
-        beta*= self.betatrue_betameas(z)
+        beta*= self.betatrue_betameas(z_cl)
         beta_avg = np.mean(beta)
         beta2_avg = np.mean(beta**2)
 
@@ -263,7 +264,7 @@ class MockUpWL:
         # Apply scatter
         g_2d+= np.random.multivariate_normal(np.zeros(len(g_2d)), g_2d_err)
 
-        return r_arcmin, g_2d_fid, r_arcmin[good_idx], g_2d, g_2d_err, source_dist
+        return r_arcmin, g_2d_fid, r_arcmin[good_idx], g_2d, g_2d_err, source_dist, self.r_mis
 
 
 
