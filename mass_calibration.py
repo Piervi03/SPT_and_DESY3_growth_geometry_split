@@ -194,18 +194,18 @@ class MassCalibration:
         return correction
 
 
-    def get_multiobs_HMF_z(self, z, z_arr, lnHMF):
+    def get_multiobs_lnHMF_z(self, z, z_arr, lnHMF):
         """Interpolate HMF[z, obs_0...N] to redshift z using linear
         interpolation of z_arr in log-log space."""
         lnz_arr = np.log(z_arr)
         idx_lo = np.where(z_arr<z)[0][-1]
         Delta_lnz = np.log(z)-lnz_arr[idx_lo]
         Delta_lny = lnHMF[idx_lo+1]-lnHMF[idx_lo]
-        res = np.exp(lnHMF[idx_lo] + Delta_lnz*Delta_lny)
+        res = lnHMF[idx_lo] + Delta_lnz*Delta_lny
         return res
 
 
-    def convolve_HMF_lnobs_to_xi(self, xi, zeta_arr, xi_arr, HMF):
+    def convolve_HMF_lnobs_to_xi(self, xi, zeta_arr, xi_arr, ln_HMF):
         """Return P(ln(multi-obs) | xi). Start from multi-obs `HMF[ln(obs0),
         ln(obs1), ..., ln(zeta)]`, set elements with zeta<2 to 0, convolve with
         unit variance in xi and evaluate at `xi`."""
@@ -214,8 +214,7 @@ class MassCalibration:
         xi_hi = np.amin((xi_arr[-1]-.01, xi+4))
         xi_arr_int = np.linspace(xi_lo, xi_hi, 32)
 
-        shape = HMF.shape
-        ln_HMF = np.log(HMF)
+        shape = ln_HMF.shape
         if len(shape)==2:
             HMF_integrand = np.empty((shape[0], 32))
             for i in range(32):
@@ -284,7 +283,7 @@ class MassCalibration:
     def get_P_1obs_xi(self, obsname, dataID, pairname):
         """Returns P(obs|xi,z,p) for a single type of follow-up data."""
         ##### dN/dlnobs/dlnzeta at z=z_cluster from interpolation tables
-        HMF_2d = self.get_multiobs_HMF_z(z=self.catalog['REDSHIFT'][dataID],
+        lnHMF_2d = self.get_multiobs_lnHMF_z(z=self.catalog['REDSHIFT'][dataID],
                                          z_arr=self.HMF_convos['%s_z'%pairname],
                                          lnHMF=self.HMF_convos[pairname])
 
@@ -294,7 +293,7 @@ class MassCalibration:
         xi_arr = scaling_relations.zeta2xi(zeta_arr)
 
         ##### P(ln(obs) | xi)
-        dP_dlnobs = self.convolve_HMF_lnobs_to_xi(self.catalog['XI'][dataID], zeta_arr, xi_arr, HMF_2d)
+        dP_dlnobs = self.convolve_HMF_lnobs_to_xi(self.catalog['XI'][dataID], zeta_arr, xi_arr, lnHMF_2d)
 
         ##### Observable array
         obsArr = scaling_relations.mass2obs(obsname, self.HMF_convos['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
@@ -369,7 +368,7 @@ class MassCalibration:
         """Returns P(obs1, obs2|xi,z,p) for two types of follow-up data (e.g.,
         WL and X-ray)."""
         ##### dN/dlnobs0/dlnobs1/dlnzeta at z=z_cluster from interpolation tables
-        HMF_3d = self.get_multiobs_HMF_z(z=self.catalog['REDSHIFT'][dataID],
+        lnHMF_3d = self.get_multiobs_lnHMF_z(z=self.catalog['REDSHIFT'][dataID],
                                          z_arr=self.HMF_convos['%s_z'%pairname],
                                          lnHMF=self.HMF_convos[pairname])
 
@@ -379,7 +378,7 @@ class MassCalibration:
         xi_arr = scaling_relations.zeta2xi(zeta_arr)
 
         ##### P(ln(obs0, obs1) | xi)
-        dP_dlnobs = self.convolve_HMF_lnobs_to_xi(self.catalog['XI'][dataID], zeta_arr, xi_arr, HMF_3d)
+        dP_dlnobs = self.convolve_HMF_lnobs_to_xi(self.catalog['XI'][dataID], zeta_arr, xi_arr, lnHMF_3d)
 
 
         ##### Observable arrays
