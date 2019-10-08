@@ -205,7 +205,7 @@ class MassCalibration:
         return res
 
 
-    def convolve_HMF_lnobs_to_xi(self, xi, zeta_arr, xi_arr, ln_HMF):
+    def convolve_HMF_lnobs_to_xi(self, xi, xi_arr, ln_HMF):
         """Return P(ln(multi-obs) | xi). Start from multi-obs `HMF[ln(obs0),
         ln(obs1), ..., ln(zeta)]`, set elements with zeta<2 to 0, convolve with
         unit variance in xi and evaluate at `xi`."""
@@ -291,9 +291,11 @@ class MassCalibration:
         zeta_arr = self.thisSPTfield_gamma * scaling_relations.mass2obs('zeta', self.HMF_convos['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
         lnzeta_arr = np.log(zeta_arr)
         xi_arr = scaling_relations.zeta2xi(zeta_arr)
+        if (xi_arr[0]>2.7)|(self.catalog['XI'][dataID]>xi_arr[-1]-2):
+            return 0
 
         ##### P(ln(obs) | xi)
-        dP_dlnobs = self.convolve_HMF_lnobs_to_xi(self.catalog['XI'][dataID], zeta_arr, xi_arr, lnHMF_2d)
+        dP_dlnobs = self.convolve_HMF_lnobs_to_xi(self.catalog['XI'][dataID], xi_arr, lnHMF_2d)
 
         ##### Observable array
         obsArr = scaling_relations.mass2obs(obsname, self.HMF_convos['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
@@ -376,9 +378,11 @@ class MassCalibration:
         zeta_arr = self.thisSPTfield_gamma * scaling_relations.mass2obs('zeta', self.HMF_convos['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
         lnzeta_arr = np.log(zeta_arr)
         xi_arr = scaling_relations.zeta2xi(zeta_arr)
+        if (xi_arr[0]>2.7)|(self.catalog['XI'][dataID]>xi_arr[-1]-2):
+            return 0
 
         ##### P(ln(obs0, obs1) | xi)
-        dP_dlnobs = self.convolve_HMF_lnobs_to_xi(self.catalog['XI'][dataID], zeta_arr, xi_arr, lnHMF_3d)
+        dP_dlnobs = self.convolve_HMF_lnobs_to_xi(self.catalog['XI'][dataID], xi_arr, lnHMF_3d)
 
 
         ##### Observable arrays
