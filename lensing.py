@@ -130,7 +130,6 @@ class SPTlensing:
     def likelihood_DES(self, g_t):
         """Return P(DES data|Mwl)"""
         diff_ = self.cat_cl['WLdata']['shear'] - g_t
-        # chi2 = np.sum((diff_/self.cat_cl['WLdata']['shearerr'])**2)
         chi2 = np.dot(diff_, cho_solve(self.cat_cl['WLdata']['cho_factor'], diff_))
         likeli = np.exp(-.5 * chi2)
 
@@ -542,7 +541,9 @@ def readdata(catalog, HSTfile, MegacamFile, DESfile):
             for i,name in enumerate(catalog['SPT_ID']):
                 if name in f.keys():
                     catalog['WLdata'][i] = {'datatype':'DES',
-                        'r_arcmin':f[name]['shear_profile'][0], 'shear':f[name]['shear_profile'][1], 'shearcovmat':f[name]['shear_profile_cov'][:],
-                        'redshifts':f[name]['Nz'][:],
-                        'R_mis_arcmin':f[name]['R_mis_arcmin'][()],}
+                        'r_arcmin': f[name]['shear_profile'][0],
+                        'shear': f[name]['shear_profile'][1],
+                        'shearcovmat': f[name]['shear_profile_cov'][:],
+                        'redshifts': f[name]['Nz'][:],
+                        'R_mis_arcmin': f[name]['R_mis_arcmin'][()],}
 
