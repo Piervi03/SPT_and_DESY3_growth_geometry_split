@@ -150,13 +150,6 @@ class SPTlensing:
         Sigma_c = 1.6624541593797974e+18/Dl/self.beta_avg
         r_arcmin = self.r_fine[self.r_data_idx[0]:self.r_data_idx[1]] / Dl * 60*180/np.pi
 
-        # Realization of shear and beta bias
-        betabias_mean_ = self.DES_betabias_mean(self.cat_cl['REDSHIFT'])
-        betabias_var_ = self.DES_betabias_var(self.cat_cl['REDSHIFT'])
-        total_var_ = betabias_var_ + self.WLcalib['DESshearErr']**2 + self.WLcalib['DEScontamCorr']**2
-        dev_ = betabias_mean_ + scaling['DESbias'] * np.sqrt(total_var_)
-        Sigma_c/= dev_
-
         # Interpolate to z
         idx_z_lo = (self.z_arr<=self.cat_cl['REDSHIFT']).nonzero()[0][-1]
         Delta_lnz = np.log(self.cat_cl['REDSHIFT'] / self.z_arr[idx_z_lo])
@@ -189,10 +182,29 @@ class SPTlensing:
             lnDelta_Sigma_draws = y_lo + Delta_sig * (self.lnDelta_Sigma_draws[:,idx_sig_lo+1,idx_z_lo,:,:,:]-y_lo) \
                                       + Delta_lnz * (self.lnDelta_Sigma_draws[:,idx_sig_lo,idx_z_lo+1,:,:,:]-y_lo)
 
+        ##### Apply mean beta bias
+        betabias_mean_ = self.DES_betabias_mean(self.cat_cl['REDSHIFT'])
+        betabias_var_ = self.DES_betabias_var(self.cat_cl['REDSHIFT'])
+        Sigma_c/= betabias_mean_
+
         ##### Reduced shear profile [c,M,r,draw]
-        g_t_draws = np.exp(lnDelta_Sigma_draws)/Sigma_c / (1 - np.exp(lnSigma_draws)/Sigma_c)
+        gamma = np.exp(lnDelta_Sigma_draws)/Sigma_c
+        kappa = np.exp(lnSigma_draws)/Sigma_c
+        g_t_draws = gamma / (1 - kappa)
+
+        # Error on shear due to error on Sigma
+        rel_var_Sigmac = betabias_var_/Sigma_c**2
+        varshear_varbeta = g_t_draws**2 * (rel_var_Sigmac + kappa**2*rel_var_Sigmac/(1-kappa)**2 - 2*kappa/(1-kappa)*rel_var_Sigmac)
+
+        # Realization of shear and beta bias
+        total_var_ = varshear_varbeta + self.WLcalib['DESshearErr']**2 + self.WLcalib['DEScontamCorr']**2
+        g_t_draws+= scaling['DESbias'] * np.sqrt(total_var_)
+
         del lnSigma_draws
         del lnDelta_Sigma_draws
+        del gamma
+        del kappa
+
 
         p_M_c_draw = np.empty((self.len_M_arr, self.len_c_arr, self.DES_miscenterer.len_Rmis))
         for i in range(self.len_M_arr):
@@ -546,4 +558,3 @@ def readdata(catalog, HSTfile, MegacamFile, DESfile):
                         'shearcovmat': f[name]['shear_profile_cov'][:],
                         'redshifts': f[name]['Nz'][:],
                         'R_mis_arcmin': f[name]['R_mis_arcmin'][()],}
-
