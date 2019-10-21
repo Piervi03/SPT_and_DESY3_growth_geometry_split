@@ -35,5 +35,8 @@ WLcalibration = {
     'DESshearErr': .025,
     'DESzDistErr': .02,
     'DEScontamCorr': .009,
-    'DES_LSS': (6.3e13, 7e12)
+    'DES_LSS': (6.3e13, 7e12),
+    
+    'DES_miscenter_kind': 'arcmin',
+    'Delta_crit': 500.,
 }
