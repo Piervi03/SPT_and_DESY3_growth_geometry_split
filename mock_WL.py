@@ -25,7 +25,7 @@ def main():
 
     with h5py.File('mock_WL_%s.hdf5'%time.strftime("%y%m%d-%H%M%S"), 'w') as f:
         for i,name in enumerate(cat['SPT_ID']):
-            if cat['REDSHIFT'][i]>0 and cat['REDSHIFT'][i]<=WLconfigMod.WL_z_max:
+            if cat['REDSHIFT'][i]>0 and cat['REDSHIFT'][i]<WLconfigMod.WL_z_max:
                 r_arcmin_full, g_2d_fid, r_arcmin, g_2d, g_2d_err, source_dist, R_mis = mock_WL(cat[i])
 
                 g = f.create_group(name)
