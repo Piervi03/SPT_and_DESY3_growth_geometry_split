@@ -1,4 +1,4 @@
-from __future__ import division
+from __future__ import division, print_function
 import numpy as np
 import os
 import imp
@@ -169,7 +169,7 @@ class MassCalibration:
             return 0
             # raise ValueError("P(obs|xi) =", probability, name)
 
-        # print name, obsnames, probability
+        # print(name, obsnames, probability)
         return probability
 
 
@@ -331,8 +331,8 @@ class MassCalibration:
                 dP_dobs_obs/= np.trapz(dP_dobs_obs,obsArr)
                 cumtrapz = integrate.cumtrapz(dP_dobs_obs,obsArr)
                 perc = np.interp(obsmeas, obsArr[1:], cumtrapz)
-                print '%s %.4f %.4f %.4f %.4e'%(
-                    self.catalog['SPT_ID'][dataID], self.catalog['XI'][dataID], self.catalog['REDSHIFT'][dataID], obsmeas, 2**.5 * ss.erfinv(2*perc-1))
+                print('%s %.4f %.4f %.4f %.4e'%(
+                    self.catalog['SPT_ID'][dataID], self.catalog['XI'][dataID], self.catalog['REDSHIFT'][dataID], obsmeas, 2**.5 * ss.erfinv(2*perc-1)))
 
         elif obsname=='disp':
             obsmeas, obserr = self.catalog['veldisp'][dataID], self.scaling['DdispN']/self.catalog['Ngal'][dataID]
@@ -357,7 +357,7 @@ class MassCalibration:
 
 
         if ((likeli<0)|(np.isnan(likeli))):
-            print self.catalog['SPT_ID'][dataID], obsname, likeli
+            print(self.catalog['SPT_ID'][dataID], obsname, likeli)
             #np.savetxt(self.catalog['SPT_ID'][dataID],np.transpose((obsArr, dP_dobs)))
             return 0.
 
