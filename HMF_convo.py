@@ -140,6 +140,7 @@ class MultiObsConvolution:
         kernel = multivariate_normal.pdf(pos, mean=(0,0), cov=covmat_lnM)
 
         HMF_2d = convolution.convolve_HMF_2obs_fixedkernel(dN_dlnM, kernel)
+        HMF_2d*= self.Delta_lnM
 
         # Compress
         HMF_2d = HMF_2d[::self.compression,::self.compression]
@@ -176,6 +177,7 @@ class MultiObsConvolution:
         kernel = multivariate_normal.pdf(pos, mean=(0,0,0), cov=covmat)
 
         HMF_3d = convolution.convolve_HMF_3obs_fixedkernel(dN_dlnM, kernel)
+        HMF_3d*= self.Delta_lnM
 
         # Compress
         HMF_3d = HMF_3d[::self.compression,::self.compression,::self.compression]

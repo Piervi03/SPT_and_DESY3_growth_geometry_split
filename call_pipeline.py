@@ -12,6 +12,7 @@ from astropy.table import Table
 import set_scaling
 import HMF_convo
 import abundance
+import abundance_lambdaselect
 import mass_calibration
 
 # %%
@@ -24,10 +25,10 @@ WLsimcalibfile = 'WLsimcalib_data.py'
 scaling_setter = set_scaling.SetScaling(WLsimcalibfile)
 
 # HMF_convo
-observable_pairs = ['DES_SZ', ]
-pairs_zmin = [.25,]
-pairs_zmax = [1.,]
-pairs_Nz = [8,]
+observable_pairs = ['DES_SZ', 'richness_SZ']
+pairs_zmin = [.25, .25]
+pairs_zmax = [1., 2]
+pairs_Nz = [4, 8]
 
 NPROC = 0
 multi_obs_convolution = HMF_convo.MultiObsConvolution(observable_pairs,
@@ -38,6 +39,7 @@ multi_obs_convolution = HMF_convo.MultiObsConvolution(observable_pairs,
 NPROC = 0
 surveyCutSZ = [5., 47.]
 surveyCutRedshift = [0.25, 2.]
+surveyCutLambda = [40, 220]
 # SPT survey
 SPT_survey = Table.read('/Users/sbocquet/codeandstuff/SPT_cluster_data/SPT_SZ_survey_190418.txt', format='ascii.commented_header')
 # Cluster catalog
@@ -46,6 +48,9 @@ catalog = Table.read('mock_191029-154550.fits')
 number_count = abundance.NumberCount(catalog, SPT_survey, {},
                                      surveyCutSZ, surveyCutRedshift,
                                      NPROC)
+number_count_lambda = abundance_lambdaselect.NumberCount(catalog, SPT_survey, {},
+                                                         surveyCutSZ, surveyCutLambda, surveyCutRedshift,
+                                                         NPROC)
 
 
 # mass_calibration
@@ -123,21 +128,6 @@ HMF = xr.open_dataset('HMF.nc')
 scaling_setter.execute(scaling)
 
 
-# %% Abundance
-
-number_count.cosmology = cosmology
-number_count.scaling = scaling
-# Halo mass function
-number_count.HMF = {
-    'M_arr': HMF['m'].values,
-    'z_arr': HMF['z'].values,
-    'dNdlnM': HMF['__xarray_dataarray_variable__'].values}
-number_count.HMF['len_z'] = len(number_count.HMF['z_arr'])
-# Compute the likelihood
-lnlike = float(number_count.lnlike())
-print('lnlike', lnlike)
-
-
 # %% HMF convo
 
 for p in ['Bsz', 'Bx', 'Brichness']:
@@ -153,6 +143,37 @@ multi_obs_convolution.HMF = {
     'dNdlnM': HMF['__xarray_dataarray_variable__'].values}
 multi_obs_convolution.HMF['len_z'] = len(multi_obs_convolution.HMF['z_arr'])
 dN_dmultiobs_dict = multi_obs_convolution.execute()
+print(dN_dmultiobs_dict.keys())
+
+
+# %% Abundance
+
+number_count.cosmology = cosmology
+number_count.scaling = scaling
+# Halo mass function
+number_count.HMF = {
+    'M_arr': HMF['m'].values,
+    'z_arr': HMF['z'].values,
+    'dNdlnM': HMF['__xarray_dataarray_variable__'].values}
+number_count.HMF['len_z'] = len(number_count.HMF['z_arr'])
+# Compute the likelihood
+lnlike = float(number_count.lnlike())
+print('lnlike', lnlike)
+
+
+# %%
+
+number_count_lambda.cosmology = cosmology
+number_count_lambda.scaling = scaling
+# zeta-lambda HMF
+number_count_lambda.HMF_zetalambda = {'dN_dlnM': dN_dmultiobs_dict['richness_SZ'],
+                                      'M_arr': dN_dmultiobs_dict['M_arr'],
+                                      'z_arr': dN_dmultiobs_dict['richness_SZ_z']}
+number_count_lambda.HMF_zetalambda['len_z'] = len(number_count_lambda.HMF_zetalambda['z_arr'])
+
+# Compute the likelihood
+lnlike = float(number_count_lambda.lnlike())
+print('lnlike', lnlike)
 
 
 # %%
