@@ -12,7 +12,8 @@ def setup(options):
     surveyCutSZ = options.get_double_array_1d(option_section, 'surveyCutSZ')
     surveyCutLambda = options.get_double_array_1d(option_section, 'surveyCutLambda')
     surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
-    scaling = {'SZmPivot': options.get_double(option_section, 'SZmPivot')}
+    scaling = {'SZmPivot': options.get_double(option_section, 'SZmPivot'),
+               'richmPivot': options.get_double(option_section, 'richmPivot')}
     # SPT survey
     SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
     SPT_survey = Table.read(SPT_survey_fields, format='ascii.commented_header')
