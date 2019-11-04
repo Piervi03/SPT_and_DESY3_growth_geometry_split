@@ -34,7 +34,7 @@ def execute(block, number_count):
         'w0': block.get_double('cosmological_parameters', 'w'),
         'wa': block.get_double('cosmological_parameters', 'wa')}
     # SZ scaling relation parameters
-    for p in ['Asz', 'Bsz', 'Csz', 'Dsz', 'Bsz2', 'Csz2', 'Esz', 'DszM', 'SPECS_calib', 'Alambda', 'Blambda', 'Clambda', 'Dlambda']:
+    for p in ['Asz', 'Bsz', 'Csz', 'Dsz', 'Bsz2', 'Csz2', 'Esz', 'DszM', 'SPECS_calib', 'Arichness', 'Brichness', 'Crichness', 'Drichness']:
         number_count.scaling[p] = block.get_double('mor_parameters', p)
     # zeta-lambda HMF
     number_count.HMF_zetalambda = {'dN_dlnM':block.get_double_array_nd('dN_dmultiobs', 'richness_SZ'),
