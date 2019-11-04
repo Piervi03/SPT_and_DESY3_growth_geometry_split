@@ -1,4 +1,4 @@
-from __future__ import division
+from __future__ import division, print_function
 import numpy as np
 from multiprocessing import Pool
 import scipy.ndimage
@@ -16,7 +16,8 @@ def unwrap_self_f(arg):
 class NumberCount:
 
     def __init__(self, catalog, SPT_survey, scaling,
-                 surveyCutSZ, surveyCutRedshift, NPROC):
+                 surveyCutSZ, surveyCutLambda, surveyCutRedshift,
+                 NPROC):
         self.catalog = catalog
         self.SPT_survey = SPT_survey
         self.scaling = scaling
@@ -35,7 +36,7 @@ class NumberCount:
         # dlnzeta/dxi (xi_bins)
         self.dlnzeta_dxi_arr = scaling_relations.dlnzeta_dxi(self.xi_bins)
         # Arrays over which we'll integrate (survey cuts applied)
-        Nlambda = int(np.log10(self.surveyCutLambda[1]/self.surveyCutLambda[0])/.1 + 1)
+        Nlambda = int(np.log10(self.surveyCutLambda[1]/self.surveyCutLambda[0])/.003 + 1)
         self.lambda_arr = np.logspace(np.log10(self.surveyCutLambda[0]), np.log10(self.surveyCutLambda[1]), Nlambda)
         self.ln_lambda_arr = np.log(self.lambda_arr)
         Nxi = int(np.log10(self.surveyCutSZ[1]/self.surveyCutSZ[0])/.005 + 1)
@@ -48,9 +49,9 @@ class NumberCount:
 
     def lnlike(self):
         """Return ln-likelihood for SPT cluster abundance."""
-        ##### Convert HMF to dN/dln(zeta)/dln(lambda) = dN/dlog10(M) * dlog10(M)/dln(zeta) * dlog10(M)/dln(lambda)
+        ##### Convert ln[HMF] to ln[dN/dln(zeta)/dln(lambda)] = ln[dN/dlog10(M)] + ln[dlog10(M)/dln(zeta) * dlog10(M)/dln(lambda)]
         dlnM_dlnlambda_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling) * scaling_relations.dlnM_dlnobs('richness', self.scaling)
-        self.dN_dlnlambda_dlnzeta_unitSolidAng = self.HMF_zetalambda['dN_dlnM'] * dlnM_dlnlambda_dlnzeta
+        self.dN_dlnlambda_dlnzeta_unitSolidAng = self.HMF_zetalambda['dN_dlnM'] + np.log(dlnM_dlnlambda_dlnzeta)
 
         ##### Evaluate (log)-likelihood for each SPT field (optional multiprocessing)
         num_fields = len(self.SPT_survey)
@@ -65,7 +66,7 @@ class NumberCount:
         lnlike = np.sum(field_results[:,0])
         Ntotal = np.sum(field_results[:,1])
 
-        # print 'abundance lnlike %.3f, Ntotal %.2f'%(lnlike, Ntotal)
+        # print('abundance lnlike %.3e, Ntotal %.4e'%(lnlike, Ntotal))
 
         return lnlike
 
@@ -73,29 +74,26 @@ class NumberCount:
     ##########
     def lnlike_field(self, fieldidx):
         """Returns (ln-likelihood, Ntotal) for a given SPT field (index)."""
-        # dN/dln(zeta)/dln(lambda)
-        dN_dlnlambda_dlnzeta = self.dN_dlnlambda_dlnzeta_unitSolidAng * self.SPT_survey['AREA'][fieldidx] * (np.pi/180)**2
-        if np.any(dN_dlnlambda_dlnzeta==0):
-            dN_dlnlambda_dlnzeta[(dN_dlnlambda_dlnzeta==0).nonzero()] = np.nextafter(0, 1)
+        # ln[dN/dln(lambda)/dln(zeta)]
+        dN_dlnlambda_dlnzeta = self.dN_dlnlambda_dlnzeta_unitSolidAng + np.log(self.SPT_survey['AREA'][fieldidx] * (np.pi/180)**2)
 
-        # obs[z,M]
-        zeta_m = scaling_relations.mass2obs('zeta', self.HMF_zetalambda['M_arr'][None,:], self.HMF_zetalambda['z_arr'][:,None], self.scaling, self.cosmology)
-        lambda_m = scaling_relations.mass2obs('richness', self.HMF_zetalambda['M_arr'][None,:], self.HMF_zetalambda['z_arr'][:,None], self.scaling, self.cosmology)
+        # ln(obs)[z,M]
+        ln_zeta_m = np.log(scaling_relations.mass2obs('zeta', self.HMF_zetalambda['M_arr'][None,:], self.HMF_zetalambda['z_arr'][:,None], self.scaling, self.cosmology))
+        ln_lambda_m = np.log(scaling_relations.mass2obs('richness', self.HMF_zetalambda['M_arr'][None,:], self.HMF_zetalambda['z_arr'][:,None], self.scaling, self.cosmology))
 
         # Apply field scaling factor
-        zeta_m*= self.SPT_survey['GAMMA'][fieldidx]
+        ln_zeta_m+= np.log(self.SPT_survey['GAMMA'][fieldidx])
         if self.SPT_survey['SURVEY'][fieldidx]=='SPECS':
-            zeta_m*= self.scaling['SPECS_calib']
+            ln_zeta_m+= np.log(self.scaling['SPECS_calib'])
 
-        # dN/dxi = dN/dlnzeta dlnzeta/dxi (unconvolved)
+        # dN/dlambda/dxi = dN/dlnlambda/dlnzeta dlnzeta/dxi dlnlambda/dlambda (unconvolved)
         # Unfortunately, the zeta_m table is not regular
-        # and repeated spline interp is way too slow (1.6sec per field)
-        # So we do linear interpolation (in ln(M), and for ln(dN/dlnzeta))
-        dN_dlnlambda_dlnzeta_interp = [RectBivariateSpline(np.log(lambda_m[i]), np.log(zeta_m[i]), np.log(dN_dlnlambda_dlnzeta[i]))
+        # So we do linear interpolation (in ln(M), and for ln(dN/dlnlambda/dlnzeta))
+        # Spline interpolation doesn't work because of the flat minimum value (crazy ringing or whatever)
+        dN_dlnlambda_dlnzeta_interp = [RectBivariateSpline(ln_lambda_m[i], ln_zeta_m[i], dN_dlnlambda_dlnzeta[i], kx=1, ky=1)
                                        for i in range(self.HMF_zetalambda['len_z'])]
-        dN_dlnlambda_dlnzeta_grid = np.array([dN_dlnlambda_dlnzeta_interp[i](self.ln_lambda_arr, self.ln_zeta_xi_arr)
-                                              for i in range(self.HMF_zetalambda['len_z'])])
-        dN_dlambda_dxi = dN_dlnlambda_dlnzeta_grid * self.dlnzeta_dxi_arr / self.lambda_arr
+        tmp = [dN_dlnlambda_dlnzeta_interp[i](self.ln_lambda_arr, self.ln_zeta_xi_arr) for i in range(self.HMF_zetalambda['len_z'])]
+        dN_dlambda_dxi = np.exp(np.array(tmp)) / self.lambda_arr[None,:,None] * self.dlnzeta_dxi_arr[None,None,:]
 
         # Convolve with unit scatter in xi (measurement uncertainty)
         dN_dlambda_dxi = scipy.ndimage.gaussian_filter1d(dN_dlambda_dxi, 1/self.dxi, axis=2, mode='constant')

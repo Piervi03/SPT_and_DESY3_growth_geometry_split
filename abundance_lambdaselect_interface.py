@@ -20,9 +20,9 @@ def setup(options):
     SPTcatalogfile = options.get_string(option_section, 'SPTcatalogfile')
     catalog = Table.read(SPTcatalogfile)
     ##### Initialize abundance
-    number_count = abundance.NumberCount(catalog, SPT_survey, scaling,
-                                         surveyCutSZ, surveyCutLambda, surveyCutRedshift,
-                                         NPROC)
+    number_count = abundance_lambdaselect.NumberCount(catalog, SPT_survey, scaling,
+                                                      surveyCutSZ, surveyCutLambda, surveyCutRedshift,
+                                                      NPROC)
 
     return number_count
 
