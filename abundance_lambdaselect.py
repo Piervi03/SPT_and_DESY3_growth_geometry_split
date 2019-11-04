@@ -28,8 +28,10 @@ class NumberCount:
 
         ##### Observable arrays
         # Lin spaced for convo with unit scatter (+3 sigma margin)
-        Nxi = int((self.surveyCutSZ[1]+3 - 2.7)/.1 + 1)
-        self.xi_bins = np.linspace(2.7, self.surveyCutSZ[1]+3, Nxi)
+        # Smallest possible xi (sqrt(3))
+        xi_min = 1.8
+        Nxi = int((self.surveyCutSZ[1]+3 - xi_min)/.1 + 1)
+        self.xi_bins = np.linspace(xi_min, self.surveyCutSZ[1]+3, Nxi)
         self.dxi = self.xi_bins[1] - self.xi_bins[0]
         # ln(zeta(xi_bins))
         self.ln_zeta_xi_arr = np.log(scaling_relations.xi2zeta(self.xi_bins))
