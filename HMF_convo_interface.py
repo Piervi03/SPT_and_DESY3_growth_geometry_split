@@ -42,7 +42,7 @@ def execute(block, multi_obs_convolution):
     block.put_double_array_1d('dN_dmultiobs', 'M_arr', dN_dmultiobs_dict['M_arr'])
     for pair_name in multi_obs_convolution.observable_pairs:
         block.put_double_array_nd('dN_dmultiobs', pair_name, dN_dmultiobs_dict[pair_name])
-        block.put_double_array_nd('dN_dmultiobs', '%s_z'%pair_name, dN_dmultiobs_dict['%s_z'%pair_name])
+        block.put_double_array_1d('dN_dmultiobs', '%s_z'%pair_name, dN_dmultiobs_dict['%s_z'%pair_name])
 
     return 0
 

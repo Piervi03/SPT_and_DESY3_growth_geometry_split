@@ -75,7 +75,7 @@ def execute(block, masscalibration):
     masscalibration.HMF_convos['M_arr'] = block.get_double_array_1d('dN_dmultiobs', 'M_arr')
     for pair_name in masscalibration.observable_pairs:
         masscalibration.HMF_convos[pair_name] = block.get_double_array_nd('dN_dmultiobs', pair_name)
-        masscalibration.HMF_convos['%s_z'%pair_name] = block.get_double_array_nd('dN_dmultiobs', '%s_z'%pair_name)
+        masscalibration.HMF_convos['%s_z'%pair_name] = block.get_double_array_1d('dN_dmultiobs', '%s_z'%pair_name)
 
     ##### Compute likelihood
     lnlike = masscalibration.lnlike()
