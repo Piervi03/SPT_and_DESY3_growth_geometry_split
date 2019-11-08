@@ -194,11 +194,11 @@ class SPTlensing:
 
         # Error on shear due to error on Sigma
         rel_var_Sigmac = betabias_var_/Sigma_c**2
-        varshear_varbeta = g_t_draws**2 * (rel_var_Sigmac + kappa**2*rel_var_Sigmac/(1-kappa)**2 - 2*kappa/(1-kappa)*rel_var_Sigmac)
+        rel_varshear_varbeta = rel_var_Sigmac + kappa**2*rel_var_Sigmac/(1-kappa)**2 - 2*kappa/(1-kappa)*rel_var_Sigmac
 
         # Realization of shear and beta bias
-        total_var_ = varshear_varbeta + self.WLcalib['DESshearErr']**2 + self.WLcalib['DEScontamCorr']**2
-        g_t_draws+= scaling['DESbias'] * np.sqrt(total_var_)
+        total_std_ = g_t_draws * np.sqrt(rel_varshear_varbeta + self.WLcalib['DESshearErr']**2 + self.WLcalib['DEScontamCorr']**2)
+        g_t_draws+= scaling['DESbias'] * total_std_
 
         del lnSigma_draws
         del lnDelta_Sigma_draws
