@@ -10,7 +10,7 @@ from scipy import integrate, signal
 from scipy.interpolate import InterpolatedUnivariateSpline, RectBivariateSpline
 from scipy.stats import norm, lognorm, multivariate_normal
 
-import cosmo, lensing, Mconversion_concentration, scaling_relations
+import cosmo, Mconversion_concentration, scaling_relations
 
 cosmologyRef = {'Omega_m':.272, 'Omega_l':.728, 'h':.702, 'w0':-1, 'wa':0}
 GETPULL = False
@@ -25,7 +25,7 @@ class MassCalibration:
     def __init__(self, todo, scaling, mcType, surveyCutSZ, surveyCutRedshift,
                  SPT_survey_fields, SPT_doublecounts, SPTcatalogfile,
                  observable_pairs,
-                 WLsimcalibfile, DES_betabias_file, HSTfile, MegacamFile, DESfile,
+                 WLsimcalibfile,
                  NPROC):
 
         self.NPROC = NPROC
@@ -43,9 +43,6 @@ class MassCalibration:
         self.catalog = Table.read(SPTcatalogfile)
         WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
         self.WLcalib = WLsimcalib.WLcalibration
-        if self.todo['WL']:
-            self.WL = lensing.SPTlensing(self.catalog, WLsimcalibfile,
-                                         HSTfile, MegacamFile, DESfile, DES_betabias_file)
 
         self.HMF_convo_names = [['Yx', 'Yx_SZ'],
                                 ['Mgas', 'Mgas_SZ'],
@@ -66,12 +63,9 @@ class MassCalibration:
     def lnlike(self):
         """Returns ln-likelihood for mass calibration of the whole cluster sample."""
         ##### Initialize mass-concentration relation class (for WL and dispersions)
-        if self.todo['WL'] or self.todo['veldisp']:
+        if self.todo['veldisp']:
             self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, self.cosmology,
                                                                            setup_interp=True, interp_massdef=500)
-        ##### WL: Precompute array of angular diameter distances
-        if self.todo['WL']:
-            self.WL.like_all(self.catalog, self.cosmology, self.scaling, self.MCrel)
 
         ##### Evaluate the individual likelihoods
         len_data = len(self.catalog['SPT_ID'])

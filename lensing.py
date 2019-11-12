@@ -39,7 +39,9 @@ def unwrap_self_like_cluster(arg):
 ##### This class reads and stores shear data and calculates P(shear|P(M))
 class SPTlensing:
 
-    def __init__(self, catalog, WLsimcalibfile, HSTfile, MegacamFile, DESfile, DES_betabias_file):
+    def __init__(self, catalog, WLsimcalibfile,
+                 HSTfile, MegacamFile, DESfile,
+                 DES_betabias_file, mcType):
         WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
         self.WLcalib = WLsimcalib.WLcalibration
         # beta bias redshift-interpolation for DES
@@ -63,6 +65,8 @@ class SPTlensing:
 
         self.NPROC = 8
 
+        self.mcType = mcType
+
         readdata(catalog, HSTfile, MegacamFile, DESfile)
 
         # Pre-compute Cholesky decomposition
@@ -72,11 +76,13 @@ class SPTlensing:
 
 
     ########################################
-    def like_all(self, catalog, cosmology, scaling, MCrel=None):
+    def like_all(self, catalog, cosmology, scaling):
         """Return p(data|M_arr) for all clusters with WL data."""
         self.cosmology = cosmology
         self.scaling = scaling
-        # self.MCrel = MCrel
+        if self.mcType != 'None':
+            self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, self.cosmology,
+                                                                           setup_interp=True, interp_massdef=500)
 
         # Pre-compute angular diameter distance and miscentered shear profiles
         self.get_dAs(cosmology)
@@ -277,7 +283,6 @@ class SPTlensing:
         concentration `c`."""
         c = self.c_arr[i]
         delta_c = self.Delta_crit/3 * c**3 / (np.log(1+c) - c/(1+c))
-        # MCrel = Mconversion_concentration.ConcentrationConversion(c, setup_interp=True)
         # [z, M]
         r_Delta = (3*self.M_arr/4/np.pi/self.Delta_crit/self.rho_c_z[:,None])**(1/3)
         r_s = r_Delta/c
