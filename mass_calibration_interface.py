@@ -2,7 +2,7 @@ from __future__ import division
 import numpy as np
 from astropy.table import Table
 from cosmosis.datablock import option_section
-import mass_calibration
+import mass_calibration, lensing
 
 def setup(options):
     ##### Config parameters
@@ -25,21 +25,28 @@ def setup(options):
     SPTcatalogfile = options.get_string(option_section, 'SPTcatalogfile')
     ##### Multi-obs HMF convolution names
     observable_pairs = options.get_string(option_section, 'observable_pairs').split()
-
-    ##### WL data files
+    # WL param file
     WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
-    DES_betabias_file = options.get_string(option_section, 'DES_betabias_file')
-    # Lensing data
-    HSTfile = options.get_string(option_section, 'HSTfile')
-    MegacamFile = options.get_string(option_section, 'MegacamFile')
-    DESfile = options.get_string(option_section, 'DESfile')
 
     masscalibration = mass_calibration.MassCalibration(todo, scaling, mcType,
                                                        surveyCutSZ, surveyCutRedshift,
                                                        SPT_survey_fields, SPT_doublecounts, SPTcatalogfile,
                                                        observable_pairs,
-                                                       WLsimcalibfile, DES_betabias_file, HSTfile, MegacamFile, DESfile,
+                                                       WLsimcalibfile,
                                                        NPROC)
+
+    # Set up lensing code
+    if todo['WL']:
+        WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
+        DES_betabias_file = options.get_string(option_section, 'DES_betabias_file')
+        HSTfile = options.get_string(option_section, 'HSTfile')
+        MegacamFile = options.get_string(option_section, 'MegacamFile')
+        DESfile = options.get_string(option_section, 'DESfile')
+        masscalibration.WL = lensing.SPTlensing(masscalibration.catalog,
+                                                WLsimcalibfile,
+                                                HSTfile, MegacamFile, DESfile,
+                                                DES_betabias_file,
+                                                mcType)
 
     return masscalibration
 
@@ -76,6 +83,11 @@ def execute(block, masscalibration):
     for pair_name in masscalibration.observable_pairs:
         masscalibration.HMF_convos[pair_name] = block.get_double_array_nd('dN_dmultiobs', pair_name)
         masscalibration.HMF_convos['%s_z'%pair_name] = block.get_double_array_1d('dN_dmultiobs', '%s_z'%pair_name)
+
+    ##### Compute lensing likelihoods
+    if masscalibration.todo['WL']:
+        masscalibration.WL.like_all(masscalibration.catalog,
+                                    masscalibration.cosmology, masscalibration.scaling)
 
     ##### Compute likelihood
     lnlike = masscalibration.lnlike()

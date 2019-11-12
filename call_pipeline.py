@@ -14,12 +14,13 @@ import HMF_convo
 import abundance
 import abundance_lambdaselect
 import mass_calibration
+import lensing
 
-# %%
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Read HMF
+HMF = xr.open_dataset('HMF.nc')
 
 WLsimcalibfile = 'WLsimcalib_data.py'
-
-##### Setup
 
 # set_scaling
 scaling_setter = set_scaling.SetScaling(WLsimcalibfile)
@@ -52,14 +53,13 @@ number_count_lambda = abundance_lambdaselect.NumberCount(catalog, SPT_survey, {}
                                                          surveyCutSZ, surveyCutLambda, surveyCutRedshift,
                                                          NPROC)
 
-
 # mass_calibration
 todo = {'WL': True,
         'Yx': False,
         'Mgas': False,
         'veldisp': False,
         'richness': False}
-mcType = 'DK15'
+mcType = 'None'
 surveyCutSZ = [5., 47.]
 surveyCutRedshift = [0.25, 1.]
 NPROC = 0
@@ -72,13 +72,6 @@ SPTcatalogfile = 'mock_191029-154550.fits'
 ##### Multi-obs HMF convolution names
 observable_pairs = ['DES_SZ',]
 
-##### WL data files
-DES_betabias_file = '/Users/sbocquet/codeandstuff/SPT_cluster_data/sci_uncertainty_zdiff_01_40bins_new.dat'
-# Lensing data
-HSTfile = 'None'
-MegacamFile = 'None'
-DESfile = 'mock_WL_191029-154631.hdf5'
-
 masscalibration = mass_calibration.MassCalibration(todo,
                                                    {'SZmPivot': 3e14,
                                                     'XraymPivot': 5e14,
@@ -88,10 +81,21 @@ masscalibration = mass_calibration.MassCalibration(todo,
                                                    surveyCutSZ, surveyCutRedshift,
                                                    SPT_survey_fields, SPT_doublecounts, SPTcatalogfile,
                                                    observable_pairs,
-                                                   WLsimcalibfile, DES_betabias_file, HSTfile, MegacamFile, DESfile,
+                                                   WLsimcalibfile,# DES_betabias_file, HSTfile, MegacamFile, DESfile,
                                                    NPROC)
 
-# %%
+if todo['WL']:
+    HSTfile = 'None'
+    MegacamFile = 'None'
+    DESfile = 'mock_WL_191029-154631.hdf5'
+    DES_betabias_file = '/Users/sbocquet/codeandstuff/SPT_cluster_data/sci_uncertainty_zdiff_01_40bins_new.dat'
+    masscalibration.WL = lensing.SPTlensing(masscalibration.catalog,
+                                            WLsimcalibfile,
+                                            HSTfile, MegacamFile, DESfile,
+                                            DES_betabias_file,
+                                            mcType)
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 cosmology = {'Omega_m': .3, 'Omega_l': .7, 'Omega_b': .04,
              'h': 0.7,
@@ -118,17 +122,12 @@ scaling = {'Asz': 4., 'Bsz': 1.34, 'Csz': .49, 'Dsz': .2,
             'YXPARAM': 'SPT_XVP',
            }
 
-# %%
-
-HMF = xr.open_dataset('HMF.nc')
-
-
-# %% Set scaling params
-
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Set scaling params
 scaling_setter.execute(scaling)
 
-
-# %% HMF convo
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# HMF convo
 
 for p in ['Bsz', 'Bx', 'Brichness']:
     multi_obs_convolution.scaling[p] = scaling[p]
@@ -146,7 +145,8 @@ dN_dmultiobs_dict = multi_obs_convolution.execute()
 print(dN_dmultiobs_dict.keys())
 
 
-# %% Abundance
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Abundance
 
 number_count.cosmology = cosmology
 number_count.scaling = scaling
@@ -161,7 +161,7 @@ lnlike = float(number_count.lnlike())
 print('lnlike', lnlike)
 
 
-# %%
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 number_count_lambda.cosmology = cosmology
 number_count_lambda.scaling = scaling
@@ -176,7 +176,15 @@ lnlike = float(number_count_lambda.lnlike())
 print('lnlike', lnlike)
 
 
-# %%
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Lensing likelihoods
+
+if masscalibration.todo['WL']:
+    masscalibration.WL.like_all(masscalibration.catalog,
+                                cosmology, scaling)
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Mass calibration
 
 masscalibration.cosmology = cosmology
 masscalibration.scaling = scaling
@@ -186,9 +194,10 @@ for pair_name in masscalibration.observable_pairs:
     masscalibration.HMF_convos[pair_name] = dN_dmultiobs_dict[pair_name]
     masscalibration.HMF_convos['%s_z'%pair_name] = dN_dmultiobs_dict['%s_z'%pair_name]
 
+
 ##### Compute likelihood
 lnlike = masscalibration.lnlike()
 print('lnlike', lnlike)
 
 
-# %%
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
