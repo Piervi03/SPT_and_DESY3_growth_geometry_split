@@ -193,7 +193,7 @@ class SPTlensing:
         g_t_draws = gamma / (1 - kappa)
 
         # Error on shear due to error on Sigma
-        rel_var_Sigmac = betabias_var_/Sigma_c**2
+        rel_var_Sigmac = betabias_var_ / betabias_mean_**2
         rel_varshear_varbeta = rel_var_Sigmac + kappa**2*rel_var_Sigmac/(1-kappa)**2 - 2*kappa/(1-kappa)*rel_var_Sigmac
 
         # Realization of shear and beta bias
