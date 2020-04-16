@@ -92,10 +92,10 @@ class MultiObsConvolution:
         dN_dlnM, = np.exp(self.HMF_interp(np.log(z), np.log(self.HMF['M_arr'])))
 
         # Convert observable covmat into covmat in mass
-        dlnzeta_dlnM = 1/scaling_relations.dlnM_dlnobs('zeta', self.scaling)
-        dlnobs_dlnM = 1/scaling_relations.dlnM_dlnobs(obsname, self.scaling)
-        Jacobian = np.array([[dlnobs_dlnM**2, dlnobs_dlnM*dlnzeta_dlnM],
-                             [dlnobs_dlnM*dlnzeta_dlnM, dlnzeta_dlnM**2]])
+        dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
+        dlnM_dlnobs = scaling_relations.dlnM_dlnobs(obsname, self.scaling)
+        Jacobian = np.array([[dlnM_dlnobs**2, dlnM_dlnobs*dlnM_dlnzeta],
+                             [dlnM_dlnobs*dlnM_dlnzeta, dlnM_dlnzeta**2]])
         covmat_lnM = covmat * Jacobian
 
         Nbins_obs, lnobs_arr = self.get_Nbins_array(msqrt(covmat_lnM[0,0]))
@@ -125,12 +125,12 @@ class MultiObsConvolution:
         dN_dlnM, = np.exp(self.HMF_interp(np.log(z), np.log(self.HMF['M_arr'])))
 
         # Convert observable covmat into covmat in mass
-        dlnzeta_dlnM = 1/scaling_relations.dlnM_dlnobs('zeta', self.scaling)
-        dlnobs_dlnM = [1/scaling_relations.dlnM_dlnobs(obs, self.scaling) for obs in obsnames]
+        dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
+        dlnM_dlnobs = [scaling_relations.dlnM_dlnobs(obs, self.scaling) for obs in obsnames]
 
-        Jacobian = np.array([[dlnobs_dlnM[0]**2,             dlnobs_dlnM[0]*dlnobs_dlnM[1], dlnobs_dlnM[0]*dlnzeta_dlnM],
-                             [dlnobs_dlnM[0]*dlnobs_dlnM[1], dlnobs_dlnM[1]**2,             dlnobs_dlnM[1]*dlnzeta_dlnM],
-                             [dlnobs_dlnM[0]*dlnzeta_dlnM,   dlnobs_dlnM[1]*dlnzeta_dlnM,   dlnzeta_dlnM**2]])
+        Jacobian = np.array([[dlnM_dlnobs[0]**2,             dlnM_dlnobs[0]*dlnM_dlnobs[1], dlnM_dlnobs[0]*dlnM_dlnzeta],
+                             [dlnM_dlnobs[0]*dlnM_dlnobs[1], dlnM_dlnobs[1]**2,             dlnM_dlnobs[1]*dlnM_dlnzeta],
+                             [dlnM_dlnobs[0]*dlnM_dlnzeta,   dlnM_dlnobs[1]*dlnM_dlnzeta,   dlnM_dlnzeta**2]])
         covmat_lnM = covmat * Jacobian
 
 

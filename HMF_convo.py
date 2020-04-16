@@ -18,11 +18,6 @@ class MultiObsConvolution:
     def __init__(self, observable_pairs,
                  pairs_zmin, pairs_zmax, pairs_Nz,
                  NPROC):
-        self.observable_pairs = observable_pairs
-        self.pairs_zmin = pairs_zmin
-        self.pairs_zmax = pairs_zmax
-        self.pairs_Nz = pairs_Nz
-        self.NPROC = NPROC
 
         self.pairnames_2d = ['Yx_SZ', 'Mgas_SZ', 'Megacam_SZ', 'DES_SZ', 'richness_SZ']
         self.pairnames_3d = ['Megacam_Yx_SZ', 'Megacam_Mgas_SZ', 'DES_Yx_SZ', 'DES_Mgas_SZ', 'DES_richness_SZ']
@@ -43,6 +38,16 @@ class MultiObsConvolution:
         self.scaling = {}
         self.covmat = {}
         self.compression = 10
+
+        self.NPROC = NPROC
+        self.observable_pairs, self.pairs_zmin, self.pairs_zmax, self.pairs_Nz = [], [], [], []
+        for pair, zmin, zmax, Nz in zip(observable_pairs, pairs_zmin, pairs_zmax, pairs_Nz):
+            if (pair in self.pairnames_2d) | (pair in self.pairnames_3d):
+                self.observable_pairs.append(pair)
+                self.pairs_zmin.append(zmin)
+                self.pairs_zmax.append(zmax)
+                self.pairs_Nz.append(Nz)
+
 
 
 
@@ -124,10 +129,10 @@ class MultiObsConvolution:
         dN_dlnM, = np.exp(self.HMF_interp(np.log(z), np.log(self.HMF['M_arr'])))
 
         # Convert observable covmat into covmat in mass
-        dlnzeta_dlnM = 1/scaling_relations.dlnM_dlnobs('zeta', self.scaling)
-        dlnobs_dlnM = 1/scaling_relations.dlnM_dlnobs(obsname, self.scaling)
-        Jacobian = np.array([[dlnobs_dlnM**2, dlnobs_dlnM*dlnzeta_dlnM],
-                             [dlnobs_dlnM*dlnzeta_dlnM, dlnzeta_dlnM**2]])
+        dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
+        dlnM_dlnobs = scaling_relations.dlnM_dlnobs(obsname, self.scaling)
+        Jacobian = np.array([[dlnM_dlnobs**2, dlnM_dlnobs*dlnM_dlnzeta],
+                             [dlnM_dlnobs*dlnM_dlnzeta, dlnM_dlnzeta**2]])
         covmat_lnM = covmat * Jacobian
 
         Nbins_obs, lnobs_arr = self.get_Nbins_array(msqrt(covmat_lnM[0,0]))
@@ -157,12 +162,12 @@ class MultiObsConvolution:
         dN_dlnM, = np.exp(self.HMF_interp(np.log(z), np.log(self.HMF['M_arr'])))
 
         # Convert observable covmat into covmat in mass
-        dlnzeta_dlnM = 1/scaling_relations.dlnM_dlnobs('zeta', self.scaling)
-        dlnobs_dlnM = [1/scaling_relations.dlnM_dlnobs(obs, self.scaling) for obs in obsnames]
+        dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
+        dlnM_dlnobs = [scaling_relations.dlnM_dlnobs(obs, self.scaling) for obs in obsnames]
 
-        Jacobian = np.array([[dlnobs_dlnM[0]**2,             dlnobs_dlnM[0]*dlnobs_dlnM[1], dlnobs_dlnM[0]*dlnzeta_dlnM],
-                             [dlnobs_dlnM[0]*dlnobs_dlnM[1], dlnobs_dlnM[1]**2,             dlnobs_dlnM[1]*dlnzeta_dlnM],
-                             [dlnobs_dlnM[0]*dlnzeta_dlnM,   dlnobs_dlnM[1]*dlnzeta_dlnM,   dlnzeta_dlnM**2]])
+        Jacobian = np.array([[dlnM_dlnobs[0]**2,             dlnM_dlnobs[0]*dlnM_dlnobs[1], dlnM_dlnobs[0]*dlnM_dlnzeta],
+                             [dlnM_dlnobs[0]*dlnM_dlnobs[1], dlnM_dlnobs[1]**2,             dlnM_dlnobs[1]*dlnM_dlnzeta],
+                             [dlnM_dlnobs[0]*dlnM_dlnzeta,   dlnM_dlnobs[1]*dlnM_dlnzeta,   dlnM_dlnzeta**2]])
         covmat_lnM = covmat * Jacobian
 
 
