@@ -40,22 +40,22 @@ class SetScaling:
         scaling['bWL_HST'] = {}
         for name in self.WLcalib['HSTsim'].keys():
             # bias = bSim + bMassModel + (bN(z)+bShearCal)
-            mass_model_err = msqrt(self.WLcalib['HSTsim'][name][1]**2 + self.WLcalib['HSTmcErr']**2 + self.WLcalib['HSTcenterErr']**2)
-            scaling['bWL_HST'][name] = self.WLcalib['HSTsim'][name][0] \
+            mass_model_err = msqrt(self.WLcalib['HSTsim'][name]['bias'][1]**2 + self.WLcalib['HSTmcErr']**2 + self.WLcalib['HSTcenterErr']**2)
+            scaling['bWL_HST'][name] = self.WLcalib['HSTsim'][name]['bias'][0] \
                 + scaling['WLbias'] * mass_model_err \
                 + scaling['HSTbias'] * zDistShearErr
             # lognormal scatter
-            scaling['DWL_HST'] = self.WLcalib['HSTsim'][name][2] + scaling['WLscatter']*self.WLcalib['HSTsim'][name][3]
+            DWL_HST = self.WLcalib['HSTsim'][name]['bias'][2] + scaling['WLscatter']*self.WLcalib['HSTsim'][name]['bias'][3]
             # SZ WL covariance matrix
-            cov = [[scaling['DWL_HST']**2, scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_HST']],
-                   [scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_HST'], scaling['Dsz']**2]]
+            cov = [[DWL_HST**2, scaling['rhoSZWL']*scaling['Dsz']*DWL_HST],
+                   [scaling['rhoSZWL']*scaling['Dsz']*DWL_HST, scaling['Dsz']**2]]
             if np.linalg.det(cov)<THRESHOLD:
                 return False
             scaling['cov_HST_SZ_%s'%name] = np.array(cov)
             # SZ WL X covariance matrix
-            cov = [[scaling['DWL_HST']**2, scaling['rhoWLX']*scaling['DWL_HST']*scaling['Dx'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_HST']],
-                   [scaling['rhoWLX']*scaling['DWL_HST']*scaling['Dx'], scaling['Dx']**2, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx']],
-                   [scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_HST'], scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2]]
+            cov = [[DWL_HST**2, scaling['rhoWLX']*DWL_HST*scaling['Dx'], scaling['rhoSZWL']*scaling['Dsz']*DWL_HST],
+                   [scaling['rhoWLX']*DWL_HST*scaling['Dx'], scaling['Dx']**2, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx']],
+                   [scaling['rhoSZWL']*scaling['Dsz']*DWL_HST, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2]]
             if np.linalg.det(cov)<THRESHOLD:
                 return False
             scaling['cov_HST_X_SZ_%s'%name] = np.array(cov)

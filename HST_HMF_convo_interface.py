@@ -7,22 +7,16 @@ def setup(options):
     WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
 
     observable_pairs = options.get_string(option_section, 'observable_pairs').split()
-    for pair in observable_pairs:
-        assert pair in pairnames_2d or in pairnames_3d, "Unknown pair of observables %s"%pair
     pairs_zmin = options.get_double_array_1d(option_section, 'pairs_zmin')
     pairs_zmax = options.get_double_array_1d(option_section, 'pairs_zmax')
-    pairs_Nz = options.get_double_array_1d(option_section, 'pairs_Nz')
+    pairs_Nz = options.get_int_array_1d(option_section, 'pairs_Nz')
     assert len(pairs_zmin)==len(observable_pairs), "Bad length of pairs_zmin"
     assert len(pairs_zmax)==len(observable_pairs), "Bad length of pairs_zmax"
     assert len(pairs_Nz)==len(observable_pairs), "Bad length of pairs_Nz"
 
-    # Number of multi-processes
-    NPROC = options.get_int(option_section, 'NPROC')
-
     multi_obs_convolution = HST_HMF_convo.MultiObsConvolution(WLsimcalibfile,
                                                               observable_pairs,
-                                                              pairs_zmin, pairs_zmax, pairs_Nz,
-                                                              NPROC)
+                                                              pairs_zmin, pairs_zmax, pairs_Nz)
 
     return multi_obs_convolution
 
@@ -36,9 +30,9 @@ def execute(block, multi_obs_convolution):
     multi_obs_convolution.covmat = {}
     for name in multi_obs_convolution.WLcalib['HSTsim'].keys():
         cov_name = 'cov_HST_SZ_%s'%name
-        multi_obs_convolution.covmat[cov_name] = block.get_double_array_nd('scaling', covname)
+        multi_obs_convolution.covmat[cov_name] = block.get_double_array_nd('mor_parameters', cov_name)
         cov_name = 'cov_HST_X_SZ_%s'%name
-        multi_obs_convolution.covmat[cov_name] = block.get_double_array_nd('scaling', covname)
+        multi_obs_convolution.covmat[cov_name] = block.get_double_array_nd('mor_parameters', cov_name)
     # Halo mass function
     multi_obs_convolution.HMF = {
         'M_arr': block.get_double_array_1d('HMF', 'M_arr'),
@@ -51,8 +45,8 @@ def execute(block, multi_obs_convolution):
 
     ##### Put back into block
     for pair_name in multi_obs_convolution.observable_pairs:
-        block.put_double_array_nd('dN_dmultiobs', pair_name, HST_convo_dict[pair_name])
-        block.put_double_array_nd('dN_dmultiobs', '%s_z'%pair_name, HST_convo_dict['%s_z'%pair_name])
+        for name in multi_obs_convolution.WLcalib['HSTsim'].keys():
+            block.put_double_array_nd('dN_dmultiobs', '%s_%s'%(pair_name, name), HST_convo_dict[pair_name][name])
 
     return 0
 
