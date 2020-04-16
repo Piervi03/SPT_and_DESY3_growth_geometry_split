@@ -277,9 +277,12 @@ class MassCalibration:
     def get_P_1obs_xi(self, obsname, dataID, pairname):
         """Returns P(obs|xi,z,p) for a single type of follow-up data."""
         ##### dN/dlnobs/dlnzeta at z=z_cluster from interpolation tables
-        lnHMF_2d = self.get_multiobs_lnHMF_z(z=self.catalog['REDSHIFT'][dataID],
-                                         z_arr=self.HMF_convos['%s_z'%pairname],
-                                         lnHMF=self.HMF_convos[pairname])
+        if obsname=='WLHST':
+             lnHMF_2d = self.HMF_convos[pairname][self.catalog['SPT_ID'][dataID]]
+        else:
+             lnHMF_2d = self.get_multiobs_lnHMF_z(z=self.catalog['REDSHIFT'][dataID],
+                                                 z_arr=self.HMF_convos['%s_z'%pairname],
+                                                 lnHMF=self.HMF_convos[pairname])
 
         ##### SZ array
         zeta_arr = self.thisSPTfield_gamma * scaling_relations.mass2obs('zeta', self.HMF_convos['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
@@ -292,7 +295,7 @@ class MassCalibration:
         dP_dlnobs = self.convolve_HMF_lnobs_to_xi(self.catalog['XI'][dataID], xi_arr, lnHMF_2d)
 
         ##### Observable array
-        obsArr = scaling_relations.mass2obs(obsname, self.HMF_convos['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
+        obsArr = scaling_relations.mass2obs(obsname, self.HMF_convos['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, self.catalog['SPT_ID'][dataID])
         # Account for radial dependence for X-ray observables
         if obsname in ('Mgas', 'Yx'):
             correction = self.conversion_factor_Xray_obs_r500ref(self.catalog['REDSHIFT'][dataID])

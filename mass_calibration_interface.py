@@ -63,26 +63,34 @@ def execute(block, masscalibration):
     for p in ['Omega_m', 'Omega_b', 'wa']:
         masscalibration.cosmology[p] = block.get_double('cosmological_parameters', p)
     # SZ
-    for p in ['Asz', 'Bsz', 'Csz', 'Dsz', 'Bsz2', 'Csz2', 'Esz', 'DszM', 'SPECS_calib']:
+    for p in ['Asz', 'Bsz', 'Csz', 'Bsz2', 'Csz2', 'Esz', 'SPECS_calib']:
         masscalibration.scaling[p] = block.get_double('mor_parameters', p)
     # X-ray
-    for p in ['Ax', 'Bx', 'Cx', 'Dx', 'Ex', 'dlnMg_dlnr']:
+    for p in ['Ax', 'Bx', 'Cx', 'Ex', 'dlnMg_dlnr']:
         masscalibration.scaling[p] = block.get_double('mor_parameters', p)
     # WL
     for p in ['bWL_Megacam', 'bWL_DES', 'DESbias', 'HSTscatterLSS', 'MegacamScatterLSS', 'DESscatterLSS']:
         masscalibration.scaling[p] = block.get_double('mor_parameters', p)
+    masscalibration.scaling['bWL_HST'] = {}
+    for name in masscalibration.WLcalib['HSTsim'].keys():
+        masscalibration.scaling['bWL_HST'][name] = block.get_double('mor_parameters', 'bWL_HST_%s'%name)
     # Richness
-    for p in ['Arichness', 'Brichness', 'Crichness', 'Drichness']:
+    for p in ['Arichness', 'Brichness', 'Crichness']:
         masscalibration.scaling[p] = block.get_double('mor_parameters', p)
     # dispersion
-    for p in ['Adisp', 'Bdisp', 'Cdisp', 'Ddisp0', 'DdispN']:
+    for p in ['Adisp', 'Bdisp', 'Cdisp']:
         masscalibration.scaling[p] = block.get_double('mor_parameters', p)
     # Get multi-obs HMF convolutions
     masscalibration.HMF_convos = {}
     masscalibration.HMF_convos['M_arr'] = block.get_double_array_1d('dN_dmultiobs', 'M_arr')
     for pair_name in masscalibration.observable_pairs:
-        masscalibration.HMF_convos[pair_name] = block.get_double_array_nd('dN_dmultiobs', pair_name)
-        masscalibration.HMF_convos['%s_z'%pair_name] = block.get_double_array_1d('dN_dmultiobs', '%s_z'%pair_name)
+        if pair_name[:3]=='HST':
+            masscalibration.HMF_convos[pair_name] = {}
+            for name in masscalibration.WLcalib['HSTsim'].keys():
+                masscalibration.HMF_convos[pair_name][name] = block.get_double_array_nd('dN_dmultiobs', '%s_%s'%(pair_name, name))
+        else:
+            masscalibration.HMF_convos[pair_name] = block.get_double_array_nd('dN_dmultiobs', pair_name)
+            masscalibration.HMF_convos['%s_z'%pair_name] = block.get_double_array_1d('dN_dmultiobs', '%s_z'%pair_name)
 
     ##### Compute lensing likelihoods
     if masscalibration.todo['WL']:
