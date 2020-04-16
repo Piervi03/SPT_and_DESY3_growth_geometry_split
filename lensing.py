@@ -13,7 +13,7 @@ import imp
 import cosmo, Mconversion_concentration, miscentering
 
 ########################################
-marginalize_conc = True
+marginalize_conc = False
 grid_z_min = .25
 grid_z_max = 1
 grid_lgM_min = 12.5
@@ -59,11 +59,11 @@ class SPTlensing:
         self.r_fine = np.logspace(grid_lgr_fine_min, grid_lgr_fine_max, len_r_fine)
         self.r_data_idx = (self.r_fine<.7*.25).nonzero()[0][-1], (self.r_fine>.7*3).nonzero()[0][0]
 
-        self.len_M_arr = 8
+        self.len_M_arr = 32
         self.M_arr = np.logspace(grid_lgM_min, grid_lgM_max, self.len_M_arr)
         self.sigmaSPT_arr = np.linspace(grid_sigma_SPT_min, grid_sigma_SPT_max, 8)
 
-        self.NPROC = 8
+        self.NPROC = 0
 
         self.mcType = mcType
 
@@ -71,8 +71,8 @@ class SPTlensing:
 
         # Pre-compute Cholesky decomposition
         WL_idx = ((catalog['WLdata'] != None)&(catalog['REDSHIFT']<1)).nonzero()[0]
-        for i in WL_idx:
-            catalog[i]['WLdata']['cho_factor'] = cho_factor(catalog[i]['WLdata']['shearcovmat'])
+        # for i in WL_idx:
+        #     catalog[i]['WLdata']['cho_factor'] = cho_factor(catalog[i]['WLdata']['shearcovmat'])
 
 
     ########################################
@@ -87,11 +87,11 @@ class SPTlensing:
         # Pre-compute angular diameter distance and miscentered shear profiles
         self.get_dAs(cosmology)
         # t0 = time.time()
-        self.compute_on_grid(cosmology)
+        # self.compute_on_grid(cosmology)
         # print "precompute done", time.time()-t0
 
         # Go through all clusters with WL data
-        WL_idx = ((catalog['WLdata'] != None)&(catalog['REDSHIFT']<1)).nonzero()[0]
+        WL_idx = (catalog['WLdata'] != None).nonzero()[0]
 
         if self.NPROC==0:
             p_Mwl = [self.like_cluster(catalog[i], self.M_arr) for i in WL_idx]
@@ -535,13 +535,15 @@ def readdata(catalog, HSTfile, MegacamFile, DESfile):
             for i,name in enumerate(catalog['SPT_ID']):
                 if name in f.keys():
                     catalog['WLdata'][i] = {'datatype':'HST', 'center':f[name].attrs['center'],
-                        'r_deg':f[name]['shear_profile'][0], 'shear':f[name]['shear_profile'][1], 'shearerr':f[name]['shear_profile'][2], 'magbinids':f[name]['shear_profile'][3],
-                        'redshifts':f[name]['redshifts'],
+                        'r_deg':f[name]['shear_profile'][0], 'shear':f[name]['shear_profile'][1], 'shearerr':f[name]['shear_profile'][2],
+                        'magbinids':f[name]['magbinid'][:],
+                        'redshifts':f[name]['redshifts'][:],
                         'pzs':{}, 'magcorr':{}, 'Ntot':{}}
                     for key in f[name]['magbindata'].keys():
-                        catalog['WLdata'][i]['pzs'][key] = np.sum(f[name]['magbindata'][key]['pzs'], axis=0)
-                        catalog['WLdata'][i]['Ntot'][key] = np.sum(catalog['WLdata'][i]['pzs'][key])
-                        catalog['WLdata'][i]['magcorr'][key] = f[name]['magbindata'][key]['magnificationcorr']
+                        dict_key = int(key)
+                        catalog['WLdata'][i]['pzs'][dict_key] = np.sum(f[name]['magbindata'][key]['pzs'], axis=0)
+                        catalog['WLdata'][i]['Ntot'][dict_key] = np.sum(catalog['WLdata'][i]['pzs'][dict_key])
+                        catalog['WLdata'][i]['magcorr'][dict_key] = f[name]['magbindata'][key]['magnificationcorr'][:]
 
     ##### Megacam data
     if MegacamFile != 'None':
