@@ -68,10 +68,10 @@ class ConcentrationConversion:
             # EQ 4, DK15 [z_arr, M_arr]
             nu = 1.686 / sigma[None,:] / D_arr[:,None]
             # EQ 10, DK15 [M_arr]
-            c_min = 6.58 + n*1.37
-            nu_min = 6.82 + n*1.42
+            c_min = 6.58 + n*1.27
+            nu_min = 7.28 + n*1.56
             # EQ 9, DK15 [z_arr, M_arr]
-            c = .5*c_min * ((nu_min/nu)**1.12 + (nu/nu_min)**1.69)
+            c = .5*c_min * ((nu_min/nu)**1.08 + (nu/nu_min)**1.77)
             c[c>30.] = 30.
 
             # Set up spline interpolation in z_arr and M_arr
