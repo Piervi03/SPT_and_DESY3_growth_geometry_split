@@ -541,7 +541,7 @@ def readdata(catalog, HSTfile, MegacamFile, DESfile):
                         'pzs':{}, 'magcorr':{}, 'Ntot':{}}
                     for key in f[name]['magbindata'].keys():
                         dict_key = int(key)
-                        catalog['WLdata'][i]['pzs'][dict_key] = np.sum(f[name]['magbindata'][key]['pzs'], axis=0)
+                        catalog['WLdata'][i]['pzs'][dict_key] = f[name]['magbindata'][key]['pzs'][:]
                         catalog['WLdata'][i]['Ntot'][dict_key] = np.sum(catalog['WLdata'][i]['pzs'][dict_key])
                         catalog['WLdata'][i]['magcorr'][dict_key] = f[name]['magbindata'][key]['magnificationcorr'][:]
 
