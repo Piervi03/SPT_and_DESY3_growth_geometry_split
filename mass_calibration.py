@@ -340,7 +340,7 @@ class MassCalibration:
             if obsname=='WLMegacam':
                 LSSnoise = self.WLcalib['Megacam_LSS'][0] + self.scaling['MegacamScatterLSS'] * self.WLcalib['Megacam_LSS'][1]
             elif obsname=='WLHST':
-                LSSnoise = self.WLcalib['HST_LSS'][0] + self.scaling['HSTscatterLSS'] * self.WLcalib['HST_LSS'][1]
+                LSSnoise = self.WLcalib['HSTsim'][self.catalog['SPT_ID'][dataID]]['obs_scatter']
             elif obsname=='WLDES':
                 LSSnoise = self.WLcalib['DES_LSS'][0] + self.scaling['DESscatterLSS'] * self.WLcalib['DES_LSS'][1]
             # Convolve with Gaussian LSS scatter
@@ -396,7 +396,7 @@ class MassCalibration:
             elif obsnames[i]=='WLMegacam':
                 LSSnoise = self.WLcalib['Megacam_LSS'][0] + self.scaling['MegacamScatterLSS'] * self.WLcalib['Megacam_LSS'][1]
             elif obsnames[i]=='WLHST':
-                LSSnoise = self.WLcalib['HST_LSS'][0] + self.scaling['HSTscatterLSS'] * self.WLcalib['HST_LSS'][1]
+                LSSnoise = self.WLcalib['HSTsim'][self.catalog['SPT_ID'][dataID]]['obs_scatter']
             elif obsnames[i]=='WLDES':
                 LSSnoise = self.WLcalib['DES_LSS'][0] + self.scaling['DESscatterLSS'] * self.WLcalib['DES_LSS'][1]
             obsArrTemp = scaling_relations.mass2obs(obsnames[i], self.HMF_convos['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)

@@ -40,7 +40,7 @@ class SetScaling:
         scaling['bWL_HST'] = {}
         for name in self.WLcalib['HSTsim'].keys():
             # bias = bSim + bMassModel + (bN(z)+bShearCal)
-            mass_model_err = msqrt(self.WLcalib['HSTsim'][name]['bias'][1]**2 + self.WLcalib['HSTmcErr']**2 + self.WLcalib['HSTcenterErr']**2)
+            mass_model_err = msqrt(self.WLcalib['HSTsim'][name]['bias'][1]**2 + self.WLcalib['HSTmcErr']**2 + self.WLcalib['HSTsim'][name]['center_err']**2)
             scaling['bWL_HST'][name] = self.WLcalib['HSTsim'][name]['bias'][0] \
                 + scaling['WLbias'] * mass_model_err \
                 + scaling['HSTbias'] * zDistShearErr
