@@ -14,6 +14,11 @@ import cosmo, Mconversion_concentration
 
 ########################################
 
+# Radius [Mpc/h]
+len_r_fine = 64
+grid_lgr_fine_min = -4
+grid_lgr_fine_max = 1
+# Mass [Msun/h]
 grid_lgM_min = 12.5
 grid_lgM_max = 15.5
 
@@ -39,6 +44,7 @@ class SPTlensing:
 
         self.len_M_arr = 32
         self.M_arr = np.logspace(grid_lgM_min, grid_lgM_max, self.len_M_arr)
+        self.r_fine = np.logspace(grid_lgr_fine_min, grid_lgr_fine_max, len_r_fine)
 
         self.NPROC = 0
 
@@ -48,10 +54,9 @@ class SPTlensing:
 
 
     ########################################
-    def like_all(self, catalog, cosmology, scaling):
+    def like_all(self, catalog, cosmology):
         """Return p(data|M_arr) for all clusters with WL data."""
         self.cosmology = cosmology
-        self.scaling = scaling
         if self.mcType != 'None':
             self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, self.cosmology,
                                                                            setup_interp=True, interp_massdef=500)
@@ -117,75 +122,37 @@ class SPTlensing:
         # Sigma_crit, with c^2/4piG [h Msun/Mpc^2]
         Dl = cosmo.dA(self.cat_cl['REDSHIFT'], cosmology)
         Sigma_c = 1.6624541593797974e+18/Dl/self.beta_avg
-        r_arcmin = self.r_fine[self.r_data_idx[0]:self.r_data_idx[1]] / Dl * 60*180/np.pi
+        rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.cat_cl['REDSHIFT'], self.cosmology)**2 # [h^2 Msun/Mpc^3]
+        r200c = (3*self.M_arr/4/np.pi/200/rho_c_z)**(1/3)
+        c200c = 3.
+        delta_c = 200/3 * c200c**3 / (np.log(1+c200c) - c200c/(1+c200c))
+        r_s = r200c/c200c
 
-        # Interpolate to z
-        idx_z_lo = (self.z_arr<=self.cat_cl['REDSHIFT']).nonzero()[0][-1]
-        Delta_lnz = np.log(self.cat_cl['REDSHIFT'] / self.z_arr[idx_z_lo])
+        # Surface mass density [radius][mass]
+        x = self.r_fine / r_s[None,:]
+        Sigma = get_Sigma(x, r_s, rho_c_z, delta_c) / Sigma_c
 
+        # Set Sigma to Sigma(R_mis) for r<R_mis
+        Sigma_at_Rmis = Sigma[self.r_fine>=R_mis][0]
+        Sigma[self.r_fine<R_mis] = Sigma_at_Rmis
 
-        if self.DES_miscenterer.kind in ['r200', 'arcmin']:
-            # [c, M, draw]
-            y_lo = self.Sigma_weights[:,idx_z_lo,:,:]
-            weights = y_lo + Delta_lnz * (self.Sigma_weights[:,idx_z_lo+1,:,:]-y_lo)
-            # [c, M, r, draw]
-            y_lo = self.lnSigma_draws[:,idx_z_lo,:,:,:]
-            lnSigma_draws = y_lo + Delta_lnz * (self.lnSigma_draws[:,idx_z_lo+1,:,:,:]-y_lo)
-            y_lo = self.lnDelta_Sigma_draws[:,idx_z_lo,:,:,:]
-            lnDelta_Sigma_draws = y_lo + Delta_lnz * (self.lnDelta_Sigma_draws[:,idx_z_lo+1,:,:,:]-y_lo)
+        # Shear profile
+        Sigma_mean = 2/r**2 * np.trapz(Sigma*r, r) # TODO
+        Delta_Sigma = Sigma_mean - Sigma
+        reduced_shear = Delta_Sigma / (1-Sigma)
 
-        elif self.DES_miscenterer.kind=='SPT':
-            # Interpolate to sigma_SPT
-            this_sigmaSPT = np.sqrt(1.3**2 + self.cat_cl['THETA_CORE']**2)/self.cat_cl['XI']
-            idx_sig_lo = (self.sigmaSPT_arr<=this_sigmaSPT).nonzero()[0][-1]
-            Delta_sig = this_sigmaSPT - self.sigmaSPT_arr[idx_sig_lo]
-            # [c, M, draw]
-            y_lo = self.Sigma_weights[:,idx_sig_lo,idx_z_lo,:,:]
-            weights = y_lo + Delta_sig * (self.Sigma_weights[:,idx_sig_lo+1,idx_z_lo,:,:]-y_lo) \
-                                + Delta_lnz * (self.Sigma_weights[:,idx_sig_lo,idx_z_lo+1,:,:]-y_lo)
-            # [c, M, r, draw]
-            y_lo = self.lnSigma_draws[:,idx_sig_lo,idx_z_lo,:,:,:]
-            lnSigma_draws = y_lo + Delta_sig * (self.lnSigma_draws[:,idx_sig_lo+1,idx_z_lo,:,:,:]-y_lo) \
-                                      + Delta_lnz * (self.lnSigma_draws[:,idx_sig_lo,idx_z_lo+1,:,:,:]-y_lo)
-            y_lo = self.lnDelta_Sigma_draws[:,idx_sig_lo,idx_z_lo,:,:,:]
-            lnDelta_Sigma_draws = y_lo + Delta_sig * (self.lnDelta_Sigma_draws[:,idx_sig_lo+1,idx_z_lo,:,:,:]-y_lo) \
-                                      + Delta_lnz * (self.lnDelta_Sigma_draws[:,idx_sig_lo,idx_z_lo+1,:,:,:]-y_lo)
+        # Interpolate to measured radial bins
+        r_arcmin = self.r_fine / Dl * 60*180/np.pi
+        g_t_interp = [InterpolatedUnivariateSpline(r_arcmin, reduced_shear[:,i])
+                      for i in range(self.len_M_arr)]
 
-        ##### Apply mean beta bias
-        betabias_mean_ = self.DES_betabias_mean(self.cat_cl['REDSHIFT'])
-        betabias_var_ = self.DES_betabias_var(self.cat_cl['REDSHIFT'])
-        Sigma_c/= betabias_mean_
-
-        ##### Reduced shear profile [c,M,r,draw]
-        gamma = np.exp(lnDelta_Sigma_draws)/Sigma_c
-        kappa = np.exp(lnSigma_draws)/Sigma_c
-        g_t_draws = gamma / (1 - kappa)
-
-        # Error on shear due to error on Sigma
-        rel_var_Sigmac = betabias_var_ / betabias_mean_**2
-        rel_varshear_varbeta = rel_var_Sigmac + kappa**2*rel_var_Sigmac/(1-kappa)**2 - 2*kappa/(1-kappa)*rel_var_Sigmac
-
-        # Realization of shear and beta bias
-        total_std_ = g_t_draws * np.sqrt(rel_varshear_varbeta + self.WLcalib['DESshearErr']**2 + self.WLcalib['DEScontamCorr']**2)
-        g_t_draws+= scaling['DESbias'] * total_std_
-
-        del lnSigma_draws
-        del lnDelta_Sigma_draws
-        del gamma
-        del kappa
-
-
-        p_M_c_draw = np.empty((self.len_M_arr, self.len_c_arr, self.DES_miscenterer.len_Rmis))
+        # Likelihood!
+        P_DES_Mwl = np.empty(self.len_M_arr)
         for i in range(self.len_M_arr):
-            for j in range(self.len_c_arr):
-                for k in range(self.DES_miscenterer.len_Rmis):
-                    g_t_interp = InterpolatedUnivariateSpline(r_arcmin, g_t_draws[j,i,:,k])
-                    this_g_t = g_t_interp(self.cat_cl['WLdata']['r_arcmin'])
-                    p_M_c_draw[i,j,k] = self.likelihood_DES(this_g_t) * weights[j,i,k]
-        p_M_c = np.sum(p_M_c_draw, axis=-1)
-        likeli = np.trapz(p_M_c, self.c_arr, axis=1)
+            this_g_t = g_t_interp[i](self.cat_cl['WLdata']['r_arcmin'])
+            P_DES_Mwl[i] = self.likelihood_DES(this_g_t)
 
-        return likeli
+        return P_DES_Mwl
 
 
 
