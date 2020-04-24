@@ -95,7 +95,7 @@ def execute(block, masscalibration):
     ##### Compute lensing likelihoods
     if masscalibration.todo['WL']:
         masscalibration.WL.like_all(masscalibration.catalog,
-                                    masscalibration.cosmology, masscalibration.scaling)
+                                    masscalibration.cosmology)
 
     ##### Compute likelihood
     lnlike = masscalibration.lnlike()
