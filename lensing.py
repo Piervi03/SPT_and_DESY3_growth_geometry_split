@@ -10,28 +10,12 @@ import h5py
 import imp
 # import time
 
-import cosmo, Mconversion_concentration, miscentering
+import cosmo, Mconversion_concentration
 
 ########################################
-marginalize_conc = False
-grid_z_min = .25
-grid_z_max = 1
+
 grid_lgM_min = 12.5
 grid_lgM_max = 15.5
-# Radius [Mpc/h]
-len_r_fine = 64
-grid_lgr_fine_min = -4
-grid_lgr_fine_max = 1
-
-# SPT positional uncertainty
-grid_sigma_SPT_min = np.sqrt(1.3**2+.25**2)/50
-grid_sigma_SPT_max = np.sqrt(1.3**2+3.1**2)/5
-
-def unwrap_self_precompute_sigmaSPT(arg):
-    return SPTlensing.compute_grid_c_sigmaSPT(*arg)
-
-def unwrap_self_precompute_optical(arg):
-    return SPTlensing.compute_grid_c(*arg)
 
 def unwrap_self_like_cluster(arg):
     return SPTlensing.like_cluster(*arg)
@@ -53,26 +37,14 @@ class SPTlensing:
         self.DES_miscenterer = miscentering.MisCentering(kind=self.WLcalib['DES_miscenter_kind'])
         self.Delta_crit = self.WLcalib['Delta_crit']
 
-        self.len_c_arr = 8
-        self.c_arr = np.logspace(0, np.log10(30), self.len_c_arr)
-        self.z_arr = np.logspace(np.log10(grid_z_min), np.log10(grid_z_max), 8)
-        self.r_fine = np.logspace(grid_lgr_fine_min, grid_lgr_fine_max, len_r_fine)
-        self.r_data_idx = (self.r_fine<.7*.25).nonzero()[0][-1], (self.r_fine>.7*3).nonzero()[0][0]
-
         self.len_M_arr = 32
         self.M_arr = np.logspace(grid_lgM_min, grid_lgM_max, self.len_M_arr)
-        self.sigmaSPT_arr = np.linspace(grid_sigma_SPT_min, grid_sigma_SPT_max, 8)
 
         self.NPROC = 0
 
         self.mcType = mcType
 
         readdata(catalog, HSTfile, MegacamFile, DESfile)
-
-        # Pre-compute Cholesky decomposition
-        WL_idx = ((catalog['WLdata'] != None)&(catalog['REDSHIFT']<1)).nonzero()[0]
-        # for i in WL_idx:
-        #     catalog[i]['WLdata']['cho_factor'] = cho_factor(catalog[i]['WLdata']['shearcovmat'])
 
 
     ########################################
@@ -84,11 +56,8 @@ class SPTlensing:
             self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, self.cosmology,
                                                                            setup_interp=True, interp_massdef=500)
 
-        # Pre-compute angular diameter distance and miscentered shear profiles
+        # Pre-compute angular diameter distances
         self.get_dAs(cosmology)
-        # t0 = time.time()
-        # self.compute_on_grid(cosmology)
-        # print "precompute done", time.time()-t0
 
         # Go through all clusters with WL data
         WL_idx = (catalog['WLdata'] != None).nonzero()[0]
@@ -118,7 +87,7 @@ class SPTlensing:
 
         ##### Likelihood
         if self.cat_cl['WLdata']['datatype']=='DES':
-            pOfMass = self.like_DES_marginalize_conc(mArr, self.cosmology, self.scaling)
+            pOfMass = self.like_DES(mArr, self.cosmology, self.scaling)
         elif self.cat_cl['WLdata']['datatype']=='Megacam':
             rho_c_z, Dl, delta_c, r_s = self.get_cluster_properties(mArr, self.MCrel, self.cosmology)
             pOfMass = self.like_Megacam(rho_c_z, Dl, delta_c, r_s)
@@ -143,14 +112,12 @@ class SPTlensing:
 
 
 
-
-    def like_DES_marginalize_conc(self, mArr, cosmology, scaling):
-        """Return array P(DES data|Mwl), marginalized over concentration in the
-        range 0<c<30. Note that this is not normalized wrt the mArr for a good
-        reason: In general, the mArr will not cover the full pOfMass range, and
-        it varies as a function of SZ parameters. However, pOfMass is a product
-        of normalized distributions, and so its normalization is constant
-        throughout parameter space."""
+    def like_DES(self, mArr, cosmology, scaling):
+        """Return array P(DES data|Mwl). Note that this is not normalized wrt
+        the mArr for a good reason: In general, the mArr will not cover the full
+        pOfMass range, and it varies as a function of SZ parameters. However,
+        pOfMass is a product of normalized distributions, and so its
+        normalization is constant throughout parameter space."""
         # Sigma_crit, with c^2/4piG [h Msun/Mpc^2]
         Dl = cosmo.dA(self.cat_cl['REDSHIFT'], cosmology)
         Sigma_c = 1.6624541593797974e+18/Dl/self.beta_avg
@@ -225,138 +192,6 @@ class SPTlensing:
         return likeli
 
 
-    ########################################
-
-    def compute_grid_c(self, i):
-        """Pre-compute shear profile grid [sigma_SPT, z, M, r] for a given
-        concentration `c`."""
-        c = self.c_arr[i]
-        delta_c = self.Delta_crit/3 * c**3 / (np.log(1+c) - c/(1+c))
-        # [z, M]
-        r_Delta = (3*self.M_arr/4/np.pi/self.Delta_crit/self.rho_c_z[:,None])**(1/3)
-        r_s = r_Delta/c
-        # [z, M, r]
-        x = self.r_fine[None,None,:] / r_s[:,:,None]
-        Sigma = get_Sigma(x, r_s[:,:,None], self.rho_c_z[:,None,None], delta_c)
-        # [z, r]
-        r_arcmin = self.r_fine[None,:] / self.Dl_arr[:,None] * 60*180/np.pi
-
-        lnSigma_draws = np.empty((len(self.z_arr),self.len_M_arr,self.r_data_idx[1]-self.r_data_idx[0],self.DES_miscenterer.len_Rmis))
-        Sigma_weights = np.empty((len(self.z_arr),self.len_M_arr,self.DES_miscenterer.len_Rmis))
-        lnDelta_Sigma_draws = np.empty((len(self.z_arr),self.len_M_arr,self.r_data_idx[1]-self.r_data_idx[0],self.DES_miscenterer.len_Rmis))
-
-        for j,z in enumerate(self.z_arr):
-            for k,m in enumerate(self.M_arr):
-                draws_, Rmis_, p_Rmis_ = self.DES_miscenterer.get_profile_mean_draws(r_arcmin[j,:], Sigma[j,k],
-                                                                                     4*np.amax((self.DES_miscenterer.sigma0, self.DES_miscenterer.sigma1)),
-                                                                                      # r200c=r_Delta[j,k],
-                                                                                     )
-
-                # Weights
-                Sigma_weights[j,k] = p_Rmis_ * Rmis_[-1]/self.DES_miscenterer.len_Rmis
-
-                # Sigma (surface mass density) [r, draws]
-                draws_[draws_<=0] = np.nextafter(0,1)
-                lnSigma_draws[j,k] = np.log(draws_[self.r_data_idx[0]:self.r_data_idx[1],:])
-
-                # Sigma_bar (avg. density inside radius r)
-                integrands = [InterpolatedUnivariateSpline(self.r_fine, self.r_fine*draws_[:,l])
-                              for l in range(draws_.shape[1])]
-                mean_Sigma = np.array([2/r**2 * integrands[l].integral(self.r_fine[0], r)
-                                        for r in self.r_fine for l in range(draws_.shape[1])]).reshape(len(self.r_fine),-1)
-
-                # Delta Sigma
-                Delta_Sigma = mean_Sigma - draws_
-                Delta_Sigma[Delta_Sigma<=0] = np.nextafter(0,1)
-                lnDelta_Sigma_draws[j,k] = np.log(Delta_Sigma[self.r_data_idx[0]:self.r_data_idx[1],:])
-
-        return lnSigma_draws, lnDelta_Sigma_draws, Sigma_weights
-
-
-
-
-
-    ########################################
-
-    def compute_grid_c_sigmaSPT(self, i):
-        """Pre-compute shear profile grid [sigma_SPT, z, M, r] for a given
-        concentration `c`."""
-        c = self.c_arr[i]
-        delta_c = self.Delta_crit/3 * c**3 / (np.log(1+c) - c/(1+c))
-        # [z, M]
-        r_Delta = (3*self.M_arr/4/np.pi/self.Delta_crit/self.rho_c_z[:,None])**(1/3)
-        r_s = r_Delta/c
-        # [z, M, r]
-        x = self.r_fine[None,None,:] / r_s[:,:,None]
-        Sigma = get_Sigma(x, r_s[:,:,None], self.rho_c_z[:,None,None], delta_c)
-        # [z, r]
-        r_arcmin = self.r_fine[None,:] / self.Dl_arr[:,None] * 60*180/np.pi
-
-        lnSigma_draws = np.empty((len(self.sigmaSPT_arr),len(self.z_arr),self.len_M_arr,self.r_data_idx[1]-self.r_data_idx[0],self.DES_miscenterer.len_Rmis-1))
-        Sigma_weights = np.empty((len(self.sigmaSPT_arr),len(self.z_arr),self.len_M_arr,self.DES_miscenterer.len_Rmis-1))
-        lnDelta_Sigma_draws = np.empty((len(self.sigmaSPT_arr),len(self.z_arr),self.len_M_arr,self.r_data_idx[1]-self.r_data_idx[0],self.DES_miscenterer.len_Rmis-1))
-
-        for h,sigma_SPT in enumerate(self.sigmaSPT_arr):
-            for j,z in enumerate(self.z_arr):
-                for k,m in enumerate(self.M_arr):
-                    mean_, draws_, weights_ = self.DES_miscenterer.get_profile_mean_draws(r_arcmin[j], Sigma[j,k], .6*self.r500_deg[j,k],
-                                                                                          r500_arcmin=self.r500_arcmin[j,k],
-                                                                                          sigma_SPT=sigma_SPT/60
-                                                                                          )
-
-                    # Weights
-                    Sigma_weights[h,j,k] = weights_
-
-                    # Sigma (surface mass density) [r, draws]
-                    draws_[draws_<=0] = np.nextafter(0,1)
-                    lnSigma_draws[h,j,k] = np.log(draws_[self.r_data_idx[0]:self.r_data_idx[1],:])
-
-                    # Sigma_bar (avg. density inside radius r)
-                    integrands = [InterpolatedUnivariateSpline(self.r_fine, self.r_fine*draws_[:,l])
-                                  for l in range(draws_.shape[1])]
-                    mean_Sigma = np.array([2/r**2 * integrands[l].integral(self.r_fine[0], r)
-                                            for r in self.r_fine for l in range(draws_.shape[1])]).reshape(len(self.r_fine),-1)
-
-                    # Delta Sigma
-                    Delta_Sigma = mean_Sigma - draws_
-                    Delta_Sigma[Delta_Sigma<=0] = np.nextafter(0,1)
-                    lnDelta_Sigma_draws[h,j,k] = np.log(Delta_Sigma[self.r_data_idx[0]:self.r_data_idx[1],:])
-
-        return lnSigma_draws, lnDelta_Sigma_draws, Sigma_weights
-
-
-
-    ########################################
-
-    def compute_on_grid(self, cosmology):
-        """Pre-compute shear profiles for grid [c, z, M, r]"""
-        # z-dependent
-        self.Dl_arr = np.array([cosmo.dA(z, cosmology) for z in self.z_arr])
-        self.rho_c_z = cosmo.RHOCRIT * np.array([cosmo.Ez(z, cosmology)**2  for z in self.z_arr]) # [h^2 Msun/Mpc^3]
-
-        if self.DES_miscenterer.kind=='SPT':
-            # [z, M]
-            r500c = (3*self.M_arr[None,:]/4/np.pi/500/self.rho_c_z[:,None])**(1/3)
-            self.r500_arcmin = r500c / self.Dl_arr[:,None] * 60*180/np.pi
-
-        if self.NPROC==0:
-            if self.DES_miscenterer.kind in ['r200', 'arcmin']:
-                out = [self.compute_grid_c(i) for i in range(self.len_c_arr)]
-            elif self.DES_miscenterer.kind=='SPT':
-                out = [self.compute_grid_c_sigmaSPT(i) for i in range(self.len_c_arr)]
-        else:
-            pool = Pool(processes=self.NPROC)
-            argin = zip([self]*len(self.c_arr), range(self.len_c_arr))
-            if self.DES_miscenterer.kind in ['r200', 'arcmin']:
-                out = pool.map(unwrap_self_precompute_optical, argin)
-            elif self.DES_miscenterer.kind=='SPT':
-                out = pool.map(unwrap_self_precompute_sigmaSPT, argin)
-            pool.close()
-
-        self.lnSigma_draws = np.array([out[i][0] for i in range(self.len_c_arr)])
-        self.Sigma_weights = np.array([out[i][2] for i in range(self.len_c_arr)])
-        self.lnDelta_Sigma_draws = np.array([out[i][1] for i in range(self.len_c_arr)])
-
 
     ########################################
 
@@ -365,10 +200,8 @@ class SPTlensing:
         and r_s."""
         Dl = cosmo.dA(self.cat_cl['REDSHIFT'], cosmology)
         rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.cat_cl['REDSHIFT'], cosmology)**2 # [h^2 Msun/Mpc^3]
-        if marginalize_conc:
-            M200c = np.exp(MCrel.lnM_to_lnM200(np.log(mArr)))
-        else:
-            M200c = np.exp(MCrel.lnM_to_lnM200(self.cat_cl['REDSHIFT'], np.log(mArr)))[0]
+
+        M200c = np.exp(MCrel.lnM_to_lnM200(self.cat_cl['REDSHIFT'], np.log(mArr)))[0]
         r200c = (3*M200c/4/np.pi/200/rho_c_z)**(1/3)
         c200c = MCrel.calC200(M200c, self.cat_cl['REDSHIFT'])
         delta_c = 200/3 * c200c**3 / (np.log(1+c200c) - c200c/(1+c200c))
@@ -562,6 +395,6 @@ def readdata(catalog, HSTfile, MegacamFile, DESfile):
                     catalog['WLdata'][i] = {'datatype':'DES',
                         'r_arcmin': f[name]['shear_profile'][0],
                         'shear': f[name]['shear_profile'][1],
-                        'shearcovmat': f[name]['shear_profile_cov'][:],
                         'redshifts': f[name]['Nz'][:],
                         'R_mis_arcmin': f[name]['R_mis_arcmin'][()],}
+                    catalog['WLdata'][i]['shear_cho_factor'] = cho_factor(f[name]['shear_profile_cov'][:])
