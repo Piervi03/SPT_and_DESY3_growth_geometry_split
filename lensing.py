@@ -63,10 +63,10 @@ class SPTlensing:
         WL_idx = (catalog['WLdata'] != None).nonzero()[0]
 
         if self.NPROC==0:
-            p_Mwl = [self.like_cluster(catalog[i], self.M_arr) for i in WL_idx]
+            p_Mwl = [self.like_cluster(catalog[i]) for i in WL_idx]
         else:
             pool = Pool(processes=self.NPROC)
-            argin = zip([self]*len(WL_idx), catalog[WL_idx], [self.M_arr]*len(WL_idx))
+            argin = zip([self]*len(WL_idx), catalog[WL_idx])
             p_Mwl = pool.map(unwrap_self_like_cluster, argin)
             pool.close()
 
@@ -77,7 +77,7 @@ class SPTlensing:
 
     ########################################
     # Get P(Mwl) from dP/dMwl and shear data
-    def like_cluster(self, data, mArr):
+    def like_cluster(self, data):
         """Return likelihood of shear profile for a given cluster (index) given
         an array of cluster masses."""
         self.cat_cl = data
@@ -87,12 +87,12 @@ class SPTlensing:
 
         ##### Likelihood
         if self.cat_cl['WLdata']['datatype']=='DES':
-            pOfMass = self.like_DES(mArr, self.cosmology, self.scaling)
+            pOfMass = self.like_DES()
         elif self.cat_cl['WLdata']['datatype']=='Megacam':
-            rho_c_z, Dl, delta_c, r_s = self.get_cluster_properties(mArr, self.MCrel, self.cosmology)
+            rho_c_z, Dl, delta_c, r_s = self.get_cluster_properties()
             pOfMass = self.like_Megacam(rho_c_z, Dl, delta_c, r_s)
         elif self.cat_cl['WLdata']['datatype']=='HST':
-            rho_c_z, Dl, delta_c, r_s = self.get_cluster_properties(mArr, self.MCrel, self.cosmology)
+            rho_c_z, Dl, delta_c, r_s = self.get_cluster_properties()
             pOfMass = self.like_HST(rho_c_z, Dl, delta_c, r_s)
 
         return pOfMass
@@ -112,12 +112,8 @@ class SPTlensing:
 
 
 
-    def like_DES(self, mArr, cosmology, scaling):
-        """Return array P(DES data|Mwl). Note that this is not normalized wrt
-        the mArr for a good reason: In general, the mArr will not cover the full
-        pOfMass range, and it varies as a function of SZ parameters. However,
-        pOfMass is a product of normalized distributions, and so its
-        normalization is constant throughout parameter space."""
+    def like_DES(self):
+        """Return array P(DES data|Mwl)."""
         # Sigma_crit, with c^2/4piG [h Msun/Mpc^2]
         Dl = cosmo.dA(self.cat_cl['REDSHIFT'], cosmology)
         Sigma_c = 1.6624541593797974e+18/Dl/self.beta_avg
@@ -195,13 +191,13 @@ class SPTlensing:
 
     ########################################
 
-    def get_cluster_properties(self, mArr, MCrel, cosmology):
+    def get_cluster_properties(self):
         """Return rho_c(z_cluster), luminosity distance (z_cluster), delta_c,
         and r_s."""
-        Dl = cosmo.dA(self.cat_cl['REDSHIFT'], cosmology)
-        rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.cat_cl['REDSHIFT'], cosmology)**2 # [h^2 Msun/Mpc^3]
+        Dl = cosmo.dA(self.cat_cl['REDSHIFT'], self.cosmology)
+        rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.cat_cl['REDSHIFT'], self.cosmology)**2 # [h^2 Msun/Mpc^3]
 
-        M200c = np.exp(MCrel.lnM_to_lnM200(self.cat_cl['REDSHIFT'], np.log(mArr)))[0]
+        M200c = np.exp(self.MCrel.lnM_to_lnM200(self.cat_cl['REDSHIFT'], np.log(self.M_arr)))[0]
         r200c = (3*M200c/4/np.pi/200/rho_c_z)**(1/3)
         c200c = MCrel.calC200(M200c, self.cat_cl['REDSHIFT'])
         delta_c = 200/3 * c200c**3 / (np.log(1+c200c) - c200c/(1+c200c))
@@ -212,11 +208,7 @@ class SPTlensing:
     ########################################
 
     def like_Megacam(self, rho_c_z, Dl, delta_c, r_s):
-        """Return array P(Megacam data|Mwl). Note that this is not normalized
-        wrt the mArr for a good reason: In general, the mArr will not cover the
-        full pOfMass range, and it varies as a function of SZ parameters.
-        However, pOfMass is a product of normalized distributions, and so its
-        normalization is constant throughout parameter space."""
+        """Return array P(Megacam data|Mwl)."""
         # Dimensionless radial distance [Radius][Mass]
         x = self.cat_cl['WLdata']['r_deg'][:,None] * Dl * np.pi/180 / r_s[None,:]
         # Sigma_crit, with c^2/4piG [h Msun/Mpc^2]
@@ -238,11 +230,7 @@ class SPTlensing:
     ########################################
 
     def like_HST(self, rho_c_z, Dl, delta_c, r_s):
-        """Return array P(HST data|Mwl). Note that this is not normalized wrt
-        the mArr for a good reason: In general, the mArr will not cover the full
-        pOfMass range, and it varies as a function of SZ parameters. However,
-        pOfMass is a product of normalized distributions, and so its
-        normalization is constant throughout parameter space."""
+        """Return array P(HST data|Mwl)."""
         # Dimensionless radial distance [Radius][Mass]
         x = self.cat_cl['WLdata']['r_deg'][:,None] * Dl * np.pi/180 / r_s[None,:]
 
