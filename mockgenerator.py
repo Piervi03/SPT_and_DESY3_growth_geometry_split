@@ -9,7 +9,7 @@ from scipy.interpolate import RectBivariateSpline
 from astropy.table import Table
 import xarray as xr
 
-import cosmo, Mconversion_concentration, scaling_relations
+import compute_HMF_MiraTitan, cosmo, Mconversion_concentration, scaling_relations
 
 ##### Reference cosmology for which Mgas is measured
 cosmologyRef = {'Omega_m':.272, 'Omega_l':.728, 'h':.702, 'w0':-1, 'wa':0}
@@ -32,12 +32,25 @@ def main():
         [scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_Megacam'], scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2, scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness']],
         [scaling['rhoWLrichness']*scaling['DWL_Megacam']*scaling['Drichness'], scaling['rhoXrichness']*scaling['Dx']*scaling['Drichness'], scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness'], scaling['Drichness']**2]]
 
-    # Read HMF
-    HMF = xr.open_dataset('HMF.nc')
+    # Compute HMF
+    # HMF_xr = xr.open_dataset('HMF.nc')
+    # HMF = {'z': HMF_xr['z'],
+    #        'm': HMF_xr['m'],
+    #        'dNdlnM': HMF_xr.to_array()[0]}
+
+    cosmology['Ommh2'] = cosmology['Omega_m']*cosmology['h']**2
+    HMF = {'z': np.linspace(0, 2, 21),
+           'm': np.logspace(13, 15.5, 251)}
+    MiraTitan_HMF = compute_HMF_MiraTitan.HMFCalculator(200., 'Duffy08', HMF['z'], HMF['m'])
+    bad = MiraTitan_HMF.compute_HMF(cosmology)
+    if bad:
+        print("Could not compute mass function")
+    HMF['dNdlnM'] = MiraTitan_HMF.dNdlnM
+
 
     # Set up HMF interpolation
     dlnm = np.log(HMF['m'][1]/HMF['m'][0])
-    HMF_dNdM_V = RectBivariateSpline(np.log(HMF['z'][1:]), np.log(HMF['m']), np.log(HMF.to_array()[0][1:,:]*dlnm*(np.pi/180)**2))
+    HMF_dNdM_V = RectBivariateSpline(np.log(HMF['z'][1:]), np.log(HMF['m']), np.log(HMF['dNdlnM'][1:,:]*dlnm*(np.pi/180)**2), kx=1, ky=1)
     dz = .01
     z_arr = np.linspace(configMod.surveyCutRedshift[0], configMod.surveyCutRedshift[1], int((configMod.surveyCutRedshift[1]-configMod.surveyCutRedshift[0])/dz) + 1)
     dz = z_arr[1]-z_arr[0]

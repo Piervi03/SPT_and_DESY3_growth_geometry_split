@@ -18,7 +18,7 @@ class HMFCalculator:
             return 1
 
         if self.Deltacrit==200:
-            self.dNdlnM_unitVol = self.HMFemu.predict(cosmology, self.z_arr, self.M_arr, get_errors=False)
+            self.dNdlnM_unitVol = self.HMFemu.predict(cosmology, self.z_arr, self.M_arr, get_errors=False)[0]
 
         else:
             emu_dict = self.HMFemu.predict_raw_emu(cosmology)
@@ -43,5 +43,4 @@ class HMFCalculator:
         deltaV = np.insert(deltaV, 0, deltaV[1])
         self.dNdlnM = self.dNdlnM_unitVol * deltaV[:,None]
 
-        ##### Return HMF
         return 0
