@@ -19,8 +19,10 @@ class MultiObsConvolution:
                  pairs_zmin, pairs_zmax, pairs_Nz,
                  NPROC):
 
-        self.pairnames_2d = ['Yx_SZ', 'Mgas_SZ', 'Megacam_SZ', 'DES_SZ', 'richness_SZ']
-        self.pairnames_3d = ['Megacam_Yx_SZ', 'Megacam_Mgas_SZ', 'DES_Yx_SZ', 'DES_Mgas_SZ', 'DES_richness_SZ']
+        self.pairnames_2d = ['Yx_SZ', 'Mgas_SZ', 'Megacam_SZ', 'richness_SZ']
+        self.pairnames_2d_DES = ['DES_SZ',]
+        self.pairnames_3d = ['Megacam_Yx_SZ', 'Megacam_Mgas_SZ']
+        self.pairnames_3d_DES = ['DES_Yx_SZ', 'DES_Mgas_SZ', 'DES_richness_SZ']
 
         self.obsnames_dict = {'Yx_SZ': 'Yx',
                               'Mgas_SZ': 'Mgas',
@@ -57,7 +59,7 @@ class MultiObsConvolution:
         HMF_in = self.HMF['dNdlnM'][1:,:]
         if np.any(HMF_in==0):
             HMF_in[np.where(HMF_in==0)] = np.nextafter(0, 1)
-        self.HMF_interp = RectBivariateSpline(np.log(self.HMF['z_arr'][1:]), np.log(self.HMF['M_arr']), np.log(HMF_in))
+        self.HMF_interp = RectBivariateSpline(np.log(self.HMF['z_arr'][1:]), np.log(self.HMF['M_arr']), np.log(HMF_in), kx=1, ky=1)
         self.Delta_lnM = np.log(self.HMF['M_arr'][1]/self.HMF['M_arr'][0])
 
         # Check length of HMF mass array for compression factor
@@ -109,6 +111,8 @@ class MultiObsConvolution:
         # Compute 2D or 3D multi-obs HMF convolution
         if pairname in self.pairnames_2d:
             return self.get_P_2obs_z(obsname, covmat, z)
+        elif pairname in self.pairnames_2d_DES:
+            return self.get_P_2obs_DES_z(obsname, z)
         elif pairname in self.pairnames_3d:
             return self.get_P_3obs_z(obsname, covmat, z)
 
@@ -138,7 +142,6 @@ class MultiObsConvolution:
         Nbins_obs, lnobs_arr = self.get_Nbins_array(msqrt(covmat_lnM[0,0]))
         Nbins_zeta, lnzeta_arr = self.get_Nbins_array(msqrt(covmat_lnM[1,1]))
 
-
         # Get the scatter kernel [lnobs, lnzeta]
         pos = np.empty((Nbins_obs, Nbins_zeta, 2))
         pos[:,:,0], pos[:,:,1] = np.meshgrid(lnobs_arr, lnzeta_arr, indexing='ij')
@@ -153,6 +156,39 @@ class MultiObsConvolution:
         # Remove 0
         HMF_2d[(HMF_2d==0).nonzero()] = np.nextafter(0, 1)
 
+        return np.log(HMF_2d)
+
+
+    def get_P_2obs_DES_z(self, obsname, z):
+        """Return P(DES_WL, zeta | M, z, p) with correlated scatter."""
+        dN_dlnM, = np.exp(self.HMF_interp(np.log(z), np.log(self.HMF['M_arr'])))
+        # (Mass-dependent) covariance matrices
+        cov_base = np.array([[1, self.scaling['rhoSZWL']*self.scaling['Dsz']],
+                             [self.scaling['rhoSZWL']*self.scaling['Dsz'], self.scaling['Dsz']**2]])
+        DES_scatter = scaling_relations.WLscatter('main', self.HMF['M_arr'], z, self.scaling)
+        covmat = cov_base * np.array([[DES_scatter**2, DES_scatter],
+                                      [DES_scatter, 1]])
+        # Convert observable covmat into covmat in mass
+        dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
+        dlnM_dlnobs = scaling_relations.dlnM_dlnobs(obsname, self.scaling)
+        Jacobian = np.array([[dlnM_dlnobs**2, dlnM_dlnobs*dlnM_dlnzeta],
+                             [dlnM_dlnobs*dlnM_dlnzeta, dlnM_dlnzeta**2]])
+        covmat_lnM = covmat * Jacobian
+        # Scatter kernels [lnobs, lnzeta]
+        kernels = []*len(self.HMF['M_arr'])
+        for i in range(len(self.HMF['M_arr'])):
+            Nbins_obs, lnobs_arr = self.get_Nbins_array(msqrt(covmat_lnM[i,0,0]))
+            Nbins_zeta, lnzeta_arr = self.get_Nbins_array(msqrt(covmat_lnM[i,1,1]))
+            pos = np.empty((Nbins_obs, Nbins_zeta, 2))
+            pos[:,:,0], pos[:,:,1] = np.meshgrid(lnobs_arr, lnzeta_arr, indexing='ij')
+            kernels[i] = multivariate_normal.pdf(pos, mean=(0,0), cov=covmat_lnM[i])
+        # Actual convolution
+        HMF_2d = convolution.convolve_HMF_2obs_varkernel(dN_dlnM, kernels)
+        HMF_2d*= self.Delta_lnM
+        # Compress
+        HMF_2d = HMF_2d[::self.compression,::self.compression]
+        # Remove 0
+        HMF_2d[(HMF_2d==0).nonzero()] = np.nextafter(0, 1)
         return np.log(HMF_2d)
 
 

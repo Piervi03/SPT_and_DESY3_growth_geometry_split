@@ -21,9 +21,9 @@ def execute(block, scaling_setter):
     # Set everything
     if scaling_setter.execute(scaling):
         # Put into block
-        for p in ['bWL_Megacam', 'bWL_DES']:
+        for p in ['bWL_Megacam',]:
             block.put_double('mor_parameters', p, scaling[p])
-        for p in ['cov_X_SZ', 'cov_richness_SZ', 'cov_Megacam_SZ', 'cov_DES_SZ', 'cov_Megacam_X_SZ', 'cov_DES_X_SZ', 'cov_DES_richness_SZ']:
+        for p in ['cov_X_SZ', 'cov_richness_SZ', 'cov_Megacam_SZ', 'cov_Megacam_X_SZ']:
             block.put_double_array_nd('mor_parameters', p, scaling[p])
         for name in scaling_setter.WLcalib['HSTsim'].keys():
             block.put_double('mor_parameters', 'bWL_HST_%s'%name, scaling['bWL_HST'][name])
