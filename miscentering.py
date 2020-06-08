@@ -11,20 +11,23 @@ class MisCentering(object):
                  r200c=None):
         assert kind in ['redmapper', 'r200', 'SPT', 'arcmin'], "unexpected kind %s, kind must be redmapper, r200, SPT, arcmin"%kind
         self.kind = kind
-        # redmapper miscentering
-        # self.tau = tau
-        # self.fmis = fmis
 
         # SPT miscentering with double Rayleigh
-        self.rho0 = 0.6
-        self.sigma0 = .1
-        self.sigma1 = .2
-        # self.rho0 = 0.63
-        # self.sigma0 = .07
-        # self.sigma1 = .25
+        self.theta_beam = 1.3
+        self.rho0 = 0.769
+        self.sigma0 = 0.043
+        self.sigma1 = 0.184
 
-        self.len_theta = 32
-        self.len_Rmis = 16
+
+    def get_mean_Rmis_SPT(self, r_Delta, r_core, xi, dA):
+        """Mean off-centering, accounting for SPT positional uncertainty and
+        intrinsic SZ miscentering."""
+        r_beam = self.theta_beam * dA * np.pi/180/60
+        var_SPT = (r_beam**2 + r_core**2)/xi**2
+        sigma0_tot = np.sqrt((r_Delta*self.sigma0)**2 + var_SPT)
+        sigma1_tot = np.sqrt((r_Delta*self.sigma1)**2 + var_SPT)
+        mean_mis = np.sqrt(np.pi/2) * (self.rho0 * sigma0_tot + (1-self.rho0) * sigma1_tot)
+        return mean_mis
 
 
     def get_profile_mean_draws(self, R, profile, R_mis_max,
@@ -123,4 +126,3 @@ class MisCentering(object):
     def pRmis_arcmin(self, R_mis):
         """Offset distribution [arcmin]"""
         return self.rho0 * rayleigh.pdf(R_mis, scale=self.sigma0) + (1-self.rho0) * rayleigh.pdf(R_mis, scale=self.sigma1)
-
