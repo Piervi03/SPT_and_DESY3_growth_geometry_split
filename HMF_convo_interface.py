@@ -28,7 +28,7 @@ def execute(block, multi_obs_convolution):
     for p in ['Bsz', 'Bx', 'Brichness']:
         multi_obs_convolution.scaling[p] = block.get_double('mor_parameters', p)
     # Covariance matrices
-    for c in ['cov_X_SZ', 'cov_Megacam_SZ', 'cov_richness_SZ', 'cov_Megacam_X_SZ']:
+    for c in ['cov_X_SZ', 'cov_Megacam_SZ', 'cov_DES_SZ', 'cov_richness_SZ', 'cov_Megacam_X_SZ', 'cov_DES_X_SZ', 'cov_DES_richness_SZ']:
         multi_obs_convolution.covmat[c] = block.get_double_array_nd('mor_parameters', c)
     # Halo mass function
     multi_obs_convolution.HMF = {

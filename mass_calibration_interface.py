@@ -38,14 +38,12 @@ def setup(options):
     # Set up lensing code
     if todo['WL']:
         WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
-        DES_betabias_file = options.get_string(option_section, 'DES_betabias_file')
         HSTfile = options.get_string(option_section, 'HSTfile')
         MegacamFile = options.get_string(option_section, 'MegacamFile')
         DESfile = options.get_string(option_section, 'DESfile')
         masscalibration.WL = lensing.SPTlensing(masscalibration.catalog,
                                                 WLsimcalibfile,
                                                 HSTfile, MegacamFile, DESfile,
-                                                DES_betabias_file,
                                                 mcType)
 
     return masscalibration
@@ -69,7 +67,7 @@ def execute(block, masscalibration):
     for p in ['Ax', 'Bx', 'Cx', 'Ex', 'dlnMg_dlnr']:
         masscalibration.scaling[p] = block.get_double('mor_parameters', p)
     # WL
-    for p in ['bWL_Megacam', 'bWL_DES', 'DESbias', 'HSTscatterLSS', 'MegacamScatterLSS', 'DESscatterLSS']:
+    for p in ['HSTscatterLSS', 'MegacamScatterLSS', 'DESscatterLSS']:
         masscalibration.scaling[p] = block.get_double('mor_parameters', p)
     masscalibration.scaling['bWL_HST'] = {}
     for name in masscalibration.WLcalib['HSTsim'].keys():
