@@ -8,9 +8,9 @@ from multiprocessing import Pool
 
 import h5py
 import imp
-# import time
+import time
 
-import cosmo, Mconversion_concentration
+import cosmo, Mconversion_concentration, miscentering, scaling_relations
 
 ########################################
 
@@ -30,17 +30,11 @@ class SPTlensing:
 
     def __init__(self, catalog, WLsimcalibfile,
                  HSTfile, MegacamFile, DESfile,
-                 DES_betabias_file, mcType):
+                 mcType):
         WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
         self.WLcalib = WLsimcalib.WLcalibration
-        # beta bias redshift-interpolation for DES
-        # beta_true/beta_meas = Sigma_crit,meas/Sigma_crit,true
-        data_ = np.loadtxt(DES_betabias_file, unpack=True)[:3]
-        self.DES_betabias_mean = InterpolatedUnivariateSpline(data_[1], data_[0])
-        self.DES_betabias_var = InterpolatedUnivariateSpline(data_[1], data_[2]**2)
-        # Miscentering
-        self.DES_miscenterer = miscentering.MisCentering(kind=self.WLcalib['DES_miscenter_kind'])
-        self.Delta_crit = self.WLcalib['Delta_crit']
+        # self.Delta_crit = self.WLcalib['Delta_crit']
+        self.miscenterer = miscentering.MisCentering('SPT')
 
         self.len_M_arr = 32
         self.M_arr = np.logspace(grid_lgM_min, grid_lgM_max, self.len_M_arr)
@@ -54,9 +48,12 @@ class SPTlensing:
 
 
     ########################################
-    def like_all(self, catalog, cosmology):
+    def like_all(self, catalog, cosmology, scaling):
         """Return p(data|M_arr) for all clusters with WL data."""
+        # t = []
+        # t.append(time.time())
         self.cosmology = cosmology
+        self.scaling = scaling
         if self.mcType != 'None':
             self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, self.cosmology,
                                                                            setup_interp=True, interp_massdef=500)
@@ -77,7 +74,8 @@ class SPTlensing:
 
         catalog['p_Mwl'] = [None]*len(catalog)
         catalog['p_Mwl'][WL_idx] = p_Mwl
-        #print "lensing done", time.time()-t0
+        # t.append(time.time())
+        # print("lensing done", t[-1]-t[0])
 
 
     ########################################
@@ -85,10 +83,14 @@ class SPTlensing:
     def like_cluster(self, data):
         """Return likelihood of shear profile for a given cluster (index) given
         an array of cluster masses."""
+        # t = []
+        # t.append(time.time())
+
         self.cat_cl = data
 
         ##### Cosmology and halo stuff, in 1/h units
         self.get_beta(self.cosmology)
+        # t.append(time.time())
 
         ##### Likelihood
         if self.cat_cl['WLdata']['datatype']=='DES':
@@ -99,7 +101,9 @@ class SPTlensing:
         elif self.cat_cl['WLdata']['datatype']=='HST':
             rho_c_z, Dl, delta_c, r_s = self.get_cluster_properties()
             pOfMass = self.like_HST(rho_c_z, Dl, delta_c, r_s)
-
+        # t.append(time.time())
+        # t = np.array(t)
+        # print('done', t[-1]-t[0], np.diff(t))
         return pOfMass
 
 
@@ -109,8 +113,8 @@ class SPTlensing:
 
     def likelihood_DES(self, g_t):
         """Return P(DES data|Mwl)"""
-        diff_ = self.cat_cl['WLdata']['shear'] - g_t
-        chi2 = np.dot(diff_, cho_solve(self.cat_cl['WLdata']['cho_factor'], diff_))
+        diff = self.cat_cl['WLdata']['shear'] - g_t
+        chi2 = np.dot(diff, cho_solve(self.cat_cl['WLdata']['shear_cho_factor'], diff))
         likeli = np.exp(-.5 * chi2)
 
         return likeli
@@ -119,8 +123,9 @@ class SPTlensing:
 
     def like_DES(self):
         """Return array P(DES data|Mwl)."""
+
         # Sigma_crit, with c^2/4piG [h Msun/Mpc^2]
-        Dl = cosmo.dA(self.cat_cl['REDSHIFT'], cosmology)
+        Dl = cosmo.dA(self.cat_cl['REDSHIFT'], self.cosmology)
         Sigma_c = 1.6624541593797974e+18/Dl/self.beta_avg
         rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.cat_cl['REDSHIFT'], self.cosmology)**2 # [h^2 Msun/Mpc^3]
         r200c = (3*self.M_arr/4/np.pi/200/rho_c_z)**(1/3)
@@ -128,29 +133,58 @@ class SPTlensing:
         delta_c = 200/3 * c200c**3 / (np.log(1+c200c) - c200c/(1+c200c))
         r_s = r200c/c200c
 
-        # Surface mass density [radius][mass]
-        x = self.r_fine / r_s[None,:]
-        Sigma = get_Sigma(x, r_s, rho_c_z, delta_c) / Sigma_c
+        # Get miscentering radius
+        zeta = scaling_relations.mass2obs('zeta', self.M_arr, self.cat_cl['REDSHIFT'], self.scaling, self.cosmology)
+        xi = scaling_relations.zeta2xi(zeta)
+        r_core = 1/self.scaling['r_core_inv']
+        R_mis = self.miscenterer.get_mean_Rmis_SPT(r200c, r_core, xi, Dl)
 
-        # Set Sigma to Sigma(R_mis) for r<R_mis
-        Sigma_at_Rmis = Sigma[self.r_fine>=R_mis][0]
-        Sigma[self.r_fine<R_mis] = Sigma_at_Rmis
+        # NFW surface mass densities [mass][radius]
+        # x = self.r_fine[None,:] / r_s[:,None]
+        r_Mpch = self.cat_cl['WLdata']['r_arcmin'] * Dl * np.pi/60/180
+        x = r_Mpch[None,:] / r_s[:,None]
 
-        # Shear profile
-        Sigma_mean = 2/r**2 * np.trapz(Sigma*r, r) # TODO
-        Delta_Sigma = Sigma_mean - Sigma
-        reduced_shear = Delta_Sigma / (1-Sigma)
+        Sigma_NFW = get_Sigma(x, r_s[:,None], rho_c_z, delta_c)
+        Delta_Sigma_NFW = get_Delta_Sigma(x, r_s[:,None], rho_c_z, delta_c)
+        Sigma_NFW_mean = Sigma_NFW - Delta_Sigma_NFW
+
+        # Miscentered quantities
+        # Sigma = Sigma(R_mis) for r<R_mis
+        Sigma_mis = Sigma_NFW.copy()
+        Sigma_mis_mean = np.empty(Sigma_NFW.shape)
+        for i in range(self.len_M_arr):
+            Sigma_NFW_at_Rmis = Sigma_NFW[i,r_Mpch>=R_mis[i]][0]
+            Sigma_NFW_mean_at_Rmis = Sigma_NFW_mean[i,r_Mpch>=R_mis[i]][0]
+            Sigma_mis[i,r_Mpch<R_mis[i]] = Sigma_NFW_at_Rmis
+            Sigma_mis_mean[i,r_Mpch<R_mis[i]] = Sigma_NFW_at_Rmis
+            Sigma_mis_mean[i,:] = Sigma_NFW_mean[i,:] - (R_mis[i]/r_Mpch)**2 * (Sigma_NFW_at_Rmis-Sigma_NFW_mean_at_Rmis)
+
+        # Reduced shear profile [mass][radius]
+        reduced_shear = (Sigma_mis-Sigma_mis_mean)/Sigma_c / (1 - Sigma_mis/Sigma_c)
+
+        # Cluster member contamination
+        r_s_fcl = self.cat_cl['WLdata']['r200_fid'] / self.WLcalib['c_fcl']
+        delta_c_fcl = 200/3 * self.WLcalib['c_fcl']**3 / (np.log(1+self.WLcalib['c_fcl']) - self.WLcalib['c_fcl']/(1+self.WLcalib['c_fcl']))
+        x_fcl = r_Mpch / r_s_fcl
+        Sigma_fcl = get_Sigma(x_fcl, r_s_fcl, rho_c_z, delta_c_fcl)/get_Sigma(self.WLcalib['x0_fcl'], r_s_fcl, rho_c_z, delta_c_fcl)
+        idx = (self.cat_cl['REDSHIFT']>self.WLcalib['A_fcl_z'])[0]
+        f_cl = self.WLcalib['A_fcl'][idx] * (self.cat_cl['LAMBDA']/self.WLcalib['lambda_piv_fcl'])**self.WLcalib['B_fcl'] * Sigma_fcl
+        reduced_shear_cont = (1-f_cl) * reduced_shear
+
+        # out_ = np.concatenate((r_Mpch[None,:], self.cat_cl['WLdata']['shear'][None,:], reduced_shear_cont), axis=0)
+        # np.save(self.cat_cl['SPT_ID']+'shear', out_)
 
         # Interpolate to measured radial bins
-        r_arcmin = self.r_fine / Dl * 60*180/np.pi
-        g_t_interp = [InterpolatedUnivariateSpline(r_arcmin, reduced_shear[:,i])
-                      for i in range(self.len_M_arr)]
+        # r_arcmin = self.r_fine / Dl * 60*180/np.pi
+        # g_t_interp = [InterpolatedUnivariateSpline(r_arcmin, reduced_shear_cont[i,:])
+        #               for i in range(self.len_M_arr)]
+        # t.append(time.time())
 
         # Likelihood!
         P_DES_Mwl = np.empty(self.len_M_arr)
         for i in range(self.len_M_arr):
-            this_g_t = g_t_interp[i](self.cat_cl['WLdata']['r_arcmin'])
-            P_DES_Mwl[i] = self.likelihood_DES(this_g_t)
+            # this_g_t = g_t_interp[i](self.cat_cl['WLdata']['r_arcmin'])
+            P_DES_Mwl[i] = self.likelihood_DES(reduced_shear_cont[i])
 
         return P_DES_Mwl
 
@@ -262,18 +296,18 @@ class SPTlensing:
         # Set up interpolation
         z_arr = np.linspace(np.amin(self.cat_cl['WLdata']['redshifts'][bgIdx]), np.amax(self.cat_cl['WLdata']['redshifts'][bgIdx]), 64)
         dA_ls = np.array([cosmo.dA_two_z(self.cat_cl['REDSHIFT'], z, cosmology) for z in z_arr])
-        dA_ls_interp = InterpolatedUnivariateSpline(z_arr, dA_ls)
+        dA_ls_interp = InterpolatedUnivariateSpline(z_arr, dA_ls, k=1)
         # beta = dA_ls / dA_l
         betaArr[bgIdx] = dA_ls_interp(self.cat_cl['WLdata']['redshifts'][bgIdx])
         betaArr[bgIdx]/= np.exp(np.interp(np.log(self.cat_cl['WLdata']['redshifts'][bgIdx]), self.dAs['lnz'], self.dAs['lndA']))
 
         ##### Weight beta(z) with N(z) distribution to get <beta> and <beta^2>
-        if self.cat_cl['WLdata']['datatype']=='Megacam':
-            self.beta_avg = np.sum(self.cat_cl['WLdata']['Nz']*betaArr)/self.cat_cl['WLdata']['Ntot']
-            self.beta2_avg = np.sum(self.cat_cl['WLdata']['Nz']*betaArr**2)/self.cat_cl['WLdata']['Ntot']
-        elif self.cat_cl['WLdata']['datatype']=='DES':
-            self.beta_avg = np.mean(betaArr)
-            self.beta2_avg = np.mean(betaArr**2)
+        if self.cat_cl['WLdata']['datatype'] in ['DES', 'Megacam']:
+            self.beta_avg = np.average(betaArr, weights=self.cat_cl['WLdata']['Nz'])
+            self.beta2_avg = np.average(betaArr**2, weights=self.cat_cl['WLdata']['Nz'])
+        # elif self.cat_cl['WLdata']['datatype']=='DES':
+        #     self.beta_avg = np.mean(betaArr)
+        #     self.beta2_avg = np.mean(betaArr**2)
         else:
             self.beta_avg, self.beta2_avg = {}, {}
             for i in self.cat_cl['WLdata']['pzs'].keys():
@@ -292,7 +326,7 @@ def arcsec(z):
     return .5 * np.pi + val
 
 def get_Delta_Sigma(x, r_s, rho_c_z, delta_c):
-    """Return Delta Sigma"""
+    """Return Delta Sigma = Sigma - Sigma_mean"""
     fac = 2 * r_s * rho_c_z * delta_c
     val1 = 1 / (1 - x**2)
     num = ((3 * x**2) - 2) * arcsec(x)
@@ -350,6 +384,9 @@ def readdata(catalog, HSTfile, MegacamFile, DESfile):
                     catalog['WLdata'][i] = {'datatype':'DES',
                         'r_arcmin': f[name]['shear_profile'][0],
                         'shear': f[name]['shear_profile'][1],
-                        'redshifts': f[name]['Nz'][:],
-                        'R_mis_arcmin': f[name]['R_mis_arcmin'][()],}
-                    catalog['WLdata'][i]['shear_cho_factor'] = cho_factor(f[name]['shear_profile_cov'][:])
+                        'redshifts': f[name]['Nz'][0],
+                        'Nz': f[name]['Nz'][1],
+                        'r200_fid': f[name]['r200_fid'][()],
+                        # 'R_mis_arcmin': f[name]['R_mis_arcmin'][()],
+                        'shear_cho_factor': cho_factor(f[name]['shear_profile_cov'][:])
+                        }
