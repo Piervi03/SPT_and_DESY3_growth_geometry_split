@@ -40,11 +40,11 @@ class HMFCalculator:
         window = 3 * (np.sin(kR)/kR**3 - np.cos(kR)/kR**2)
         dwindow = 3/kR**4 * (3*kR*np.cos(kR) + ((kR**2 - 3)*np.sin(kR)))
         # Integrands [z_arr, M_arr, k_arr]
-        integrand_sigma2 = Pk[:,None,:] * window[None,:,:]**2 * k_arr[None,None,:]**2
-        integrand_dsigma2dM = Pk[:,None,:] * window[None,:,:] * dwindow[None,:,:] * k_arr[None,None,:]**3
+        integrand_sigma2 = Pk[:,None,:] * window[None,:,:]**2 * k_arr[None,None,:]**3
+        integrand_dsigma2dM = Pk[:,None,:] * window[None,:,:] * dwindow[None,:,:] * k_arr[None,None,:]**4
         # Sigma^2 and dsigma^2/dM [z_arr, M_arr]
-        sigma2 = .5/np.pi**2 * np.trapz(integrand_sigma2, k_arr, axis=-1)
-        dsigma2dM = np.pi**-2 * R[None,:]/M_arr[None,:]/3 * np.trapz(integrand_dsigma2dM, k_arr, axis=-1)
+        sigma2 = .5/np.pi**2 * np.trapz(integrand_sigma2, np.log(k_arr), axis=-1)
+        dsigma2dM = np.pi**-2 * R[None,:]/M_arr[None,:]/3 * np.trapz(integrand_dsigma2dM, np.log(k_arr), axis=-1)
 
         ##### Compute Tinker HMF (unit volume)
         A, a, b, c = np.array([self.Tinker_params(z_arr[i], Deltamean[i]) for i in range(len(z_arr))]).T
