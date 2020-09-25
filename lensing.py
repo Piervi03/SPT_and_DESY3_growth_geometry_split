@@ -3,7 +3,7 @@ import numpy as np
 from numpy.lib import scimath as sm
 from scipy.interpolate import interp1d, InterpolatedUnivariateSpline, RectBivariateSpline
 from scipy.stats import norm
-from scipy.linalg import cho_factor, cho_solve
+# from scipy.linalg import cho_factor, cho_solve
 from multiprocessing import Pool
 
 import h5py
@@ -168,11 +168,8 @@ class SPTlensing:
         x_fcl = r_Mpch / r_s_fcl
         Sigma_fcl = get_Sigma(x_fcl, r_s_fcl, rho_c_z, delta_c_fcl)/get_Sigma(self.WLcalib['x0_fcl'], r_s_fcl, rho_c_z, delta_c_fcl)
         idx = (self.cat_cl['REDSHIFT']>self.WLcalib['A_fcl_z'])[0]
-        f_cl = self.WLcalib['A_fcl'][idx] * (self.cat_cl['LAMBDA']/self.WLcalib['lambda_piv_fcl'])**self.WLcalib['B_fcl'] * Sigma_fcl
+        f_cl = self.WLcalib['A_fcl'][idx] * (self.cat_cl['LAMBDA_RM']/self.WLcalib['lambda_piv_fcl'])**self.WLcalib['B_fcl'] * Sigma_fcl
         reduced_shear_cont = (1-f_cl) * reduced_shear
-
-        # out_ = np.concatenate((r_Mpch[None,:], self.cat_cl['WLdata']['shear'][None,:], reduced_shear_cont), axis=0)
-        # np.save(self.cat_cl['SPT_ID']+'shear', out_)
 
         # Interpolate to measured radial bins
         # r_arcmin = self.r_fine / Dl * 60*180/np.pi
@@ -181,10 +178,14 @@ class SPTlensing:
         # t.append(time.time())
 
         # Likelihood!
-        P_DES_Mwl = np.empty(self.len_M_arr)
-        for i in range(self.len_M_arr):
+        diffs = reduced_shear_cont - self.cat_cl['WLdata']['shear']
+        chi2 = (diffs/self.cat_cl['WLdata']['shear_err'])**2
+        P_DES_Mwl = np.exp(-.5*np.sum(chi2, axis=1))
+
+        # P_DES_Mwl = np.empty(self.len_M_arr)
+        # for i in range(self.len_M_arr):
             # this_g_t = g_t_interp[i](self.cat_cl['WLdata']['r_arcmin'])
-            P_DES_Mwl[i] = self.likelihood_DES(reduced_shear_cont[i])
+        #     P_DES_Mwl[i] = self.likelihood_DES(reduced_shear_cont[i])
 
         return P_DES_Mwl
 
@@ -382,11 +383,12 @@ def readdata(catalog, HSTfile, MegacamFile, DESfile):
             for i,name in enumerate(catalog['SPT_ID']):
                 if name in f.keys():
                     catalog['WLdata'][i] = {'datatype':'DES',
-                        'r_arcmin': f[name]['shear_profile'][0],
-                        'shear': f[name]['shear_profile'][1],
-                        'redshifts': f[name]['Nz'][0],
-                        'Nz': f[name]['Nz'][1],
+                        'r_arcmin': f[name]['r_arcmin'][:],
+                        'shear': f[name]['shear'][:],
+                        'shear_err': f[name]['shear_err'][:],
+                        'redshifts': f[name]['source_redshifts'][:],
+                        'Nz': f[name]['source_Nz'][:],
                         'r200_fid': f[name]['r200_fid'][()],
                         # 'R_mis_arcmin': f[name]['R_mis_arcmin'][()],
-                        'shear_cho_factor': cho_factor(f[name]['shear_profile_cov'][:])
+                        # 'shear_cho_factor': cho_factor(f[name]['shear_profile_cov'][:]),
                         }

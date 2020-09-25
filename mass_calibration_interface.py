@@ -67,6 +67,8 @@ def execute(block, masscalibration):
     for p in ['Ax', 'Bx', 'Cx', 'Ex', 'dlnMg_dlnr']:
         masscalibration.scaling[p] = block.get_double('mor_parameters', p)
     # WL
+    for p in ['r_core_inv', 'DES_b_0', 'DES_b_m', 'DES_b_z', 'DES_m_piv', 'DES_z_piv']:
+        masscalibration.scaling[p] = block.get_double('mor_parameters', p)
     for p in ['HSTscatterLSS', 'MegacamScatterLSS', 'DESscatterLSS']:
         masscalibration.scaling[p] = block.get_double('mor_parameters', p)
     masscalibration.scaling['bWL_HST'] = {}
@@ -93,7 +95,8 @@ def execute(block, masscalibration):
     ##### Compute lensing likelihoods
     if masscalibration.todo['WL']:
         masscalibration.WL.like_all(masscalibration.catalog,
-                                    masscalibration.cosmology)
+                                    masscalibration.cosmology,
+                                    masscalibration.scaling)
 
     ##### Compute likelihood
     lnlike = masscalibration.lnlike()

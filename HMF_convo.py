@@ -44,7 +44,7 @@ class MultiObsConvolution:
         self.NPROC = NPROC
         self.observable_pairs, self.pairs_zmin, self.pairs_zmax, self.pairs_Nz = [], [], [], []
         for pair, zmin, zmax, Nz in zip(observable_pairs, pairs_zmin, pairs_zmax, pairs_Nz):
-            if (pair in self.pairnames_2d) | (pair in self.pairnames_3d):
+            if (pair in self.pairnames_2d) | (pair in self.pairnames_3d) | (pair in self.pairnames_2d_DES):
                 self.observable_pairs.append(pair)
                 self.pairs_zmin.append(zmin)
                 self.pairs_zmax.append(zmax)
@@ -69,7 +69,10 @@ class MultiObsConvolution:
         output_dict = {'M_arr': self.HMF['M_arr'][::self.compression]}
         for pair_idx,pair_name in enumerate(self.observable_pairs):
             z_arr = np.linspace(self.pairs_zmin[pair_idx], self.pairs_zmax[pair_idx], self.pairs_Nz[pair_idx])
-            this_covmat_ = self.covmat['cov_%s'%pair_name]
+            if pair_name in self.pairnames_2d_DES:
+                this_covmat_ = 0
+            else:
+                this_covmat_ = self.covmat['cov_%s'%pair_name]
             obsname_s_ = self.obsnames_dict[pair_name]
             output_dict[pair_name] = self.get_P_multiobs_allz(obsname=obsname_s_,
                                                               pairname=pair_name,
@@ -162,12 +165,17 @@ class MultiObsConvolution:
     def get_P_2obs_DES_z(self, obsname, z):
         """Return P(DES_WL, zeta | M, z, p) with correlated scatter."""
         dN_dlnM, = np.exp(self.HMF_interp(np.log(z), np.log(self.HMF['M_arr'])))
-        # (Mass-dependent) covariance matrices
+        ## (Mass-dependent) covariance matrices
+        # Main component
         cov_base = np.array([[1, self.scaling['rhoSZWL']*self.scaling['Dsz']],
                              [self.scaling['rhoSZWL']*self.scaling['Dsz'], self.scaling['Dsz']**2]])
         DES_scatter = scaling_relations.WLscatter('main', self.HMF['M_arr'], z, self.scaling)
-        covmat = cov_base * np.array([[DES_scatter**2, DES_scatter],
-                                      [DES_scatter, 1]])
+        covmat_main = cov_base * np.array([DES_scatter**2, DES_scatter, DES_scatter, np.ones(len(DES_scatter))]).T.reshape(len(DES_scatter),2,2)
+        # Wide component
+        # DES_scatter = scaling_relations.WLscatter('wide', self.HMF['M_arr'], z, self.scaling)
+        # covmat_wide = cov_base * np.array([DES_scatter**2, DES_scatter, DES_scatter, 1]).T.reshape(len(DES_scatter),2,2)
+        covmat = covmat_main # + covmat_wide
+
         # Convert observable covmat into covmat in mass
         dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
         dlnM_dlnobs = scaling_relations.dlnM_dlnobs(obsname, self.scaling)
@@ -175,7 +183,7 @@ class MultiObsConvolution:
                              [dlnM_dlnobs*dlnM_dlnzeta, dlnM_dlnzeta**2]])
         covmat_lnM = covmat * Jacobian
         # Scatter kernels [lnobs, lnzeta]
-        kernels = []*len(self.HMF['M_arr'])
+        kernels = [None]*len(self.HMF['M_arr'])
         for i in range(len(self.HMF['M_arr'])):
             Nbins_obs, lnobs_arr = self.get_Nbins_array(msqrt(covmat_lnM[i,0,0]))
             Nbins_zeta, lnzeta_arr = self.get_Nbins_array(msqrt(covmat_lnM[i,1,1]))

@@ -342,7 +342,7 @@ class MassCalibration:
             elif obsname=='WLHST':
                 LSSnoise = self.WLcalib['HSTsim'][self.catalog['SPT_ID'][dataID]]['obs_scatter']
             elif obsname=='WLDES':
-                LSSnoise = self.WLcalib['DES_LSS'][0] + self.scaling['DESscatterLSS'] * self.WLcalib['DES_LSS'][1]
+                LSSnoise = 0.
             # Convolve with Gaussian LSS scatter
             if LSSnoise>0.:
                 dP_dobs = self.convolve_WL_LSS(obsArr, dP_dobs, LSSnoise)

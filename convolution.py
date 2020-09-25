@@ -40,9 +40,8 @@ def convolve_HMF_2obs_varkernel(dN_dlnM, kernels):
     # Validate input
     len_HMF = len(dN_dlnM)
     assert len(kernels)==len_HMF, "Need as many kernels as entries in HMF"
-    kernel_shapes = np.array([kernels[i].shape for i in len_HMF])
-    assert kernel_shapes[:,0]%2==0, "Kernels must be of even length"
-    assert kernel_shapes[:,1]%2==0, "Kernels must be of even length"
+    kernel_shapes = np.array([kernels[i].shape for i in range(len_HMF)])
+    assert np.all(kernel_shapes%2==0), "Kernels must be of even length"
     # Compute padding
     buffer_0_lo = np.amax(kernel_shapes[:,0]//2-range(len_HMF))
     buffer_0_hi = np.amax(kernel_shapes[:,0]//2-range(len_HMF)[::-1])

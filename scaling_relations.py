@@ -47,7 +47,7 @@ def mass2obs(name, mass, z, scaling, cosmology, cluster_ID=None):
     elif name=='WLHST':
         return scaling['bWL_HST'][cluster_ID] * mass
     elif name=='WLDES':
-        return np.exp(scaling['DES_b_0']) * (mass/scaling['DESmPivot'])**scaling['DES_b_m']
+        return np.exp(scaling['DES_b_0']) * scaling['DES_m_piv'] * (mass/scaling['DES_m_piv'])**scaling['DES_b_m'] * ((1+z)/(1+scaling['DES_z_piv']))**scaling['DES_b_z']
     else:
         raise ValueError("Observable not known:",name)
 
