@@ -47,7 +47,7 @@ def mass2obs(name, mass, z, scaling, cosmology, cluster_ID=None):
     elif name=='WLHST':
         return scaling['bWL_HST'][cluster_ID] * mass
     elif name=='WLDES':
-        return np.exp(scaling['DES_b_0']) * (mass/scaling['DESmPivot'])**scaling['DES_b_1']
+        return np.exp(scaling['DES_b_0']) * (mass/scaling['DESmPivot'])**scaling['DES_b_m']
     else:
         raise ValueError("Observable not known:",name)
 
@@ -69,7 +69,7 @@ def dlnM_dlnobs(name, scaling, cosmology=None, M0_arr=None, z=None):
     elif (name=='WLMegacam')|(name=='WLHST'):
         return 1.
     elif name=='WLDES':
-        return 1/scaling['DES_b_1']
+        return 1/scaling['DES_b_m']
     elif name=='disp':
         dlnM = np.log(1.01)
         dlnobs = np.log(mass2obs('disp', 1.01*M0_arr, z)/mass2obs('disp', M0_arr, z))
@@ -81,6 +81,7 @@ def dlnM_dlnobs(name, scaling, cosmology=None, M0_arr=None, z=None):
 ####################
 def WLscatter(name, mass, z, scaling):
     if name=='main':
-        return np.sqrt(np.exp(scaling['DES_s_0'] * (mass/scaling['DES_m_piv'])**scaling['DES_s_1']))
+        lnvar = scaling['DES_s_0'] + scaling['DES_s_M']*(mass/scaling['DES_m_piv']) + scaling['DES_s_z']*((1+z)/(1+scaling['DES_z_piv']))
+        return np.sqrt(np.exp(lnvar))
     elif name=='wide':
-        return np.sqrt(np.exp(scaling['DES_wide_s_0'] * (mass/scaling['DES_m_piv'])**scaling['DES_wide_s_1']))
+        return np.sqrt(np.exp(scaling['DES_wide_s_0'] + scaling['DES_wide_s_1']*(mass/scaling['DES_m_piv'])))
