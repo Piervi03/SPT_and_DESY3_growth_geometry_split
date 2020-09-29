@@ -81,7 +81,7 @@ def dlnM_dlnobs(name, scaling, cosmology=None, M0_arr=None, z=None):
 ####################
 def WLscatter(name, mass, z, scaling):
     if name=='main':
-        lnvar = scaling['DES_s_0'] + scaling['DES_s_M']*(mass/scaling['DES_m_piv']) + scaling['DES_s_z']*((1+z)/(1+scaling['DES_z_piv']))
+        lnvar = scaling['DES_s_0'] + scaling['DES_s_M']*np.log(mass/scaling['DES_m_piv']) + scaling['DES_s_z']*np.log((1+z)/(1+scaling['DES_z_piv']))
         return np.sqrt(np.exp(lnvar))
     elif name=='wide':
         return np.sqrt(np.exp(scaling['DES_wide_s_0'] + scaling['DES_wide_s_1']*(mass/scaling['DES_m_piv'])))

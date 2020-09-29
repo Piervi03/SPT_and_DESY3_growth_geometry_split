@@ -1,4 +1,4 @@
-from __future__ import division
+from __future__ import division, print_function
 import numpy as np
 from math import sqrt as msqrt
 
@@ -124,6 +124,8 @@ class MultiObsConvolution:
         Nbins_obs = int(2 * self.N_sigma * std / self.Delta_lnM)
         if Nbins_obs%2 != 0:
             Nbins_obs+= 1
+        if Nbins_obs<4:
+            Nbins_obs = 4
         minmax_ = (Nbins_obs-1)/2 * self.Delta_lnM
         lnobs_arr = np.linspace(-minmax_, minmax_, Nbins_obs)
 
