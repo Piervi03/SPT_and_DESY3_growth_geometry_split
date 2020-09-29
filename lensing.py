@@ -1,4 +1,4 @@
-from __future__ import division
+from __future__ import division, print_function
 import numpy as np
 from numpy.lib import scimath as sm
 from scipy.interpolate import interp1d, InterpolatedUnivariateSpline, RectBivariateSpline
@@ -134,13 +134,14 @@ class SPTlensing:
         r_s = r200c/c200c
 
         # Get miscentering radius
-        zeta = scaling_relations.mass2obs('zeta', self.M_arr, self.cat_cl['REDSHIFT'], self.scaling, self.cosmology)
-        xi = scaling_relations.zeta2xi(zeta)
-        r_core = 1/self.scaling['r_core_inv']
-        R_mis = self.miscenterer.get_mean_Rmis_SPT(r200c, r_core, xi, Dl)
+        # zeta = scaling_relations.mass2obs('zeta', self.M_arr, self.cat_cl['REDSHIFT'], self.scaling, self.cosmology)
+        # xi = scaling_relations.zeta2xi(zeta)
+        # r_core = 1/self.scaling['r_core_inv']
+        # R_mis = self.miscenterer.get_mean_Rmis_SPT(r200c, r_core, xi, Dl)
+        R_mis_arcmin = self.miscenterer.get_Rmis_extr_opt(self.cat_cl['LAMBDA_MCMF_COMB'], self.cat_cl['REDSHIFT'], self.WLcalib['miscenter_opt'], self.cosmology)
+        R_mis = R_mis_arcmin * Dl * np.pi/60/180
 
         # NFW surface mass densities [mass][radius]
-        # x = self.r_fine[None,:] / r_s[:,None]
         r_Mpch = self.cat_cl['WLdata']['r_arcmin'] * Dl * np.pi/60/180
         x = r_Mpch[None,:] / r_s[:,None]
 
@@ -148,16 +149,22 @@ class SPTlensing:
         Delta_Sigma_NFW = get_Delta_Sigma(x, r_s[:,None], rho_c_z, delta_c)
         Sigma_NFW_mean = Sigma_NFW - Delta_Sigma_NFW
 
+        # NFW surface mass densities at Rmis [mass]
+        x_Rmis = R_mis/r_s
+        Sigma_NFW_at_Rmis = get_Sigma(x_Rmis, r_s, rho_c_z, delta_c)
+        Delta_Sigma_NFW_at_Rmis = get_Delta_Sigma(x_Rmis, r_s, rho_c_z, delta_c)
+        Sigma_NFW_mean_at_Rmis = Sigma_NFW_at_Rmis - Delta_Sigma_NFW_at_Rmis
+
         # Miscentered quantities
         # Sigma = Sigma(R_mis) for r<R_mis
         Sigma_mis = Sigma_NFW.copy()
+        if not R_mis<r_Mpch[0]:
+            Sigma_mis[:,r_Mpch<R_mis] = Sigma_NFW_at_Rmis
+
         Sigma_mis_mean = np.empty(Sigma_NFW.shape)
         for i in range(self.len_M_arr):
-            Sigma_NFW_at_Rmis = Sigma_NFW[i,r_Mpch>=R_mis[i]][0]
-            Sigma_NFW_mean_at_Rmis = Sigma_NFW_mean[i,r_Mpch>=R_mis[i]][0]
-            Sigma_mis[i,r_Mpch<R_mis[i]] = Sigma_NFW_at_Rmis
-            Sigma_mis_mean[i,r_Mpch<R_mis[i]] = Sigma_NFW_at_Rmis
-            Sigma_mis_mean[i,:] = Sigma_NFW_mean[i,:] - (R_mis[i]/r_Mpch)**2 * (Sigma_NFW_at_Rmis-Sigma_NFW_mean_at_Rmis)
+            Sigma_mis_mean[i,r_Mpch<R_mis] = Sigma_NFW_at_Rmis[i]
+            Sigma_mis_mean[i,r_Mpch>R_mis] = Sigma_NFW_mean[i,:] - (R_mis/r_Mpch)**2 * (Sigma_NFW_at_Rmis-Sigma_NFW_mean_at_Rmis)[i]
 
         # Reduced shear profile [mass][radius]
         reduced_shear = (Sigma_mis-Sigma_mis_mean)/Sigma_c / (1 - Sigma_mis/Sigma_c)
@@ -168,24 +175,13 @@ class SPTlensing:
         x_fcl = r_Mpch / r_s_fcl
         Sigma_fcl = get_Sigma(x_fcl, r_s_fcl, rho_c_z, delta_c_fcl)/get_Sigma(self.WLcalib['x0_fcl'], r_s_fcl, rho_c_z, delta_c_fcl)
         idx = (self.cat_cl['REDSHIFT']>self.WLcalib['A_fcl_z'])[0]
-        f_cl = self.WLcalib['A_fcl'][idx] * (self.cat_cl['LAMBDA_RM']/self.WLcalib['lambda_piv_fcl'])**self.WLcalib['B_fcl'] * Sigma_fcl
+        f_cl = self.WLcalib['A_fcl'][idx] * (self.cat_cl['LAMBDA_MCMF_COMB']/self.WLcalib['lambda_piv_fcl'])**self.WLcalib['B_fcl'] * Sigma_fcl
         reduced_shear_cont = (1-f_cl) * reduced_shear
-
-        # Interpolate to measured radial bins
-        # r_arcmin = self.r_fine / Dl * 60*180/np.pi
-        # g_t_interp = [InterpolatedUnivariateSpline(r_arcmin, reduced_shear_cont[i,:])
-        #               for i in range(self.len_M_arr)]
-        # t.append(time.time())
 
         # Likelihood!
         diffs = reduced_shear_cont - self.cat_cl['WLdata']['shear']
         chi2 = (diffs/self.cat_cl['WLdata']['shear_err'])**2
         P_DES_Mwl = np.exp(-.5*np.sum(chi2, axis=1))
-
-        # P_DES_Mwl = np.empty(self.len_M_arr)
-        # for i in range(self.len_M_arr):
-            # this_g_t = g_t_interp[i](self.cat_cl['WLdata']['r_arcmin'])
-        #     P_DES_Mwl[i] = self.likelihood_DES(reduced_shear_cont[i])
 
         return P_DES_Mwl
 
