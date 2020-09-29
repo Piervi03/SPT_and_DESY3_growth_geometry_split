@@ -1,7 +1,9 @@
-from __future__ import division
+from __future__ import division, print_function
 import numpy as np
 from scipy.interpolate import interp1d, InterpolatedUnivariateSpline, RectBivariateSpline
 from scipy.stats import norm, rayleigh
+
+import cosmo
 
 class MisCentering(object):
 
@@ -17,6 +19,18 @@ class MisCentering(object):
         self.rho0 = 0.769
         self.sigma0 = 0.043
         self.sigma1 = 0.184
+
+
+    def get_Rmis_extr_opt(self, lam, z, miscenter_opt, cosmology):
+
+        # lam = miscenter_opt['A_lambda'] * (input_M_arr/3.e14)**miscenter_opt['B_lambda'] * \
+        #       (cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology))**miscenter_opt['C_lambda']
+
+        sigma0 = miscenter_opt['sigma0'] * ((1+lam)/60)**miscenter_opt['sigma0_lam'] * ((1+z)/1.6)**miscenter_opt['sigma0_z']
+        sigma1 = miscenter_opt['sigma1'] * ((1+lam)/60)**miscenter_opt['sigma1_lam']
+        mis = miscenter_opt['rho']*sigma0 + (1-miscenter_opt['rho'])*sigma1
+
+        return mis
 
 
     def get_mean_Rmis_SPT(self, r_Delta, r_core, xi, dA):
