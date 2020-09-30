@@ -10,7 +10,7 @@ cosmology = {'Omega_m': .28, 'Omega_l': .7, 'Ombh2': .022, 'Omnuh2': 0,
              'sigma8': .78, 'ns': .96,}
 cosmology['Omega_b'] = cosmology['Ombh2']/cosmology['h']**2
 
-scaling = {'Asz': 2.6, 'Bsz': 1.5, 'Csz': .5, 'Dsz': .2,
+scaling = {'Asz': .96, 'Bsz': 1.5, 'Csz': .5, 'Dsz': .2,
            'Bsz2':0, 'Csz2':0, 'DszM':0, 'Esz':0,
            'WLbias': 0., 'WLscatter': 0.,
            'HSTbias': 0., 'HSTscatterLSS':5.6e13,
