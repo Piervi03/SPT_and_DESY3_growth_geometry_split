@@ -22,7 +22,7 @@ def unwrap_self_f(arg):
 ################################################################################
 class MassCalibration:
 
-    def __init__(self, todo, scaling, mcType, surveyCutSZ, surveyCutRedshift,
+    def __init__(self, todo, mcType, surveyCutSZ, surveyCutRedshift,
                  SPT_survey_fields, SPT_doublecounts, SPTcatalogfile,
                  observable_pairs,
                  WLsimcalibfile,
@@ -30,7 +30,6 @@ class MassCalibration:
 
         self.NPROC = NPROC
         self.todo = todo
-        self.scaling = scaling
         self.mcType = mcType
         self.surveyCutSZ = surveyCutSZ
         self.surveyCutRedshift = surveyCutRedshift
@@ -60,8 +59,12 @@ class MassCalibration:
 
 
     ############################################################################
-    def lnlike(self):
+    def lnlike(self, HMF_convos, cosmology, scaling):
         """Returns ln-likelihood for mass calibration of the whole cluster sample."""
+        self.HMF_convos = HMF_convos
+        self.cosmology = cosmology
+        self.scaling = scaling
+
         ##### Initialize mass-concentration relation class (for WL and dispersions)
         if self.todo['veldisp']:
             self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, self.cosmology,

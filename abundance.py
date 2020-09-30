@@ -15,11 +15,10 @@ def unwrap_self_f(arg):
 ################################################################################
 class NumberCount:
 
-    def __init__(self, catalog, SPT_survey, scaling,
+    def __init__(self, catalog, SPT_survey,
                  surveyCutSZ, surveyCutRedshift, NPROC):
         self.catalog = catalog
         self.SPT_survey = SPT_survey
-        self.scaling = scaling
         self.surveyCutSZ = surveyCutSZ
         self.surveyCutRedshift = surveyCutRedshift
         self.NPROC = NPROC
@@ -42,8 +41,12 @@ class NumberCount:
 
 
 
-    def lnlike(self):
+    def lnlike(self, HMF, cosmology, scaling):
         """Return ln-likelihood for SPT cluster abundance."""
+        self.HMF = HMF
+        self.cosmology = cosmology
+        self.scaling = scaling
+
         ##### Convert HMF to dN/dln(zeta) = dN/dlog10(M) * dlog10(M)/dln(zeta)
         if ((self.scaling['Bsz2']!=0.)|(self.scaling['Csz2']!=0)|(self.scaling['Esz']!=0.)|(self.scaling['DszM']!=0.)):
             lnzetaM = np.log(scaling_relations.mass2obs('zeta', self.HMF['M_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling, self.cosmology))
