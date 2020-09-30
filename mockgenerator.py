@@ -26,11 +26,6 @@ def main():
     # Initialize c(M) calculator
     # MCrel = Mconversion_concentration.ConcentrationConversion(configMod.mcType, cosmology, setup_interp=True)
 
-    # [WL, X-ray, SZ, richness]
-    cov = [[scaling['DWL_Megacam']**2, scaling['rhoWLX']*scaling['DWL_Megacam']*scaling['Dx'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_Megacam'], scaling['rhoWLrichness']*scaling['DWL_Megacam']*scaling['Drichness']],
-        [scaling['rhoWLX']*scaling['DWL_Megacam']*scaling['Dx'], scaling['Dx']**2, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['rhoXrichness']*scaling['Dx']*scaling['Drichness']],
-        [scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_Megacam'], scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2, scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness']],
-        [scaling['rhoWLrichness']*scaling['DWL_Megacam']*scaling['Drichness'], scaling['rhoXrichness']*scaling['Dx']*scaling['Drichness'], scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness'], scaling['Drichness']**2]]
 
     # Compute HMF
     # HMF_xr = xr.open_dataset('HMF.nc')
@@ -55,6 +50,17 @@ def main():
     z_arr = np.linspace(configMod.surveyCutRedshift[0], configMod.surveyCutRedshift[1], int((configMod.surveyCutRedshift[1]-configMod.surveyCutRedshift[0])/dz) + 1)
     dz = z_arr[1]-z_arr[0]
 
+    # [WL, X-ray, SZ, richness]
+    covs = np.empty((len(z_arr), len(HMF['m']), 4, 4))
+    for i, z in enumerate(z_arr):
+        for j, M in enumerate(HMF['m']):
+            scaling['DWL_Megacam'] = scaling_relations.WLscatter('main', M, z, scaling)
+            covs[i,j,:,:] = [[scaling['DWL_Megacam']**2, scaling['rhoWLX']*scaling['DWL_Megacam']*scaling['Dx'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_Megacam'], scaling['rhoWLrichness']*scaling['DWL_Megacam']*scaling['Drichness']],
+                             [scaling['rhoWLX']*scaling['DWL_Megacam']*scaling['Dx'], scaling['Dx']**2, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['rhoXrichness']*scaling['Dx']*scaling['Drichness']],
+                             [scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_Megacam'], scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2, scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness']],
+                             [scaling['rhoWLrichness']*scaling['DWL_Megacam']*scaling['Drichness'], scaling['rhoXrichness']*scaling['Dx']*scaling['Drichness'], scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness'], scaling['Drichness']**2]]
+
+
     # Get the mock catalog
     # The HMF is in units [Msun/h]
     mock, fieldnames = [], []
@@ -71,7 +77,7 @@ def main():
         N = np.random.poisson(massfunc)
 
         obs_0 = [scaling_relations.mass2obs(name, np.array(HMF['m'])[None,:], z_arr[:,None], scaling, cosmology)
-                 for name in ('WLMegacam', configMod.Xray_obs, 'zeta', 'richness')]
+                 for name in ('WLDES', configMod.Xray_obs, 'zeta', 'richness')]
         # Reshape WL array (no z-dependence...)
         obs_0[0] = np.ones((len(z_arr), len(HMF['m']))) * obs_0[0]
         # Field depth
@@ -84,7 +90,7 @@ def main():
                 if N[i,j]==0:
                     continue
 
-                obs = np.exp(np.random.multivariate_normal(np.log(obs_0[:,i,j]), cov, N[i,j]))
+                obs = np.exp(np.random.multivariate_normal(np.log(obs_0[:,i,j]), covs[i,j], N[i,j]))
 
                 keep = (obs[:,2]>2).nonzero()[0]
                 for k in keep:
@@ -186,14 +192,17 @@ def main():
     # Theta_core (random)
     theta_core = .25 * np.random.randint(1, 13, len(names))
 
+    r200 = (3*mock[:,0]/(4*np.pi*200* cosmo.RHOCRIT * cosmo.Ez(mock[:,1], cosmology)**2.))**(1/3)
+
+
     ##### Save catalog file
     names_arr = ['SPT_ID', 'FIELD', 'XI', 'THETA_CORE', 'REDSHIFT', 'REDSHIFT_UNC', 'REDSHIFT_LIMIT',
                  'Mg_MM', 'lnMg_err_MM', 'lnYx_err_MM',
-                 'M_true', 'Tx_MM', 'M500', 'Mwl_500',
-                 'LAMBDA_RM', 'LAMBDA_RM_UNC', 'LAMBDA_PROB_MATCH']
+                 'M_true', 'Tx_MM', 'M500', 'Mwl_200', 'r200_fid',
+                 'LAMBDA_MCMF_COMB', 'LAMBDA_RM_UNC', 'LAMBDA_PROB_MATCH']
     data_arr = [names, fieldnames, mock[:,2], theta_core, mock[:,1], np.zeros(nCluster), redshiftLim,
                 Mgas, Xerrarr, Xerrarr, mock[:,0], 1e14*np.ones(nCluster),
-                M500_noh, mock[:,4],
+                M500_noh, mock[:,4], r200,
                 mock[:,5], configMod.richness_err*np.ones(nCluster), np.zeros(nCluster)]
     # Save to fits
     cat = Table(data_arr, names=names_arr)

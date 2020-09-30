@@ -1,4 +1,4 @@
-SPT_survey = 'data/SPT_survey.txt'
+SPT_survey = '/home/bocquet/SPT_cluster_data/SPT_SZ_survey_190418.txt'
 
 random_seed = 0
 
@@ -8,6 +8,7 @@ cosmology = {'Omega_m': .28, 'Omega_l': .7, 'Ombh2': .022, 'Omnuh2': 0,
              'h': 0.7,
              'w0': -1., 'wa': 0.,
              'sigma8': .78, 'ns': .96,}
+cosmology['Omega_b'] = cosmology['Ombh2']/cosmology['h']**2
 
 scaling = {'Asz': 2.6, 'Bsz': 1.5, 'Csz': .5, 'Dsz': .2,
            'Bsz2':0, 'Csz2':0, 'DszM':0, 'Esz':0,
@@ -16,6 +17,10 @@ scaling = {'Asz': 2.6, 'Bsz': 1.5, 'Csz': .5, 'Dsz': .2,
            'MegacamBias': 0., 'MegacamScatterLSS': 6.3e13,
            'DWL_Megacam': .3, 'bWL_Megacam': 1,
            'DESbias': 0., 'DESscatterLSS': 6.3e13,
+
+           'DES_b_0': -4.7014e-02, 'DES_s_0': -2.2815e+00 , 'DES_b_m': 9.9980e-01,  'DES_s_M': -2.2429e-01, 'DES_b_z': -1.3346e-02, 'DES_s_z': -2.7614e-01,
+           'DES_m_piv': 2e14, 'DES_z_piv': .6,
+
            'Adisp':939., 'Bdisp':2.91, 'Cdisp':.33, 'Ddisp0':.2, 'DdispN':3.,
            'Arichness': 70., 'Brichness': 1., 'Crichness': 0., 'Drichness': .2,
            'Ax': 6.5, 'Bx': .57, 'Cx': -.4, 'Dx': .12, 'Ex':0,
