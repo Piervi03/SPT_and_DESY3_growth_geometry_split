@@ -4,11 +4,13 @@ random_seed = 0
 
 # We mainly need the cosmology for E(z) and h
 # (and for the DK15 c-M relation)
-cosmology = {'Omega_m': .28, 'Omega_l': .7, 'Ombh2': .022, 'Omnuh2': 0,
+cosmology = {'Omega_m': .28, 'Ombh2': .022, 'Omnuh2': 0,
              'h': 0.7,
              'w0': -1., 'wa': 0.,
              'sigma8': .78, 'ns': .96,}
 cosmology['Omega_b'] = cosmology['Ombh2']/cosmology['h']**2
+cosmology['Ommh2'] = cosmology['Omega_m']*cosmology['h']**2
+cosmology['Omega_l'] = 1-cosmology['Omega_m']
 
 scaling = {'Asz': .96, 'Bsz': 1.5, 'Csz': .5, 'Dsz': .2,
            'Bsz2':0, 'Csz2':0, 'DszM':0, 'Esz':0,
