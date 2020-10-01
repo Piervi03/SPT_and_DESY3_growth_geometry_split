@@ -29,8 +29,7 @@ def main():
     with h5py.File('mock_WL_%s.hdf5'%time.strftime("%y%m%d-%H%M%S"), 'w') as f:
         for i,name in enumerate(cat['SPT_ID']):
             if cat['REDSHIFT'][i]>0 and cat['REDSHIFT'][i]<WLconfigMod.WL_z_max:
-                r_arcmin_full, g_2d_fid, r_arcmin, g_2d, g_2d_err, source_dist = mock_WL(cat[i])
-
+                r_arcmin, g_2d, g_2d_err, source_dist = mock_WL(cat[i])
 
                 g = f.create_group(name)
 
@@ -38,15 +37,9 @@ def main():
                 d = g.create_dataset('r_arcmin', data=r_arcmin)
                 d = g.create_dataset('shear', data=g_2d)
                 d = g.create_dataset('shear_err', data=g_2d_err)
-                # d = g.create_dataset('shear_profile_fid', data=((r_arcmin_full, g_2d_fid)))
-
                 d = g.create_dataset('source_redshifts', data=z_cen)
                 d = g.create_dataset('source_Nz', data=np.histogram(source_dist, bins=z_bins)[0])
-
                 g.create_dataset('r200_fid', data=cat['r200_fid'][i])
-
-                # d = g.create_dataset('R_mis_arcmin', data=((WLconfigMod.rho0, WLconfigMod.sigma0, WLconfigMod.sigma1)))
-                # d = g.create_dataset('R_mis', data=R_mis)
 
 
 ##### Compute the inverse sec of the complex number z.
@@ -89,29 +82,6 @@ class MockUpWL:
         self.Delta_crit = self.config_mod.Delta_crit
 
 
-
-    def get_gt(self, z, beta_avg, beta2_avg):
-        """Return the predicted radial shear profile for a given mass, redshift,
-        and betas."""
-        ##### M200 and scale radius, wrt critical density, everything in h units
-        c = 3#self.MCrel.calC200(self.M_Delta, z)
-        delta_c = self.Delta_crit/3 * c**3 / (np.log(1+c) - c/(1+c))
-        rs = self.r_Delta/c
-
-        ##### Now let's do WL!
-        # dimensionless radial distance
-        x = self.config_mod.r_bin_Mpc*self.cosmology['h'] / rs
-        r_arcmin = self.config_mod.r_bin_Mpc*self.cosmology['h'] / self.Dl * 60*180/np.pi
-
-        # Sigma_crit, with c^2/4piG [h Msun/Mpc^2]
-        Sigma_c = 1.6624541593797974e+18/self.Dl/beta_avg
-
-        gamma_t = get_Delta_Sigma(x, rs, self.rho_c_z, delta_c) / Sigma_c
-        kappa_t = get_Sigma(x, rs, self.rho_c_z, delta_c) / Sigma_c
-        g_2d = gamma_t/(1-kappa_t)# * (1 + kappa_t*(beta2_avg/beta_avg**2 - 1))
-
-        return r_arcmin, g_2d
-
     def get_Rmis_opt(self, lam, z, miscenter_opt):
         sigma0 = miscenter_opt['sigma0'] * ((1+lam)/60)**miscenter_opt['sigma0_lam'] * ((1+z)/1.6)**miscenter_opt['sigma0_z']
         sigma1 = miscenter_opt['sigma1'] * ((1+lam)/60)**miscenter_opt['sigma1_lam']
@@ -120,49 +90,7 @@ class MockUpWL:
         return mis
 
 
-    def get_Rmis_SPT(self):
-        """Draw from SPT positional uncertainty and from double-Rayleigh
-        miscentering probability."""
-        # SPT positional uncertainty and offset
-        sigma_SPT_arcmin = np.sqrt(1.3**2 + self.theta_c**2)/self.xi
-        sigma_SPT_Mpc = sigma_SPT_arcmin * np.pi/180/60 * self.Dl
-
-        sigma0 = np.sqrt(self.sigma0**2 + (sigma_SPT_Mpc/self.r500c)**2)
-        sigma1 = np.sqrt(self.sigma1**2 + (sigma_SPT_Mpc/self.r500c)**2)
-
-        # Double Rayleigh
-        temp = np.random.rand()
-        if temp<self.rho0:
-            R_draw = stats.rayleigh.rvs(scale=sigma0)
-        else:
-            R_draw = stats.rayleigh.rvs(scale=sigma1)
-
-        return R_draw
-
-
-    def get_Rmis_r200c(self):
-        """Draw from double-Rayleigh miscentering probability."""
-        # Double Rayleigh
-        temp = np.random.rand()
-        if temp<self.rho0:
-            x_draw = stats.rayleigh.rvs(scale=self.sigma0)
-        else:
-            x_draw = stats.rayleigh.rvs(scale=self.sigma1)
-
-        return x_draw * self.r_Delta
-
-    def get_Rmis_arcmin(self):
-        """Draw from double-Rayleigh miscentering probability. Return r_mis
-        [arcmin]"""
-        # Double Rayleigh
-        temp = np.random.rand()
-        if temp<self.rho0:
-            return stats.rayleigh.rvs(scale=self.sigma0)
-        else:
-            return stats.rayleigh.rvs(scale=self.sigma1)
-
-
-    def get_miscentered_gt(self, z, beta_avg, beta2_avg):
+    def get_miscentered_gt(self, z, beta_avg):
         """Return the predicted radial shear profile for a given mass, redshift,
         and betas."""
         ##### M200 and scale radius, wrt critical density, everything in h units
@@ -205,18 +133,6 @@ class MockUpWL:
         return g_t
 
 
-    def miscenter_profile(self, r, profile, r_mis):
-        profile_interp = InterpolatedUnivariateSpline(np.log(r), np.log(profile))
-        theta = np.linspace(0, np.pi, 256)
-        # [r, theta]
-        r_eff = np.sqrt(r[:,None]**2 + r_mis**2 + 2*np.cos(theta[None,:])*r[:,None]*r_mis)
-        profile_theta = np.exp(profile_interp(np.log(r_eff)))/np.pi
-
-        profile_r_mis = np.trapz(profile_theta, theta, axis=-1)
-        return profile_r_mis
-
-
-
     def get_source_gals(self, z):
         """Return stochastic realization of source galaxy redshifts with `z>z_cl
         + z_offset` for each radial bin."""
@@ -239,9 +155,8 @@ class MockUpWL:
         beta = np.array([cosmo.dA_two_z(z_cl, z, self.cosmology)/cosmo.dA(z, self.cosmology) for z in z_dist])
         # Apply beta bias
         beta_avg = np.mean(beta)
-        beta2_avg = np.mean(beta**2)
 
-        return beta_avg, beta2_avg
+        return beta_avg
 
 
     def apply_cl_mem_contamination(self, z, g_2d):
@@ -279,8 +194,8 @@ class MockUpWL:
         self.r_arcmin = self.r_arr / self.Dl * 60*180/np.pi
 
         source_dist_r, source_dist = self.get_source_gals(z_cl)
-        beta_avg, beta2_avg = self.get_beta(z_cl, source_dist)
-        g_2d_fid = self.get_miscentered_gt(z_cl, beta_avg, beta2_avg)
+        beta_avg = self.get_beta(z_cl, source_dist)
+        g_2d_fid = self.get_miscentered_gt(z_cl, beta_avg)
         g_2d_cont = self.apply_cl_mem_contamination(z_cl, g_2d_fid)
         # Error on shear is shape_noise / sqrt(N(r))
         N_r = np.array([len(source_dist_r[i]) for i in range(len(source_dist_r))])
@@ -288,23 +203,15 @@ class MockUpWL:
         good_idx = (N_r>4).nonzero()[0]
 
         N_r = N_r[good_idx]
-        g_2d = g_2d_fid[good_idx]
+        g_2d = g_2d_cont[good_idx]
 
         # Shape and shot noise
         g_2d_err = self.config_mod.shape_noise / np.sqrt(N_r)
 
-        # WL LSS scatter
-        # idx_lo = (self.LSS_z<z_cl).nonzero()[0][-1]
-        # Delta_z = z_cl - self.LSS_z[idx_lo]
-        # Delta_cov = self.LSS_cov[idx_lo+1,:,:] - self.LSS_cov[idx_lo,:,:]
-        # this_cov = self.LSS_cov[idx_lo,:,:] + Delta_z*Delta_cov
-        # g_2d_err = np.diag(g_2d_err**2) + this_cov[good_idx,:][:,good_idx]
-
         # Apply scatter
-        # g_2d+= np.random.multivariate_normal(np.zeros(len(g_2d)), g_2d_err)
         g_2d+= g_2d_err*np.random.randn(len(g_2d))
 
-        return self.r_arcmin, g_2d_fid, self.r_arcmin[good_idx], g_2d, g_2d_err, source_dist
+        return self.r_arcmin[good_idx], g_2d, g_2d_err, source_dist
 
 
 
