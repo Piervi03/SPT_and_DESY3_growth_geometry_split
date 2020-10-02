@@ -5,9 +5,8 @@ import sys
 import time
 import importlib
 from scipy.interpolate import RectBivariateSpline
-# from astropy.io import fits as pyfits
 from astropy.table import Table
-import xarray as xr
+# import xarray as xr
 
 import compute_HMF_MiraTitan, cosmo, Mconversion_concentration, scaling_relations
 
@@ -33,7 +32,6 @@ def main():
     #        'm': HMF_xr['m'],
     #        'dNdlnM': HMF_xr.to_array()[0]}
 
-    cosmology['Ommh2'] = cosmology['Omega_m']*cosmology['h']**2
     HMF = {'z': np.linspace(0, 2, 21),
            'm': np.logspace(13, 15.5, 251)}
     MiraTitan_HMF = compute_HMF_MiraTitan.HMFCalculator(200., 'Duffy08', HMF['z'], HMF['m'])
@@ -54,11 +52,11 @@ def main():
     covs = np.empty((len(z_arr), len(HMF['m']), 4, 4))
     for i, z in enumerate(z_arr):
         for j, M in enumerate(HMF['m']):
-            scaling['DWL_Megacam'] = scaling_relations.WLscatter('main', M, z, scaling)
-            covs[i,j,:,:] = [[scaling['DWL_Megacam']**2, scaling['rhoWLX']*scaling['DWL_Megacam']*scaling['Dx'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_Megacam'], scaling['rhoWLrichness']*scaling['DWL_Megacam']*scaling['Drichness']],
-                             [scaling['rhoWLX']*scaling['DWL_Megacam']*scaling['Dx'], scaling['Dx']**2, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['rhoXrichness']*scaling['Dx']*scaling['Drichness']],
-                             [scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_Megacam'], scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2, scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness']],
-                             [scaling['rhoWLrichness']*scaling['DWL_Megacam']*scaling['Drichness'], scaling['rhoXrichness']*scaling['Dx']*scaling['Drichness'], scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness'], scaling['Drichness']**2]]
+            scaling['DWL_DES'] = scaling_relations.WLscatter('main', M, z, scaling)
+            covs[i,j,:,:] = [[scaling['DWL_DES']**2, scaling['rhoWLX']*scaling['DWL_DES']*scaling['Dx'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_DES'], scaling['rhoWLrichness']*scaling['DWL_DES']*scaling['Drichness']],
+                             [scaling['rhoWLX']*scaling['DWL_DES']*scaling['Dx'], scaling['Dx']**2, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['rhoXrichness']*scaling['Dx']*scaling['Drichness']],
+                             [scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_DES'], scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2, scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness']],
+                             [scaling['rhoWLrichness']*scaling['DWL_DES']*scaling['Drichness'], scaling['rhoXrichness']*scaling['Dx']*scaling['Drichness'], scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness'], scaling['Drichness']**2]]
 
 
     # Get the mock catalog
@@ -76,13 +74,11 @@ def main():
         # Poisson realization
         N = np.random.poisson(massfunc)
 
-        obs_0 = [scaling_relations.mass2obs(name, np.array(HMF['m'])[None,:], z_arr[:,None], scaling, cosmology)
-                 for name in ('WLDES', configMod.Xray_obs, 'zeta', 'richness')]
-        # Reshape WL array (no z-dependence...)
-        obs_0[0] = np.ones((len(z_arr), len(HMF['m']))) * obs_0[0]
+        obs_0 = np.array([scaling_relations.mass2obs(name, np.array(HMF['m'])[None,:], z_arr[:,None], scaling, cosmology)
+                          for name in ('WLDES', configMod.Xray_obs, 'zeta', 'richness')])
+
         # Field depth
-        obs_0[2]*= SPT_survey['GAMMA'][fieldidx]
-        obs_0 = np.array(obs_0)
+        obs_0[2,:]*= SPT_survey['GAMMA'][fieldidx]
 
 
         for i, z in enumerate(z_arr):
@@ -201,8 +197,8 @@ def main():
                  'M_true', 'Tx_MM', 'M500', 'Mwl_200', 'r200_fid',
                  'LAMBDA_MCMF_COMB', 'LAMBDA_RM_UNC', 'LAMBDA_PROB_MATCH']
     data_arr = [names, fieldnames, mock[:,2], theta_core, mock[:,1], np.zeros(nCluster), redshiftLim,
-                Mgas, Xerrarr, Xerrarr, mock[:,0], 1e14*np.ones(nCluster),
-                M500_noh, mock[:,4], r200,
+                Mgas, Xerrarr, Xerrarr,
+                mock[:,0], 1e14*np.ones(nCluster), M500_noh, mock[:,4], r200,
                 mock[:,5], configMod.richness_err*np.ones(nCluster), np.zeros(nCluster)]
     # Save to fits
     cat = Table(data_arr, names=names_arr)
