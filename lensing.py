@@ -3,6 +3,7 @@ import numpy as np
 from numpy.lib import scimath as sm
 from scipy.interpolate import interp1d, InterpolatedUnivariateSpline, RectBivariateSpline
 from scipy.stats import norm
+from scipy.interpolate import InterpolatedUnivariateSpline, RectBivariateSpline
 # from scipy.linalg import cho_factor, cho_solve
 from multiprocessing import Pool
 
@@ -58,11 +59,16 @@ class SPTlensing:
             self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, self.cosmology,
                                                                            setup_interp=True, interp_massdef=500)
 
-        # Pre-compute angular diameter distances
-        self.get_dAs(cosmology)
-
         # Go through all clusters with WL data
         WL_idx = (catalog['WLdata'] != None).nonzero()[0]
+
+        # Redshift limits
+        z_cl_min = np.amin(catalog['REDSHIFT'][WL_idx])
+        z_cl_max = np.amax(catalog['REDSHIFT'][WL_idx])
+
+        # Pre-compute angular diameter distances
+        self.get_dAs(z_cl_min, z_cl_max, 5., cosmology)
+        # t.append(time.time())
 
         if self.NPROC==0:
             p_Mwl = [self.like_cluster(catalog[i]) for i in WL_idx]
@@ -76,6 +82,8 @@ class SPTlensing:
         catalog['p_Mwl'][WL_idx] = p_Mwl
         # t.append(time.time())
         # print("lensing done", t[-1]-t[0])
+
+        return 0
 
 
     ########################################
@@ -125,7 +133,7 @@ class SPTlensing:
         """Return array P(DES data|Mwl)."""
 
         # Sigma_crit, with c^2/4piG [h Msun/Mpc^2]
-        Dl = cosmo.dA(self.cat_cl['REDSHIFT'], self.cosmology)
+        Dl = np.exp(self.lndA_interp(np.log(self.cat_cl['REDSHIFT'])))
         Sigma_c = 1.6624541593797974e+18/Dl/self.beta_avg
         rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.cat_cl['REDSHIFT'], self.cosmology)**2 # [h^2 Msun/Mpc^3]
         r200c = (3*self.M_arr/4/np.pi/200/rho_c_z)**(1/3)
@@ -192,7 +200,7 @@ class SPTlensing:
     def get_cluster_properties(self):
         """Return rho_c(z_cluster), luminosity distance (z_cluster), delta_c,
         and r_s."""
-        Dl = cosmo.dA(self.cat_cl['REDSHIFT'], self.cosmology)
+        Dl = np.exp(self.lndA_interp(np.log(self.cat_cl['REDSHIFT'])))
         rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.cat_cl['REDSHIFT'], self.cosmology)**2 # [h^2 Msun/Mpc^3]
 
         M200c = np.exp(self.MCrel.lnM_to_lnM200(self.cat_cl['REDSHIFT'], np.log(self.M_arr)))[0]
@@ -275,11 +283,18 @@ class SPTlensing:
 
     ########################################
     # dA [Mpc/h]
-    def get_dAs(self, cosmology):
+    def get_dAs(self, z_cl_min, z_cl_max, z_s_max, cosmology):
         """Precompute angular diameter distances for an array of redshifts."""
-        zs = np.logspace(-1,np.log10(5),100)
-        dA = np.array([cosmo.dA(z, cosmology) for z in zs])
-        self.dAs = {'lnz':np.log(zs), 'lndA':np.log(dA)}
+        z = np.logspace(np.log10(z_cl_min), np.log10(z_s_max), 32)
+        dA = np.array([cosmo.dA(z_, cosmology) for z_ in z])
+        self.lndA_interp = InterpolatedUnivariateSpline(np.log(z), np.log(dA))
+
+        z_cl = np.logspace(np.log10(z_cl_min), np.log10(z_cl_max), 32)
+        z_s = np.logspace(np.log10(z_cl_min), np.log10(z_s_max), 32)
+        tmp = np.array([cosmo.dA_two_z(z_cl_, z_s_, cosmology) for z_cl_ in z_cl for z_s_ in z_s]).reshape(32,32)
+        self.dA_twoz_interp = RectBivariateSpline(np.log(z_cl), np.log(z_s), tmp)
+
+        return 0
 
 
     ########################################
@@ -290,21 +305,15 @@ class SPTlensing:
         bgIdx = np.where(self.cat_cl['WLdata']['redshifts']>self.cat_cl['REDSHIFT'])[0]
 
         ##### Calculate beta(z_source)
-        # Set up interpolation
-        z_arr = np.linspace(np.amin(self.cat_cl['WLdata']['redshifts'][bgIdx]), np.amax(self.cat_cl['WLdata']['redshifts'][bgIdx]), 64)
-        dA_ls = np.array([cosmo.dA_two_z(self.cat_cl['REDSHIFT'], z, cosmology) for z in z_arr])
-        dA_ls_interp = InterpolatedUnivariateSpline(z_arr, dA_ls, k=1)
         # beta = dA_ls / dA_l
-        betaArr[bgIdx] = dA_ls_interp(self.cat_cl['WLdata']['redshifts'][bgIdx])
-        betaArr[bgIdx]/= np.exp(np.interp(np.log(self.cat_cl['WLdata']['redshifts'][bgIdx]), self.dAs['lnz'], self.dAs['lndA']))
+        betaArr[bgIdx] = self.dA_twoz_interp(np.log(self.cat_cl['REDSHIFT']), np.log(self.cat_cl['WLdata']['redshifts'][bgIdx]))
+        betaArr[bgIdx]/= np.exp(self.lndA_interp(np.log(self.cat_cl['WLdata']['redshifts'][bgIdx])))
 
         ##### Weight beta(z) with N(z) distribution to get <beta> and <beta^2>
         if self.cat_cl['WLdata']['datatype'] in ['DES', 'Megacam']:
             self.beta_avg = np.average(betaArr, weights=self.cat_cl['WLdata']['Nz'])
             self.beta2_avg = np.average(betaArr**2, weights=self.cat_cl['WLdata']['Nz'])
-        # elif self.cat_cl['WLdata']['datatype']=='DES':
-        #     self.beta_avg = np.mean(betaArr)
-        #     self.beta2_avg = np.mean(betaArr**2)
+
         else:
             self.beta_avg, self.beta2_avg = {}, {}
             for i in self.cat_cl['WLdata']['pzs'].keys():
