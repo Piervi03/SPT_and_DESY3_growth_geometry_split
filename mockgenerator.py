@@ -21,7 +21,7 @@ def main():
     SPT_survey = Table.read(configMod.SPT_survey, format='ascii.commented_header')
     cosmology = configMod.cosmology
     scaling = configMod.scaling
-    np.random.seed(configMod.random_seed)
+    rng = np.random.default_rng(configMod.random_seed)
     # Initialize c(M) calculator
     # MCrel = Mconversion_concentration.ConcentrationConversion(configMod.mcType, cosmology, setup_interp=True)
 
@@ -72,7 +72,7 @@ def main():
         massfunc = np.exp(HMF_dNdM_V(np.log(z_arr), np.log(HMF['m']))) * SPT_survey['AREA'][fieldidx] * dz
 
         # Poisson realization
-        N = np.random.poisson(massfunc)
+        N = rng.poisson(massfunc)
 
         obs_0 = np.array([scaling_relations.mass2obs(name, np.array(HMF['m'])[None,:], z_arr[:,None], scaling, cosmology)
                           for name in ('WLDES', configMod.Xray_obs, 'zeta', 'richness')])
@@ -86,21 +86,21 @@ def main():
                 if N[i,j]==0:
                     continue
 
-                obs = np.exp(np.random.multivariate_normal(np.log(obs_0[:,i,j]), covs[i,j], N[i,j]))
+                obs = np.exp(rng.multivariate_normal(np.log(obs_0[:,i,j]), covs[i,j], N[i,j]))
 
                 keep = (obs[:,2]>2).nonzero()[0]
                 for k in keep:
                     # draw xi|zeta
-                    xi = np.random.normal(scaling_relations.zeta2xi(obs[k,2]), scale=1.)
+                    xi = rng.normal(scaling_relations.zeta2xi(obs[k,2]), scale=1.)
                     if xi>=configMod.surveyCutSZ[0]:
                         # Apply observational error to Mgas
-                        Mg = np.random.lognormal(np.log(obs[k,1]), sigma=configMod.Xerr)
+                        Mg = rng.lognormal(np.log(obs[k,1]), sigma=configMod.Xerr)
                         # Convert WL mass to 200c
                         # M200h_WL = np.exp(MCrel.lnM_to_lnM200(z, np.log(obs[k,0]))[0,0])
 
                         # Observed richness
-                        richness_int = np.random.lognormal(np.log(obs[k,3]), obs[k,3]**-.5)
-                        richness_obs = np.random.normal(richness_int, configMod.richness_err)
+                        richness_int = rng.lognormal(np.log(obs[k,3]), obs[k,3]**-.5)
+                        richness_obs = rng.normal(richness_int, configMod.richness_err)
 
                         mock.append((M, z, xi, Mg, obs[k,0], richness_obs))
                         fieldnames.append(field)
@@ -108,7 +108,7 @@ def main():
         # False detections
         dNdxiFalse = SPT_survey['BETA'][fieldidx] * SPT_survey['AREA'][fieldidx]/2500. * SPT_survey['ALPHA'][fieldidx] * np.exp(-SPT_survey['BETA'][fieldidx]*(xiArrBin-5.)) * dxi
         for i in range(len(dNdxiFalse)):
-            N = np.random.poisson(dNdxiFalse[i])
+            N = rng.poisson(dNdxiFalse[i])
             for k in range(N):
                 mock.append((0., 0., xiArrBin[i], 0., 0., 0.))
                 fieldnames.append(field)
@@ -158,14 +158,14 @@ def main():
             # Build a BETA profile with BETA=2/3 (because that easy to integrate)
             # and random r500/7 < rc < r500/3
             # Note that the amplitude doesn't matter because this thing gets rescaled below
-            rcFactor = 3 + 4*np.random.random()
+            rcFactor = 3 + 4*rng.random()
             rc = r500/rcFactor
             Micm = rc**2 * (rArr - rc*np.arctan(rArr/rc))
             # Normalize it such that Micm(r500) = mock[i,3]
             Micmr500 = np.interp(r500, rArr, Micm)
             Micm*= mock[i,3]/Micmr500
         elif configMod.profile_shape=='PL':
-            Micm = mock[i,3] * (rArr/r500)**(scaling['slope_MgR'] + scaling['slope_MgR_std']*np.random.randn())
+            Micm = mock[i,3] * (rArr/r500)**(scaling['slope_MgR'] + scaling['slope_MgR_std']*rng.normal())
 
         # Scale back to ref cosmology
         Micmref = Micm * (dAref/dA)**2.5
@@ -183,10 +183,10 @@ def main():
     redshiftLim[mock[:,1]==0.] = 1.4
 
     # M500 estimate, neede for defining X-ray observable
-    M500_noh = np.random.lognormal(np.log(mock[:,0]/cosmology['h']), scaling['Dsz']/scaling['Bsz'])
+    M500_noh = rng.lognormal(np.log(mock[:,0]/cosmology['h']), scaling['Dsz']/scaling['Bsz'])
 
     # Theta_core (random)
-    theta_core = .25 * np.random.randint(1, 13, len(names))
+    theta_core = .25 * rng.integers(1, 13, len(names))
 
     r200 = (3*mock[:,0]/(4*np.pi*200* cosmo.RHOCRIT * cosmo.Ez(mock[:,1], cosmology)**2.))**(1/3)
 

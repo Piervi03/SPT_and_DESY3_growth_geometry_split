@@ -17,7 +17,6 @@ import cosmo, Mconversion_concentration
 def main():
     WLconfigMod = importlib.import_module(sys.argv[1][:-3])
     mockconfigMod = importlib.import_module(sys.argv[2][:-3])
-    np.random.seed(WLconfigMod.random_seed)
     cosmology = mockconfigMod.cosmology
     MCrel = Mconversion_concentration.ConcentrationConversion(mockconfigMod.mcType, cosmology, setup_interp=True)
     mock_WL = MockUpWL(cosmology, MCrel)
@@ -80,6 +79,7 @@ class MockUpWL:
         self.MCrel = MCrel
         self.config_mod = importlib.import_module('WL_input')
         self.Delta_crit = self.config_mod.Delta_crit
+        self.rng = np.random.default_rng(self.config_mod.random_seed)
 
         data_ = np.loadtxt(self.config_mod.beta_bias_file, unpack=True)[:3]
         self.betatrue_betameas = InterpolatedUnivariateSpline(data_[1], data_[0])
@@ -100,7 +100,7 @@ class MockUpWL:
         """Return the predicted radial shear profile for a given mass, redshift,
         and betas."""
         ##### M200 and scale radius, wrt critical density, everything in h units
-        c = 3#10**np.random.rand()#self.MCrel.calC200(self.M_Delta, z)
+        c = 3#10**self.rng.random()#self.MCrel.calC200(self.M_Delta, z)
         delta_c = self.Delta_crit/3 * c**3 / (np.log(1+c) - c/(1+c))
         rs = self.r_Delta/c
 
@@ -143,8 +143,8 @@ class MockUpWL:
         """Return stochastic realization of source galaxy redshifts with `z>z_cl
         + z_offset` for each radial bin."""
         area_bin_arcmin = np.pi * (self.r_arcmin[1:]**2 - self.r_arcmin[:-1]**2)
-        N = np.random.poisson(area_bin_arcmin * self.config_mod.source_p_arcmin2)
-        z_dist = [np.random.lognormal(np.log(self.config_mod.source_lognorm_dist_mean),
+        N = self.rng.poisson(area_bin_arcmin * self.config_mod.source_p_arcmin2)
+        z_dist = [self.rng.lognormal(np.log(self.config_mod.source_lognorm_dist_mean),
                                      self.config_mod.source_lognorm_dist_sigma,
                                      this_N) for this_N in N]
         for i in range(len(N)):
@@ -222,7 +222,7 @@ class MockUpWL:
         # g_2d_err = np.sqrt(g_2d_err**2 + np.diag(this_cov[good_idx,:][:,good_idx]))
 
         # Apply scatter
-        g_2d+= g_2d_err*np.random.randn(len(g_2d))
+        g_2d+= g_2d_err*self.rng.normal(len(g_2d))
 
         return self.r_arcmin[good_idx], g_2d, g_2d_err, source_dist
 
