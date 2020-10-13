@@ -165,7 +165,7 @@ def main():
             Micmr500 = np.interp(r500, rArr, Micm)
             Micm*= mock[i,3]/Micmr500
         elif configMod.profile_shape=='PL':
-            Micm = mock[i,3] * (rArr/r500)**(scaling['slope_MgR'] + scaling['slope_MgR_std']*rng.normal())
+            Micm = mock[i,3] * (rArr/r500)**(scaling['slope_MgR'] + scaling['slope_MgR_std']*rng.standard_normal())
 
         # Scale back to ref cosmology
         Micmref = Micm * (dAref/dA)**2.5

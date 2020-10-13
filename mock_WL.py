@@ -28,7 +28,7 @@ def main():
     with h5py.File('mock_WL_%s.hdf5'%time.strftime("%y%m%d-%H%M%S"), 'w') as f:
         for i,name in enumerate(cat['SPT_ID']):
             if cat['REDSHIFT'][i]>0 and cat['REDSHIFT'][i]<WLconfigMod.WL_z_max:
-                r_arcmin, g_2d, g_2d_err, source_dist = mock_WL(cat[i])
+                r_arcmin, g_2d, g_2d_err, source_dist, g_2d_cen, g_2d_mis = mock_WL(cat[i])
 
                 g = f.create_group(name)
 
@@ -36,6 +36,8 @@ def main():
                 d = g.create_dataset('r_arcmin', data=r_arcmin)
                 d = g.create_dataset('shear', data=g_2d)
                 d = g.create_dataset('shear_err', data=g_2d_err)
+                d = g.create_dataset('shear_cen', data=g_2d_cen)
+                d = g.create_dataset('shear_mis', data=g_2d_mis)
                 d = g.create_dataset('source_redshifts', data=z_cen)
                 d = g.create_dataset('source_Nz', data=np.histogram(source_dist, bins=z_bins)[0])
                 g.create_dataset('r200_fid', data=cat['r200_fid'][i])
@@ -121,16 +123,17 @@ class MockUpWL:
         # Sigma = Sigma(R_mis) for r<R_mis
         Sigma_mis = Sigma_NFW.copy()
         if not R_mis<self.r_arr[0]:
-            Sigma_mis[:,self.r_arr<R_mis] = Sigma_NFW_at_Rmis
+            Sigma_mis[self.r_arr<R_mis] = Sigma_NFW_at_Rmis
 
         Sigma_mis_mean = np.empty(Sigma_NFW.shape)
         Sigma_mis_mean[self.r_arr<R_mis] = Sigma_NFW_at_Rmis
-        Sigma_mis_mean[self.r_arr>R_mis] = Sigma_NFW_mean[:] - (R_mis/self.r_arr)**2 * (Sigma_NFW_at_Rmis-Sigma_NFW_mean_at_Rmis)
+        Sigma_mis_mean[self.r_arr>R_mis] = Sigma_NFW_mean[:] + (R_mis/self.r_arr)**2 * (Sigma_NFW_at_Rmis-Sigma_NFW_mean_at_Rmis)
 
         # Reduced shear profile [mass][radius]
-        g_t = (Sigma_mis-Sigma_mis_mean)/Sigma_c / (1 - Sigma_mis/Sigma_c)
+        g_t_mis = (Sigma_mis-Sigma_mis_mean)/Sigma_c / (1 - Sigma_mis/Sigma_c)
+        g_t_cen = Delta_Sigma_NFW/Sigma_c / (1-Sigma_NFW/Sigma_c)
 
-        return g_t
+        return g_t_mis, g_t_cen
 
 
     def get_source_gals(self, z):
@@ -193,8 +196,8 @@ class MockUpWL:
 
         source_dist_r, source_dist = self.get_source_gals(z_cl)
         beta_avg = self.get_beta(z_cl, source_dist)
-        g_2d_fid = self.get_miscentered_gt(z_cl, beta_avg)
-        g_2d_cont = self.apply_cl_mem_contamination(z_cl, g_2d_fid)
+        g_2d_mis, g_2d_cen = self.get_miscentered_gt(z_cl, beta_avg)
+        g_2d_cont = self.apply_cl_mem_contamination(z_cl, g_2d_mis)
         # Error on shear is shape_noise / sqrt(N(r))
         N_r = np.array([len(source_dist_r[i]) for i in range(len(source_dist_r))])
 
@@ -207,9 +210,9 @@ class MockUpWL:
         g_2d_err = self.config_mod.shape_noise / np.sqrt(N_r)
 
         # Apply scatter
-        g_2d+= g_2d_err*self.rng.normal(len(g_2d))
+        g_2d+= g_2d_err*self.rng.standard_normal(len(g_2d))
 
-        return self.r_arcmin[good_idx], g_2d, g_2d_err, source_dist
+        return self.r_arcmin[good_idx], g_2d, g_2d_err, source_dist, g_2d_cen[good_idx], g_2d_mis[good_idx]
 
 
 
