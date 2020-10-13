@@ -162,7 +162,7 @@ class MockUpWL:
         delta_c_fcl = 200/3 * self.config_mod.WL_params['c_fcl']**3 / (np.log(1+self.config_mod.WL_params['c_fcl']) - self.config_mod.WL_params['c_fcl']/(1+self.config_mod.WL_params['c_fcl']))
         x_fcl = self.r_arr / r_s_fcl
         Sigma_fcl = get_Sigma(x_fcl, r_s_fcl, self.rho_c_z, delta_c_fcl)/get_Sigma(self.config_mod.WL_params['x0_fcl'], r_s_fcl, self.rho_c_z, delta_c_fcl)
-        idx = (z>self.config_mod.WL_params['A_fcl_z'])[0]
+        idx = (self.config_mod.WL_params['A_fcl_z']<z).nonzero()[0][-1]
         f_cl = self.config_mod.WL_params['A_fcl'][idx] * (self.lam/self.config_mod.WL_params['lambda_piv_fcl'])**self.config_mod.WL_params['B_fcl'] * Sigma_fcl
         reduced_shear_cont = (1-f_cl) * g_2d
 
