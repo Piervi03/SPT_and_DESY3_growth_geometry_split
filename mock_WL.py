@@ -81,12 +81,6 @@ class MockUpWL:
         self.Delta_crit = self.config_mod.Delta_crit
         self.rng = np.random.default_rng(self.config_mod.random_seed)
 
-        data_ = np.loadtxt(self.config_mod.beta_bias_file, unpack=True)[:3]
-        self.betatrue_betameas = InterpolatedUnivariateSpline(data_[1], data_[0])
-
-        self.LSS_z = np.load(self.config_mod.LSS_cov_z_file)
-        self.LSS_cov = np.load(self.config_mod.LSS_cov_file)
-
 
     def get_Rmis_opt(self, lam, z, miscenter_opt):
         sigma0 = miscenter_opt['sigma0'] * ((1+lam)/60)**miscenter_opt['sigma0_lam'] * ((1+z)/1.6)**miscenter_opt['sigma0_z']
@@ -160,8 +154,6 @@ class MockUpWL:
         """Return `<beta>` and `<beta**2>` given a redshift distribution."""
         beta = np.array([cosmo.dA_two_z(z_cl, z, self.cosmology)/cosmo.dA(z, self.cosmology) for z in z_dist])
         beta_avg = np.mean(beta)
-        # Apply beta bias
-        beta*= self.betatrue_betameas(z_cl)
         return beta_avg
 
 
@@ -213,13 +205,6 @@ class MockUpWL:
 
         # Shape and shot noise
         g_2d_err = self.config_mod.shape_noise / np.sqrt(N_r)
-
-        # WL LSS scatter
-        # idx_lo = (self.LSS_z<z_cl).nonzero()[0][-1]
-        # Delta_z = z_cl - self.LSS_z[idx_lo]
-        # Delta_cov = self.LSS_cov[idx_lo+1,:,:] - self.LSS_cov[idx_lo,:,:]
-        # this_cov = self.LSS_cov[idx_lo,:,:] + Delta_z*Delta_cov
-        # g_2d_err = np.sqrt(g_2d_err**2 + np.diag(this_cov[good_idx,:][:,good_idx]))
 
         # Apply scatter
         g_2d+= g_2d_err*self.rng.normal(len(g_2d))

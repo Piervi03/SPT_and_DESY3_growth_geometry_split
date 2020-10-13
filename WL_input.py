@@ -6,12 +6,6 @@ Delta_crit = 200
 
 WL_z_max = .9
 
-beta_bias_file = '/home/bocquet/SPT_cluster_data/sci_uncertainty_zdiff_01_40bins_new.dat'
-
-# LSS covariance matrix
-LSS_cov_z_file = '/home/bocquet/clustercosmo19/mock_DESWL/z_cluster.npy'
-LSS_cov_file = '/home/bocquet/clustercosmo19/mock_DESWL/LSS_covs.npy'
-
 # DES Y3
 source_p_arcmin2 = 10
 
