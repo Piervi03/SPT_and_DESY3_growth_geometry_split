@@ -172,7 +172,7 @@ class SPTlensing:
         Sigma_mis_mean = np.empty(Sigma_NFW.shape)
         for i in range(self.len_M_arr):
             Sigma_mis_mean[i,r_Mpch<R_mis] = Sigma_NFW_at_Rmis[i]
-            Sigma_mis_mean[i,r_Mpch>R_mis] = Sigma_NFW_mean[i,:] - (R_mis/r_Mpch)**2 * (Sigma_NFW_at_Rmis-Sigma_NFW_mean_at_Rmis)[i]
+            Sigma_mis_mean[i,r_Mpch>R_mis] = Sigma_NFW_mean[i,:] + (R_mis/r_Mpch)**2 * (Sigma_NFW_at_Rmis-Sigma_NFW_mean_at_Rmis)[i]
 
         # Reduced shear profile [mass][radius]
         reduced_shear = (Sigma_mis-Sigma_mis_mean)/Sigma_c / (1 - Sigma_mis/Sigma_c)
