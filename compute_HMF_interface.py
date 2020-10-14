@@ -40,9 +40,9 @@ def execute(block, HMF_calculator):
             'w0': block.get_double('cosmological_parameters', 'w'),
             'wa': block.get_double('cosmological_parameters', 'wa')}
         # Matter power spectrum
-        z_arr = block.get_double_array_1d('matter_power_lin', 'z')
-        k_arr = block.get_double_array_1d('matter_power_lin', 'k_h')
-        Pk = block.get_double_array_nd('matter_power_lin', 'p_k')
+        z_arr = block.get_double_array_1d('matter_power_lin_cdm_baryon', 'z')
+        k_arr = block.get_double_array_1d('matter_power_lin_cdm_baryon', 'k_h')
+        Pk = block.get_double_array_nd('matter_power_lin_cdm_baryon', 'p_k')
         # Compute the HMF
         M_arr, dNdlnM_noVol, dNdlnM = HMF_calculator.compute_HMF(cosmology, z_arr, k_arr, Pk)
         # Put it into block
