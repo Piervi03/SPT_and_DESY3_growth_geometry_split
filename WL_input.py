@@ -25,7 +25,7 @@ WL_params = {'x0_fcl': 1.01,
              'A_fcl_z': [.15, .2, .25, .3, .4, .5, .6, .7, .9],
              'B_fcl': .515,
              'c_fcl': 1.91,
-             'DES_WL_priors_file': '/home/bocquet/SPT_cluster_data/DES_Y1_MariaPaulus/WL_priors.txt',
              'miscenter_opt': {'rho': 0.06910239, 'sigma0': 0.31633618, 'sigma0_z': 0.5141243, 'sigma0_lam': -0.61753193, 'sigma1': 0.03232347, 'sigma1_lam': -1.60232199,
                                'A_lambda': 60, 'B_lambda': 1., 'C_lambda': 0},
-                              }
+            }
+

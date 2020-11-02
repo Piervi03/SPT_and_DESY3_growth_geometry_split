@@ -1,15 +1,13 @@
 from __future__ import division
 import numpy as np
 import scipy.linalg as LA
-import imp
 
 from cosmosis.datablock import option_section
 
 def setup(options):
-    WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
-    WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
+    DES_WL_priors_file = options.get_string(option_section, 'DES_WL_priors_file')
 
-    tmp = np.loadtxt(WLsimcalib.WLcalibration['DES_WL_priors_file'])
+    tmp = np.loadtxt(DES_WL_priors_file)
     DES_WL_prior = {'mean': tmp[0,:],
                     'cov': tmp[1:,:]}
 
