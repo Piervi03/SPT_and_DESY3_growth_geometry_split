@@ -17,7 +17,7 @@ class HMFCalculator:
         if not self.HMFemu.validate_params(cosmology):
             return 1
 
-        if self.Deltacrit==200:
+        if self.Deltacrit==200.:
             self.dNdlnM_unitVol = self.HMFemu.predict(cosmology, self.z_arr, self.M_arr, get_errors=False)[0]
 
         else:

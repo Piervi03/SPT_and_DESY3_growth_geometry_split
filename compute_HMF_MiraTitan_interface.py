@@ -32,8 +32,6 @@ def execute(block, HMF_calculator):
     # Only need cosmo for E(z)-type stuff
     cosmology = {
         'Omega_m': block.get_double('cosmological_parameters', 'Omega_m'),
-        'Omega_b': block.get_double('cosmological_parameters', 'Omega_b'),
-        'Omega_nu': block.get_double('cosmological_parameters', 'Omega_nu'),
         'Omega_l': block.get_double('cosmological_parameters', 'omega_lambda'),
         'Ommh2': block.get_double('cosmological_parameters', 'ommh2'),
         'Ombh2': block.get_double('cosmological_parameters', 'ombh2'),
@@ -42,9 +40,7 @@ def execute(block, HMF_calculator):
         'n_s': block.get_double('cosmological_parameters', 'n_s'),
         'sigma_8': block.get_double('cosmological_parameters', 'sigma_8'),
         'w0': block.get_double('cosmological_parameters', 'w'),
-        'wa': block.get_double('cosmological_parameters', 'wa'),
-        'w_0': block.get_double('cosmological_parameters', 'w'),
-        'w_a': block.get_double('cosmological_parameters', 'wa'),}
+        'wa': block.get_double('cosmological_parameters', 'wa'),}
     # Compute the HMF
     bad = HMF_calculator.compute_HMF(cosmology)
     if bad:
