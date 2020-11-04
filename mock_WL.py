@@ -22,22 +22,25 @@ def main():
     mock_WL = MockUpWL(cosmology, MCrel)
     cat = Table.read(sys.argv[3])
 
-    z_bins = np.linspace(.1, 3.1, 32)
-    z_cen = .5*(z_bins[1:]+z_bins[:-1])
-
     with h5py.File('mock_WL_%s.hdf5'%time.strftime("%y%m%d-%H%M%S"), 'w') as f:
         for i,name in enumerate(cat['SPT_ID']):
             if cat['REDSHIFT'][i]>0 and cat['REDSHIFT'][i]<WLconfigMod.WL_z_max:
-                r_arcmin, g_2d, g_2d_err, source_dist, g_2d_cen, g_2d_mis = mock_WL(cat[i])
+                r_Mpch, r_arcmin, g_2d, g_2d_err, source_dist, g_2d_cen, g_2d_mis, g_2d_noerr = mock_WL(cat[i])
+
+                z_max = (int(np.amax(source_dist)/.01)+1)/100
+                z_bins = np.linspace(.2, z_max, round((z_max-.2)*100)+1)
+                z_cen = .5*(z_bins[1:]+z_bins[:-1])
 
                 g = f.create_group(name)
 
                 d = g.create_dataset('z_cluster', data=cat['REDSHIFT'][i])
                 d = g.create_dataset('r_arcmin', data=r_arcmin)
+                d = g.create_dataset('r_Mpch', data=r_Mpch)
                 d = g.create_dataset('shear', data=g_2d)
                 d = g.create_dataset('shear_err', data=g_2d_err)
                 d = g.create_dataset('shear_cen', data=g_2d_cen)
                 d = g.create_dataset('shear_mis', data=g_2d_mis)
+                d = g.create_dataset('shear_noerr', data=g_2d_noerr)
                 d = g.create_dataset('source_redshifts', data=z_cen)
                 d = g.create_dataset('source_Nz', data=np.histogram(source_dist, bins=z_bins)[0])
                 g.create_dataset('r200_fid', data=cat['r200_fid'][i])
@@ -82,6 +85,9 @@ class MockUpWL:
         self.config_mod = importlib.import_module('WL_input')
         self.Delta_crit = self.config_mod.Delta_crit
         self.rng = np.random.default_rng(self.config_mod.random_seed)
+        # Radial binning scheme following data
+        self.r_edges = np.logspace(-1, 1, 21)
+        self.r_mean = 2/3 * (self.r_edges[1:]**3-self.r_edges[:-1]**3)/(self.r_edges[1:]**2-self.r_edges[:-1]**2)
 
 
     def get_Rmis_opt(self, lam, z, miscenter_opt):
@@ -189,9 +195,9 @@ class MockUpWL:
 
         # Radii
         r_min = .25
-        r_max = 3  * (1+z_cl)**(-1.3)
-        N = int(np.log(r_max/r_min)/.3)
-        self.r_arr = np.exp(np.linspace(np.log(r_min), np.log(r_max), N))
+        r_max = 3 * (1+z_cl)**(-1.3)
+        good_idx = ((r_min<=self.r_edges)&(self.r_edges<=r_max)).nonzero()[0]
+        self.r_arr = self.r_mean[good_idx[:-1]]
         self.r_arcmin = self.r_arr / self.Dl * 60*180/np.pi
 
         source_dist_r, source_dist = self.get_source_gals(z_cl)
@@ -212,7 +218,7 @@ class MockUpWL:
         # Apply scatter
         g_2d+= g_2d_err*self.rng.standard_normal(len(g_2d))
 
-        return self.r_arcmin[good_idx], g_2d, g_2d_err, source_dist, g_2d_cen[good_idx], g_2d_mis[good_idx]
+        return self.r_arr[good_idx], self.r_arcmin[good_idx], g_2d, g_2d_err, source_dist, g_2d_cen[good_idx], g_2d_mis[good_idx], g_2d_cont[good_idx]
 
 
 
