@@ -23,10 +23,10 @@ grid_lgr_fine_max = 1
 grid_lgM_min = 12.5
 grid_lgM_max = 15.5
 
-def unwrap_self_like_cluster(arg):
-    return SPTlensing.like_cluster(*arg)
+def unwrap_self_lnlike_cluster(arg):
+    return SPTlensing.lnlike_cluster(*arg)
 
-##### This class reads and stores shear data and calculates P(shear|P(M))
+##### This class reads and stores shear data and calculates ln P(shear|P(M))
 class SPTlensing:
 
     def __init__(self, catalog, WLsimcalibfile,
@@ -49,8 +49,8 @@ class SPTlensing:
 
 
     ########################################
-    def like_all(self, catalog, cosmology, scaling):
-        """Return p(data|M_arr) for all clusters with WL data."""
+    def lnlike_all(self, catalog, cosmology, scaling):
+        """Return ln p(data|M_arr) for all clusters with WL data."""
         # t = []
         # t.append(time.time())
         self.cosmology = cosmology
@@ -71,15 +71,15 @@ class SPTlensing:
         # t.append(time.time())
 
         if self.NPROC==0:
-            p_Mwl = [self.like_cluster(catalog[i]) for i in WL_idx]
+            lnp_Mwl = [self.lnlike_cluster(catalog[i]) for i in WL_idx]
         else:
             pool = Pool(processes=self.NPROC)
             argin = zip([self]*len(WL_idx), catalog[WL_idx])
-            p_Mwl = pool.map(unwrap_self_like_cluster, argin)
+            lnp_Mwl = pool.map(unwrap_self_lnlike_cluster, argin)
             pool.close()
 
-        catalog['p_Mwl'] = [None]*len(catalog)
-        catalog['p_Mwl'][WL_idx] = p_Mwl
+        catalog['lnp_Mwl'] = [None]*len(catalog)
+        catalog['lnp_Mwl'][WL_idx] = lnp_Mwl
         # t.append(time.time())
         # print("lensing done", t[-1]-t[0])
 
@@ -87,10 +87,9 @@ class SPTlensing:
 
 
     ########################################
-    # Get P(Mwl) from dP/dMwl and shear data
-    def like_cluster(self, data):
-        """Return likelihood of shear profile for a given cluster (index) given
-        an array of cluster masses."""
+    def lnlike_cluster(self, data):
+        """Return ln-likelihood of shear profile for a given cluster (index)
+        given an array of cluster masses."""
         # t = []
         # t.append(time.time())
 
@@ -102,35 +101,35 @@ class SPTlensing:
 
         ##### Likelihood
         if self.cat_cl['WLdata']['datatype']=='DES':
-            pOfMass = self.like_DES()
+            lnpOfMass = self.lnlike_DES()
         elif self.cat_cl['WLdata']['datatype']=='Megacam':
             rho_c_z, Dl, delta_c, r_s = self.get_cluster_properties()
-            pOfMass = self.like_Megacam(rho_c_z, Dl, delta_c, r_s)
+            lnpOfMass = self.lnlike_Megacam(rho_c_z, Dl, delta_c, r_s)
         elif self.cat_cl['WLdata']['datatype']=='HST':
             rho_c_z, Dl, delta_c, r_s = self.get_cluster_properties()
-            pOfMass = self.like_HST(rho_c_z, Dl, delta_c, r_s)
+            lnpOfMass = self.lnlike_HST(rho_c_z, Dl, delta_c, r_s)
         # t.append(time.time())
         # t = np.array(t)
         # print('done', t[-1]-t[0], np.diff(t))
-        return pOfMass
+        return lnpOfMass
 
 
 
     ########################################
 
 
-    def likelihood_DES(self, g_t):
-        """Return P(DES data|Mwl)"""
+    def lnlikelihood_DES(self, g_t):
+        """Return lnP(DES data|Mwl)"""
         diff = self.cat_cl['WLdata']['shear'] - g_t
         chi2 = np.dot(diff, cho_solve(self.cat_cl['WLdata']['shear_cho_factor'], diff))
-        likeli = np.exp(-.5 * chi2)
+        lnlikeli = -.5 * chi2
 
-        return likeli
+        return lnlikeli
 
 
 
-    def like_DES(self):
-        """Return array P(DES data|Mwl)."""
+    def lnlike_DES(self):
+        """Return array lnP(DES data|Mwl)."""
 
         # Sigma_crit, with c^2/4piG [h Msun/Mpc^2]
         Dl = np.exp(self.lndA_interp(np.log(self.cat_cl['REDSHIFT'])))
@@ -189,9 +188,9 @@ class SPTlensing:
         # Likelihood!
         diffs = reduced_shear_cont - self.cat_cl['WLdata']['shear']
         chi2 = (diffs/self.cat_cl['WLdata']['shear_err'])**2
-        P_DES_Mwl = np.exp(-.5*np.sum(chi2, axis=1))
+        lnP_DES_Mwl = -.5*np.sum(chi2, axis=1)
 
-        return P_DES_Mwl
+        return lnP_DES_Mwl
 
 
 
@@ -213,8 +212,8 @@ class SPTlensing:
 
     ########################################
 
-    def like_Megacam(self, rho_c_z, Dl, delta_c, r_s):
-        """Return array P(Megacam data|Mwl)."""
+    def lnlike_Megacam(self, rho_c_z, Dl, delta_c, r_s):
+        """Return array lnP(Megacam data|Mwl)."""
         # Dimensionless radial distance [Radius][Mass]
         x = self.cat_cl['WLdata']['r_deg'][:,None] * Dl * np.pi/180 / r_s[None,:]
         # Sigma_crit, with c^2/4piG [h Msun/Mpc^2]
@@ -225,18 +224,18 @@ class SPTlensing:
         kappa_2d = get_Sigma(x, r_s, rho_c_z, delta_c) / Sigma_c
         g_2d = gamma_2d/(1-kappa_2d) * (1 + kappa_2d*(self.beta2_avg/self.beta_avg**2-1))
 
-        likelihood = norm.pdf(g_2d, self.cat_cl['WLdata']['shear'][:,None], self.cat_cl['WLdata']['shearerr'][:,None])
+        diff = g_2d - self.cat_cl['WLdata']['shear'][:,None]
+        chi2 = (diff/self.cat_cl['WLdata']['shearerr'][:,None])**2
+        lnpOfMass = -.5*np.sum(chi2, axis=0)
 
-        pOfMass = np.prod(likelihood, axis=0)
-
-        return pOfMass
+        return lnpOfMass
 
 
 
     ########################################
 
-    def like_HST(self, rho_c_z, Dl, delta_c, r_s):
-        """Return array P(HST data|Mwl)."""
+    def lnlike_HST(self, rho_c_z, Dl, delta_c, r_s):
+        """Return array lnP(HST data|Mwl)."""
         # Dimensionless radial distance [Radius][Mass]
         x = self.cat_cl['WLdata']['r_deg'][:,None] * Dl * np.pi/180 / r_s[None,:]
 
@@ -272,11 +271,11 @@ class SPTlensing:
         rPhysRef = self.cat_cl['WLdata']['r_deg'] * DlRef * np.pi/180 /cosmoRef['h']
         rInclude = np.where((rPhysRef>.5)&(rPhysRef<1.5))[0]
 
-        likelihood = norm.pdf(g_2d[rInclude,:], self.cat_cl['WLdata']['shear'][rInclude,None], self.cat_cl['WLdata']['shearerr'][rInclude,None])
+        diff = g_2d[rInclude,:] - self.cat_cl['WLdata']['shear'][rInclude,None]
+        chi2 = (diff/self.cat_cl['WLdata']['shearerr'][rInclude,None])**2
+        lnpOfMass = -.5*np.sum(chi2, axis=0)
 
-        pOfMass = np.prod(likelihood, axis=0)
-
-        return pOfMass
+        return lnpOfMass
 
 
 

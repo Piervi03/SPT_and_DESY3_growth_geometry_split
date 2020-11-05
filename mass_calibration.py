@@ -351,7 +351,7 @@ class MassCalibration:
                 dP_dobs = self.convolve_WL_LSS(obsArr, dP_dobs, LSSnoise)
             # obsArr, dP_dobs = self.downsample_distribution(obsArr, dP_dobs)
             # P(Mwl) from data
-            WL_interp = InterpolatedUnivariateSpline(np.log(self.WL.M_arr), np.log(self.catalog['p_Mwl'][dataID]))
+            WL_interp = InterpolatedUnivariateSpline(np.log(self.WL.M_arr), self.catalog['lnp_Mwl'][dataID])
             # Get likelihood
             likeli = np.trapz(np.exp(WL_interp(np.log(obsArr)))*dP_dobs, obsArr)
 
@@ -421,7 +421,7 @@ class MassCalibration:
 
         ##### P(obs0, obs1)
         # P(Mwl) from data
-        WL_interp = InterpolatedUnivariateSpline(np.log(self.WL.M_arr), np.log(self.catalog['p_Mwl'][dataID]))
+        WL_interp = InterpolatedUnivariateSpline(np.log(self.WL.M_arr), self.catalog['lnp_Mwl'][dataID])
         Pwl = np.exp(WL_interp(lnobsArr[0]))
         Px = norm.pdf(obsmeas[1], obsArr[1], obserr[1])
         Pobs = Pwl[:,None] * Px[None,:]
