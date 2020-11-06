@@ -195,7 +195,7 @@ class MassCalibration:
         """Interpolate HMF[z, obs_0...N] to redshift z using linear
         interpolation of z_arr in log-log space."""
         lnz_arr = np.log(z_arr)
-        idx_lo = np.where(z_arr<z)[0][-1]
+        idx_lo = np.digitize(z, z_arr)-1
         Delta_lnz = np.log(z)-lnz_arr[idx_lo]
         Delta_lny = lnHMF[idx_lo+1]-lnHMF[idx_lo]
         res = lnHMF[idx_lo] + Delta_lnz*Delta_lny
@@ -215,7 +215,7 @@ class MassCalibration:
         if len(shape)==2:
             HMF_integrand = np.empty((shape[0], 32))
             for i in range(32):
-                idx_lo = (xi_arr<xi_arr_int[i]).nonzero()[0][-1]
+                idx_lo = np.digitize(xi_arr_int[i], xi_arr)-1
                 Delta_lnxi = np.log(xi_arr_int[i]) - np.log(xi_arr[idx_lo])
                 Delta_lny = ln_HMF[:,idx_lo+1] - ln_HMF[:,idx_lo]
                 HMF_integrand[:,i] = np.exp(ln_HMF[:,idx_lo] + Delta_lnxi*Delta_lny)
@@ -224,7 +224,7 @@ class MassCalibration:
         elif len(shape)==3:
             HMF_integrand = np.empty((shape[0], shape[1], 32))
             for i in range(32):
-                idx_lo = (xi_arr<xi_arr_int[i]).nonzero()[0][-1]
+                idx_lo = np.digitize(xi_arr_int[i], xi_arr)-1
                 Delta_lnxi = np.log(xi_arr_int[i]) - np.log(xi_arr[idx_lo])
                 Delta_lny = ln_HMF[:,:,idx_lo+1] - ln_HMF[:,:,idx_lo]
                 HMF_integrand[:,:,i] = np.exp(ln_HMF[:,:,idx_lo] + Delta_lnxi*Delta_lny)

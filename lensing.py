@@ -181,7 +181,7 @@ class SPTlensing:
         delta_c_fcl = 200/3 * self.WLcalib['c_fcl']**3 / (np.log(1+self.WLcalib['c_fcl']) - self.WLcalib['c_fcl']/(1+self.WLcalib['c_fcl']))
         x_fcl = r_Mpch / r_s_fcl
         Sigma_fcl = get_Sigma(x_fcl, r_s_fcl, rho_c_z, delta_c_fcl)/get_Sigma(self.WLcalib['x0_fcl'], r_s_fcl, rho_c_z, delta_c_fcl)
-        idx = (self.cat_cl['REDSHIFT']>self.WLcalib['A_fcl_z']).nonzero()[0][-1]
+        idx = np.digitize(self.cat_cl['REDSHIFT'], self.WLcalib['A_fcl_z'])-1
         f_cl = self.WLcalib['A_fcl'][idx] * (self.cat_cl['LAMBDA_MCMF_COMB']/self.WLcalib['lambda_piv_fcl'])**self.WLcalib['B_fcl'] * Sigma_fcl
         reduced_shear_cont = (1-f_cl) * reduced_shear
 
