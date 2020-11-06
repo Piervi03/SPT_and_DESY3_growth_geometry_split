@@ -7,7 +7,7 @@ from astropy.table import Table
 
 import scipy.special as ss
 from scipy import integrate, signal
-from scipy.interpolate import InterpolatedUnivariateSpline, RectBivariateSpline
+from scipy.interpolate import InterpolatedUnivariateSpline, RegularGridInterpolator
 from scipy.stats import norm, lognorm, multivariate_normal
 
 import cosmo, Mconversion_concentration, scaling_relations
@@ -213,22 +213,28 @@ class MassCalibration:
 
         shape = ln_HMF.shape
         if len(shape)==2:
-            HMF_integrand = np.empty((shape[0], 32))
-            for i in range(32):
-                idx_lo = np.digitize(xi_arr_int[i], xi_arr)-1
-                Delta_lnxi = np.log(xi_arr_int[i]) - np.log(xi_arr[idx_lo])
-                Delta_lny = ln_HMF[:,idx_lo+1] - ln_HMF[:,idx_lo]
-                HMF_integrand[:,i] = np.exp(ln_HMF[:,idx_lo] + Delta_lnxi*Delta_lny)
+            dummy = np.linspace(0, shape[0], shape[0])
+            ln_HMF_interp = RegularGridInterpolator((dummy, np.log(xi_arr)), ln_HMF)
+            pts = np.array(np.meshgrid(dummy, np.log(xi_arr_int), indexing='ij')).reshape(2,-1).T
+            HMF_integrand = np.exp(ln_HMF_interp(pts).reshape(shape[0],len(xi_arr_int)))
             this_xi_arr = xi_arr_int[None,:]
 
         elif len(shape)==3:
-            HMF_integrand = np.empty((shape[0], shape[1], 32))
-            for i in range(32):
-                idx_lo = np.digitize(xi_arr_int[i], xi_arr)-1
-                Delta_lnxi = np.log(xi_arr_int[i]) - np.log(xi_arr[idx_lo])
-                Delta_lny = ln_HMF[:,:,idx_lo+1] - ln_HMF[:,:,idx_lo]
-                HMF_integrand[:,:,i] = np.exp(ln_HMF[:,:,idx_lo] + Delta_lnxi*Delta_lny)
+            dummy0 = np.linspace(0, shape[0], shape[0])
+            dummy1 = np.linspace(0, shape[1], shape[1])
+            ln_HMF_interp = RegularGridInterpolator((dummy0, dummy1, np.log(xi_arr)), ln_HMF)
+            pts = np.array(np.meshgrid(dummy0, dummy1, np.log(xi_arr_int), indexing='ij')).reshape(3,-1).T
+            HMF_integrand = np.exp(ln_HMF_interp(pts).reshape(shape[0],shape[1],len(xi_arr_int)))
             this_xi_arr = xi_arr_int[None,None,:]
+
+        elif len(shape)==4:
+            dummy0 = np.linspace(0, shape[0], shape[0])
+            dummy1 = np.linspace(0, shape[1], shape[1])
+            dummy2 = np.linspace(0, shape[2], shape[2])
+            ln_HMF_interp = RegularGridInterpolator((dummy0, dummy1, dummy2, np.log(xi_arr)), ln_HMF)
+            pts = np.array(np.meshgrid(dummy0, dummy1, dummy2, np.log(xi_arr_int), indexing='ij')).reshape(4,-1).T
+            HMF_integrand = np.exp(ln_HMF_interp(pts).reshape(shape[0],shape[1],shape[2],len(xi_arr_int)))
+            this_xi_arr = xi_arr_int[None,None,None,:]
 
         # dP/dxi = dP/dlnzeta dlnzeta/dxi
         HMF_xi = HMF_integrand * scaling_relations.dlnzeta_dxi(this_xi_arr)
