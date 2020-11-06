@@ -202,6 +202,47 @@ class MultiObsConvolution:
         return np.log(HMF_2d)
 
 
+    def get_P_3obs_DES_z(self, obsnames, z):
+        """Return P(DES_WL, obs[1], zeta | M, z, p) with correlated scatter."""
+        dN_dlnM, = np.exp(self.HMF_interp(np.log(z), np.log(self.HMF['M_arr'])))
+        ## (Mass-dependent) covariance matrices
+        if obsnames[1]=='richness':
+            cov_base = np.array([[1, self.scaling['rhoWLrichness']*self.scaling['Drichness'], self.scaling['rhoSZWL']*self.scaling['Dsz']],
+                                 [self.scaling['rhoWLrichness']*self.scaling['Drichness'], self.scaling['Drichness']**2, self.scaling['rhoSZrichness']*self.scaling['Dsz']],
+                                 [self.scaling['rhoSZWL']*self.scaling['Dsz'], self.scaling['rhoSZrichness']*self.scaling['Dsz'], self.scaling['Dsz']**2]])
+        DES_scatter = scaling_relations.WLscatter('main', self.HMF['M_arr'], z, self.scaling)
+        covmat = cov_base * np.array([DES_scatter**2, DES_scatter, DES_scatter,
+                                      DES_scatter, np.ones(len(DES_scatter)), np.ones(len(DES_scatter)),
+                                      DES_scatter, np.ones(len(DES_scatter)), np.ones(len(DES_scatter))]).T.reshape(len(DES_scatter),2,2)
+
+        # Convert observable covmat into covmat in mass
+        dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
+        dlnM_dlnobs = [scaling_relations.dlnM_dlnobs(obs, self.scaling) for obs in obsnames]
+        Jacobian = np.array([[dlnM_dlnobs[0]**2,             dlnM_dlnobs[0]*dlnM_dlnobs[1], dlnM_dlnobs[0]*dlnM_dlnzeta],
+                             [dlnM_dlnobs[0]*dlnM_dlnobs[1], dlnM_dlnobs[1]**2,             dlnM_dlnobs[1]*dlnM_dlnzeta],
+                             [dlnM_dlnobs[0]*dlnM_dlnzeta,   dlnM_dlnobs[1]*dlnM_dlnzeta,   dlnM_dlnzeta**2]])
+        covmat_lnM = covmat * Jacobian
+
+        # Scatter kernels [lnWL, lnobs, lnzeta]
+        kernels = [None]*len(self.HMF['M_arr'])
+        for i in range(len(self.HMF['M_arr'])):
+            Nbins_obs0, lnobs0_arr = self.get_Nbins_array(msqrt(covmat_lnM[i,0,0]))
+            Nbins_obs1, lnobs1_arr = self.get_Nbins_array(msqrt(covmat_lnM[i,0,0]))
+            Nbins_zeta, lnzeta_arr = self.get_Nbins_array(msqrt(covmat_lnM[i,1,1]))
+
+            pos = np.empty((Nbins_obs0, Nbins_obs1, Nbins_zeta, 3))
+            pos[:,:,:,0], pos[:,:,:,1], pos[:,:,:,2] = np.meshgrid(lnobs0_arr, lnobs1_arr, lnzeta_arr, indexing='ij')
+            kernels[i] = multivariate_normal.pdf(pos, mean=(0,0,0), cov=covmat_lnM[i])
+        # Actual convolution
+        HMF_3d = convolution.convolve_HMF_3obs_varkernel(dN_dlnM, kernels)
+        HMF_3d*= self.Delta_lnM
+        # Compress
+        HMF_3d = HMF_2d[::self.compression,::self.compression,::self.compression]
+        # Remove 0
+        HMF_3d[(HMF_3d==0).nonzero()] = np.nextafter(0, 1)
+        return np.log(HMF_3d)
+
+
     def get_P_3obs_z(self, obsnames, covmat, z):
         """Return P(obs0, obs1, zeta | M, z(z_id), p) for constant correlated
         scatter."""
