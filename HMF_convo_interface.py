@@ -1,4 +1,5 @@
 from __future__ import division
+import numpy as np
 from cosmosis.datablock import option_section
 import HMF_convo
 
@@ -25,20 +26,24 @@ def setup(options):
 
 def execute(block, multi_obs_convolution):
     ##### Extract from datablock
-    for p in ['Bsz', 'Bx', 'Brichness', 'Dsz', 'rhoSZWL', 'DES_b_m', 'DES_s_0', 'DES_s_M', 'DES_s_z', 'DES_m_piv', 'DES_z_piv']:
-        multi_obs_convolution.scaling[p] = block.get_double('mor_parameters', p)
+    scaling = {}
+    for p in ['Bsz', 'Bx', 'Brichness', 'Dsz', 'Drichness',
+              'DES_b_m', 'DES_s_0', 'DES_s_M', 'DES_s_z', 'DES_m_piv', 'DES_z_piv',
+              'rhoSZWL', 'rhoSZrichness', 'rhoWLrichness']:
+        scaling[p] = block.get_double('mor_parameters', p)
     # Covariance matrices
+    covmat = {}
     for c in ['cov_X_SZ', 'cov_Megacam_SZ', 'cov_richness_SZ', 'cov_Megacam_X_SZ', ]:
-        multi_obs_convolution.covmat[c] = block.get_double_array_nd('mor_parameters', c)
+        covmat[c] = block.get_double_array_nd('mor_parameters', c)
     # Halo mass function
-    multi_obs_convolution.HMF = {
+    HMF = {
         'M_arr': block.get_double_array_1d('HMF', 'M_arr'),
         'z_arr': block.get_double_array_1d('HMF', 'z_arr'),
         'dNdlnM': block.get_double_array_nd('HMF', 'dNdlnM')}
-    multi_obs_convolution.HMF['len_z'] = len(multi_obs_convolution.HMF['z_arr'])
+    HMF['len_z'] = len(HMF['z_arr'])
 
     ##### Compute the convolutions
-    dN_dmultiobs_dict = multi_obs_convolution.execute()
+    dN_dmultiobs_dict = multi_obs_convolution.execute(HMF, scaling, covmat)
     block.put_double_array_1d('dN_dmultiobs', 'M_arr', dN_dmultiobs_dict['M_arr'])
     for pair_name in multi_obs_convolution.observable_pairs:
         block.put_double_array_nd('dN_dmultiobs', pair_name, dN_dmultiobs_dict[pair_name])
