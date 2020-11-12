@@ -15,28 +15,15 @@ def unwrap_self_f(arg):
 ################################################################################
 class NumberCount:
 
-    def __init__(self, catalog, SPT_survey, scaling,
+    def __init__(self, catalog, SPT_survey,
                  surveyCutSZ, surveyCutLambda, surveyCutRedshift,
                  NPROC):
         self.catalog = catalog
         self.SPT_survey = SPT_survey
-        self.scaling = scaling
         self.surveyCutSZ = surveyCutSZ
         self.surveyCutLambda = surveyCutLambda
         self.surveyCutRedshift = surveyCutRedshift
         self.NPROC = NPROC
-
-        ##### Observable arrays
-        # Lin spaced for convo with unit scatter (+3 sigma margin)
-        # Smallest possible xi (sqrt(3))
-        xi_min = 1.8
-        Nxi = int((self.surveyCutSZ[1]+3 - xi_min)/.1 + 1)
-        self.xi_bins = np.linspace(xi_min, self.surveyCutSZ[1]+3, Nxi)
-        self.dxi = self.xi_bins[1] - self.xi_bins[0]
-        # ln(zeta(xi_bins))
-        self.ln_zeta_xi_arr = np.log(scaling_relations.xi2zeta(self.xi_bins))
-        # dlnzeta/dxi (xi_bins)
-        self.dlnzeta_dxi_arr = scaling_relations.dlnzeta_dxi(self.xi_bins)
         # Arrays over which we'll integrate (survey cuts applied)
         Nlambda = int(np.log10(self.surveyCutLambda[1]/self.surveyCutLambda[0])/.003 + 1)
         self.lambda_arr = np.logspace(np.log10(self.surveyCutLambda[0]), np.log10(self.surveyCutLambda[1]), Nlambda)
@@ -49,8 +36,22 @@ class NumberCount:
 
 
 
-    def lnlike(self):
+    def lnlike(self, HMF_zetalambda, cosmology, scaling):
         """Return ln-likelihood for SPT cluster abundance."""
+        self.HMF_zetalambda = HMF_zetalambda
+        self.cosmology = cosmology
+        self.scaling = scaling
+
+        # Lin spaced array in xi for convo with unit scatter (+3 sigma margin)
+        xi_min = scaling_relations.zeta2xi(self.scaling['zeta_min'])
+        Nxi = int((self.surveyCutSZ[1]+3 - xi_min)/.1 + 1)
+        self.xi_bins = np.linspace(xi_min, self.surveyCutSZ[1]+3, Nxi)
+        self.dxi = self.xi_bins[1] - self.xi_bins[0]
+        # ln(zeta(xi_bins))
+        self.ln_zeta_xi_arr = np.log(scaling_relations.xi2zeta(self.xi_bins))
+        # dlnzeta/dxi (xi_bins)
+        self.dlnzeta_dxi_arr = scaling_relations.dlnzeta_dxi(self.xi_bins)
+
         ##### Convert ln[HMF] to ln[dN/dln(zeta)/dln(lambda)] = ln[dN/dlog10(M)] + ln[dlog10(M)/dln(zeta) * dlog10(M)/dln(lambda)]
         dlnM_dlnlambda_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling) * scaling_relations.dlnM_dlnobs('richness', self.scaling)
         self.dN_dlnlambda_dlnzeta_unitSolidAng = self.HMF_zetalambda['dN_dlnM'] + np.log(dlnM_dlnlambda_dlnzeta)
@@ -94,8 +95,8 @@ class NumberCount:
         # Spline interpolation doesn't work because of the flat minimum value (crazy ringing or whatever)
         dN_dlnlambda_dlnzeta_interp = [RectBivariateSpline(ln_lambda_m[i], ln_zeta_m[i], dN_dlnlambda_dlnzeta[i], kx=1, ky=1)
                                        for i in range(self.HMF_zetalambda['len_z'])]
-        tmp = [dN_dlnlambda_dlnzeta_interp[i](self.ln_lambda_arr, self.ln_zeta_xi_arr) for i in range(self.HMF_zetalambda['len_z'])]
-        dN_dlambda_dxi = np.exp(np.array(tmp)) / self.lambda_arr[None,:,None] * self.dlnzeta_dxi_arr[None,None,:]
+        tmp = np.array([dN_dlnlambda_dlnzeta_interp[i](self.ln_lambda_arr, self.ln_zeta_xi_arr) for i in range(self.HMF_zetalambda['len_z'])])
+        dN_dlambda_dxi = np.exp(tmp) / self.lambda_arr[None,:,None] * self.dlnzeta_dxi_arr[None,None,:]
 
         # Convolve with unit scatter in xi (measurement uncertainty)
         dN_dlambda_dxi = scipy.ndimage.gaussian_filter1d(dN_dlambda_dxi, 1/self.dxi, axis=2, mode='constant')
@@ -103,7 +104,7 @@ class NumberCount:
         # Integrate above lambda selection threshold
         dN_dxi = np.trapz(dN_dlambda_dxi, self.lambda_arr, axis=1)
         if np.any(dN_dxi==0):
-            dN_dxi[(dN_dxi==0).nonzero()] = np.nextafter(0, 1)
+            dN_dxi[dN_dxi==0] = np.nextafter(0, 1)
 
         # Set up interpolation for cluster list below
         lndNdxi = RectBivariateSpline(np.log(self.HMF_zetalambda['z_arr']), np.log(self.xi_bins), np.log(dN_dxi))
@@ -120,7 +121,7 @@ class NumberCount:
         ##### confirmed clusters
         thisfield_conf = np.where((self.catalog['FIELD']==self.SPT_survey['FIELD'][fieldidx])
             & (self.catalog['XI']>=self.surveyCutSZ[0]) & (self.catalog['XI']<=self.surveyCutSZ[1])
-            & (self.catalog['LAMBDA_RM']>=self.surveyCutLambda[0]) & (self.catalog['LAMBDA_RM']<=self.surveyCutLambda[1])
+            & (self.catalog['LAMBDA_MCMF_COMB']>=self.surveyCutLambda[0]) & (self.catalog['LAMBDA_MCMF_COMB']<=self.surveyCutLambda[1])
             & (self.catalog['REDSHIFT']>=self.surveyCutRedshift[0]) & (self.catalog['REDSHIFT']<=self.surveyCutRedshift[1]))[0]
         for i in thisfield_conf:
             # spec-z: Evaluate dN/dxi/dz at exact location
