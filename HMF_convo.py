@@ -22,7 +22,7 @@ class MultiObsConvolution:
         # Sigma-clipping in convolutions
         self.N_sigma = np.array([4, 3])
         # Sparsity of returned arrays
-        self.compression = 10
+        self.compression = 2
         # Number of processes (0 for simple loop)
         self.NPROC = NPROC
 
@@ -205,8 +205,8 @@ class MultiObsConvolution:
         # (Mass-dependent) covariance matrices
         if obsnames[1]=='richness':
             cov_base = np.array([[1, self.scaling['rhoWLrichness']*self.scaling['Drichness'], self.scaling['rhoSZWL']*self.scaling['Dsz']],
-                                 [self.scaling['rhoWLrichness']*self.scaling['Drichness'], self.scaling['Drichness']**2, self.scaling['rhoSZrichness']*self.scaling['Dsz']],
-                                 [self.scaling['rhoSZWL']*self.scaling['Dsz'], self.scaling['rhoSZrichness']*self.scaling['Dsz'], self.scaling['Dsz']**2]])
+                                 [self.scaling['rhoWLrichness']*self.scaling['Drichness'], self.scaling['Drichness']**2, self.scaling['rhoSZrichness']*self.scaling['Dsz']*self.scaling['Drichness']],
+                                 [self.scaling['rhoSZWL']*self.scaling['Dsz'], self.scaling['rhoSZrichness']*self.scaling['Dsz']*self.scaling['Drichness'], self.scaling['Dsz']**2]])
         DES_scatter = scaling_relations.WLscatter('main', self.HMF['M_arr'], z, self.scaling)
         covmat = cov_base * np.array([DES_scatter**2, DES_scatter, DES_scatter,
                                       DES_scatter, np.ones(len(DES_scatter)), np.ones(len(DES_scatter)),
