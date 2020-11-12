@@ -59,7 +59,7 @@ def execute(block, masscalibration):
         cosmology[p] = block.get_double('cosmological_parameters', p)
 
     scaling = {'YXPARAM': masscalibration.YXPARAM}
-    for p in ['Asz', 'Bsz', 'Csz', 'Bsz2', 'Csz2', 'Esz', 'SPECS_calib', 'SZmPivot',
+    for p in ['Asz', 'Bsz', 'Csz', 'Bsz2', 'Csz2', 'Esz', 'SPECS_calib', 'SZmPivot', 'zeta_min',
               'Ax', 'Bx', 'Cx', 'Ex', 'dlnMg_dlnr', 'XraymPivot',
               'r_core_inv', 'DES_b_0', 'DES_b_m', 'DES_b_z', 'DES_m_piv', 'DES_z_piv',
               'HSTscatterLSS', 'MegacamScatterLSS', 'DESscatterLSS',

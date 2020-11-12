@@ -7,7 +7,7 @@ from astropy.table import Table
 
 import scipy.special as ss
 from scipy import integrate, signal
-from scipy.interpolate import InterpolatedUnivariateSpline, RegularGridInterpolator
+from scipy.interpolate import InterpolatedUnivariateSpline, RectBivariateSpline
 from scipy.stats import norm, lognorm, multivariate_normal
 
 import cosmo, Mconversion_concentration, scaling_relations
@@ -64,6 +64,7 @@ class MassCalibration:
         self.HMF_convos = HMF_convos
         self.cosmology = cosmology
         self.scaling = scaling
+        self.xi_min = scaling_relations.zeta2xi(self.scaling['zeta_min'])
 
         ##### Initialize mass-concentration relation class (for WL and dispersions)
         if self.todo['veldisp']:
@@ -126,7 +127,7 @@ class MassCalibration:
         if self.todo['Mgas'] and self.catalog['Mg_fid'][i]!=0:
             nobs+= 1
             obsnames.append('Mgas')
-        if self.todo['richness'] and self.catalog['LAMBDA_RM'][i]!=0.:
+        if self.todo['richness'] and self.catalog['LAMBDA_MCMF_COMB'][i]!=0.:
             nobs+= 1
             obsnames.append('richness')
         if nobs==0:
@@ -161,7 +162,6 @@ class MassCalibration:
         if 'richness' in obsnames:
              probability*= (1-self.catalog['LAMBDA_PROB_MATCH'][i])
 
-
         if (probability<0) | (np.isnan(probability)):
             return 0
             # raise ValueError("P(obs|xi) =", probability, name)
@@ -171,15 +171,15 @@ class MassCalibration:
 
 
     ############################################################################
-    def conversion_factor_Xray_obs_r500ref(self, redshift):
+    def conversion_factor_Xray_obs_r500ref(self, dataID):
         """Account for the cosmological dependence of the X-ray observable and
         convert to the model expectation at r500ref using the slope of the
         radial profile. This is done for the mass array self.HMF_convos['M_arr']."""
         # Angular diameter distances in current and reference cosmology [Mpc]
-        dA = cosmo.dA(redshift, self.cosmology)/self.cosmology['h']
-        dAref = cosmo.dA(redshift, cosmologyRef)/cosmologyRef['h']
+        dA = cosmo.dA(self.catalog['REDSHIFT'][dataID], self.cosmology)/self.cosmology['h']
+        dAref = cosmo.dA(self.catalog['REDSHIFT'][dataID], cosmologyRef)/cosmologyRef['h']
         # R500 [kpc]
-        rho_c_z = cosmo.RHOCRIT * cosmo.Ez(redshift, self.cosmology)**2
+        rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.catalog['REDSHIFT'][dataID], self.cosmology)**2
         r500 = 1000 * (3*self.HMF_convos['M_arr']/(4*np.pi*500*rho_c_z))**(1/3) / self.cosmology['h']
         # r500 in reference cosmology [kpc]
         r500ref = r500 * dAref/dA
@@ -194,9 +194,8 @@ class MassCalibration:
     def get_multiobs_lnHMF_z(self, z, z_arr, lnHMF):
         """Interpolate HMF[z, obs_0...N] to redshift z using linear
         interpolation of z_arr in log-log space."""
-        lnz_arr = np.log(z_arr)
         idx_lo = np.digitize(z, z_arr)-1
-        Delta_lnz = np.log(z)-lnz_arr[idx_lo]
+        Delta_lnz = np.log(z/z_arr[idx_lo]) / np.log(z_arr[idx_lo+1]/z_arr[idx_lo])
         Delta_lny = lnHMF[idx_lo+1]-lnHMF[idx_lo]
         res = lnHMF[idx_lo] + Delta_lnz*Delta_lny
         return res
@@ -206,42 +205,31 @@ class MassCalibration:
         """Return P(ln(multi-obs) | xi). Start from multi-obs `HMF[ln(obs0),
         ln(obs1), ..., ln(zeta)]`, set elements with zeta<2 to 0, convolve with
         unit variance in xi and evaluate at `xi`."""
-        # We only need the whole thing "close" to xi
-        xi_lo = np.amax((2.7, xi-5))
-        xi_hi = np.amin((xi_arr[-1]-.01, xi+4))
+        # We only need the whole thing "close" to xi (+4/-3 sigma)
+        xi_lo = np.amax((self.xi_min, xi-4))
+        xi_hi = np.amin((xi_arr[-1]-.01, xi+3))
         xi_arr_int = np.linspace(xi_lo, xi_hi, 32)
-
+        # Interpolation in ln(xi)
+        idx_lo = np.digitize(xi_arr_int, xi_arr)-1
+        Delta_lnxi = np.log(xi_arr_int/xi_arr[idx_lo]) / np.log(xi_arr[idx_lo+1]/xi_arr[idx_lo])
         shape = ln_HMF.shape
         if len(shape)==2:
-            dummy = np.linspace(0, shape[0], shape[0])
-            ln_HMF_interp = RegularGridInterpolator((dummy, np.log(xi_arr)), ln_HMF)
-            pts = np.array(np.meshgrid(dummy, np.log(xi_arr_int), indexing='ij')).reshape(2,-1).T
-            HMF_integrand = np.exp(ln_HMF_interp(pts).reshape(shape[0],len(xi_arr_int)))
+            Delta_lnH = ln_HMF[:,idx_lo+1]-ln_HMF[:,idx_lo]
+            HMF_integrand = np.exp(ln_HMF[:,idx_lo] + Delta_lnxi*Delta_lnH)
             this_xi_arr = xi_arr_int[None,:]
-
         elif len(shape)==3:
-            dummy0 = np.linspace(0, shape[0], shape[0])
-            dummy1 = np.linspace(0, shape[1], shape[1])
-            ln_HMF_interp = RegularGridInterpolator((dummy0, dummy1, np.log(xi_arr)), ln_HMF)
-            pts = np.array(np.meshgrid(dummy0, dummy1, np.log(xi_arr_int), indexing='ij')).reshape(3,-1).T
-            HMF_integrand = np.exp(ln_HMF_interp(pts).reshape(shape[0],shape[1],len(xi_arr_int)))
+            Delta_lnH = ln_HMF[:,:,idx_lo+1]-ln_HMF[:,:,idx_lo]
+            HMF_integrand = np.exp(ln_HMF[:,:,idx_lo] + Delta_lnxi*Delta_lnH)
             this_xi_arr = xi_arr_int[None,None,:]
-
         elif len(shape)==4:
-            dummy0 = np.linspace(0, shape[0], shape[0])
-            dummy1 = np.linspace(0, shape[1], shape[1])
-            dummy2 = np.linspace(0, shape[2], shape[2])
-            ln_HMF_interp = RegularGridInterpolator((dummy0, dummy1, dummy2, np.log(xi_arr)), ln_HMF)
-            pts = np.array(np.meshgrid(dummy0, dummy1, dummy2, np.log(xi_arr_int), indexing='ij')).reshape(4,-1).T
-            HMF_integrand = np.exp(ln_HMF_interp(pts).reshape(shape[0],shape[1],shape[2],len(xi_arr_int)))
+            Delta_lnH = ln_HMF[:,:,:,idx_lo+1]-ln_HMF[:,:,:,idx_lo]
+            HMF_integrand = np.exp(ln_HMF[:,:,:,idx_lo] + Delta_lnxi*Delta_lnH)
             this_xi_arr = xi_arr_int[None,None,None,:]
-
         # dP/dxi = dP/dlnzeta dlnzeta/dxi
         HMF_xi = HMF_integrand * scaling_relations.dlnzeta_dxi(this_xi_arr)
         # Simultaneous convolution and evaluation at xi
         unit_var_kernel = norm.pdf(xi, this_xi_arr, 1)
         HMF_at_xi = np.trapz(HMF_xi * unit_var_kernel, this_xi_arr, axis=-1)
-
         return HMF_at_xi
 
 
@@ -307,13 +295,13 @@ class MassCalibration:
         obsArr = scaling_relations.mass2obs(obsname, self.HMF_convos['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, self.catalog['SPT_ID'][dataID])
         # Account for radial dependence for X-ray observables
         if obsname in ('Mgas', 'Yx'):
-            correction = self.conversion_factor_Xray_obs_r500ref(self.catalog['REDSHIFT'][dataID])
+            correction = self.conversion_factor_Xray_obs_r500ref(dataID)
             obsArr*= correction
         lnobsArr = np.log(obsArr)
 
         ##### Convolve with additional lognormal scatter in richness
-        if obsname=='richness':
-            dP_dlnobs = self.apply_sys_Poisson_scatter_richness(obsArr, lnobsArr, dP_dlnobs)
+        #if obsname=='richness':
+        #    dP_dlnobs = self.apply_sys_Poisson_scatter_richness(obsArr, lnobsArr, dP_dlnobs)
 
         #### Go to linear obs space and normalize
         # dP/dobs = dP/dlnobs * dlnobs/dobs = dP/dlnobs /obs
@@ -321,13 +309,15 @@ class MassCalibration:
         dP_dobs/= np.trapz(dP_dobs, obsArr)
 
         ##### Evaluate likelihood
-        if obsname in ('Yx', 'Mgas', 'richness'):
+        if obsname=='richness':
+            dP_dobs[dP_dobs==0] = np.nextafter(0, 1)
+            likeli = np.exp(np.interp(self.catalog['LAMBDA_MCMF_COMB'][dataID], obsArr, np.log(dP_dobs)))
+
+        if obsname in ('Yx', 'Mgas'):
             if obsname=='Yx':
                 obsmeas, obserr = self.catalog['Yx_fid'][dataID], self.catalog['Yx_err'][dataID]
             elif obsname=='Mgas':
                 obsmeas, obserr = self.catalog['Mg_fid'][dataID], self.catalog['Mg_err'][dataID]
-            elif obsname=='richness':
-                obsmeas, obserr = self.catalog['LAMBDA_RM'][dataID], self.catalog['LAMBDA_RM_UNC'][dataID]
 
             likeli = np.trapz(dP_dobs*norm.pdf(obsmeas, obsArr, obserr), obsArr)
 
@@ -357,9 +347,9 @@ class MassCalibration:
                 dP_dobs = self.convolve_WL_LSS(obsArr, dP_dobs, LSSnoise)
             # obsArr, dP_dobs = self.downsample_distribution(obsArr, dP_dobs)
             # P(Mwl) from data
-            WL_interp = InterpolatedUnivariateSpline(np.log(self.WL.M_arr), self.catalog['lnp_Mwl'][dataID])
+            WL_interp = InterpolatedUnivariateSpline(np.log(self.WL.M_arr), self.catalog['lnp_Mwl'][dataID], k=1)
             # Get likelihood
-            likeli = np.trapz(np.exp(WL_interp(np.log(obsArr)))*dP_dobs, obsArr)
+            likeli = np.trapz(np.exp(WL_interp(lnobsArr))*dP_dobs, obsArr)
 
 
         if ((likeli<0)|(np.isnan(likeli))):
@@ -377,8 +367,8 @@ class MassCalibration:
         WL and X-ray)."""
         ##### dN/dlnobs0/dlnobs1/dlnzeta at z=z_cluster from interpolation tables
         lnHMF_3d = self.get_multiobs_lnHMF_z(z=self.catalog['REDSHIFT'][dataID],
-                                         z_arr=self.HMF_convos['%s_z'%pairname],
-                                         lnHMF=self.HMF_convos[pairname])
+                                             z_arr=self.HMF_convos['%s_z'%pairname],
+                                             lnHMF=self.HMF_convos[pairname])
 
         ##### SZ arrays
         zeta_arr = self.thisSPTfield_gamma * scaling_relations.mass2obs('zeta', self.HMF_convos['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
@@ -400,19 +390,19 @@ class MassCalibration:
                 obsmeas[i], obserr[i] = self.catalog['Mg_fid'][dataID], self.catalog['Mg_err'][dataID]
             elif obsnames[i]=='disp':
                 obsmeas[i], obserr[i] = self.catalog['veldisp'][dataID], self.scaling['DdispN']/self.catalog['Ngal'][dataID]
-            elif obsnames[i]=='richness':
-                obsmeas[i], obserr[i] = self.catalog['LAMBDA_RM'][dataID], self.catalog['LAMBDA_RM_UNC'][dataID]
+            #elif obsnames[i]=='richness':
+            #    obsmeas[i], obserr[i] = self.catalog['LAMBDA_MCMF_COMB'][dataID], self.catalog['LAMBDA_RM_UNC'][dataID]
             elif obsnames[i]=='WLMegacam':
                 LSSnoise = self.WLcalib['Megacam_LSS'][0] + self.scaling['MegacamScatterLSS'] * self.WLcalib['Megacam_LSS'][1]
             elif obsnames[i]=='WLHST':
                 LSSnoise = self.WLcalib['HSTsim'][self.catalog['SPT_ID'][dataID]]['obs_scatter']
             elif obsnames[i]=='WLDES':
-                LSSnoise = self.WLcalib['DES_LSS'][0] + self.scaling['DESscatterLSS'] * self.WLcalib['DES_LSS'][1]
+                LSSnoise = 0.
             obsArrTemp = scaling_relations.mass2obs(obsnames[i], self.HMF_convos['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
 
             # Account for radial dependence for X-ray observables
             if obsnames[i] in ('Mgas', 'Yx'):
-                correction = self.conversion_factor_Xray_obs_r500ref(self.catalog['REDSHIFT'][dataID])
+                correction = self.conversion_factor_Xray_obs_r500ref(dataID)
                 obsArrTemp*= correction
             obsArr.append( obsArrTemp )
             lnobsArr.append( np.log(obsArrTemp) )
@@ -424,15 +414,23 @@ class MassCalibration:
         ##### Normalize
         N = np.trapz(np.trapz(dP_dobs01, obsArr[1], axis=1), obsArr[0])
         dP_dobs01/= N
+        # Prepare for log
+        dP_dobs01[dP_dobs01==0] = np.nextafter(0, 1)
 
         ##### P(obs0, obs1)
         # P(Mwl) from data
-        WL_interp = InterpolatedUnivariateSpline(np.log(self.WL.M_arr), self.catalog['lnp_Mwl'][dataID])
+        WL_interp = InterpolatedUnivariateSpline(np.log(self.WL.M_arr), self.catalog['lnp_Mwl'][dataID], k=1)
         Pwl = np.exp(WL_interp(lnobsArr[0]))
-        Px = norm.pdf(obsmeas[1], obsArr[1], obserr[1])
-        Pobs = Pwl[:,None] * Px[None,:]
+        if obsnames[1]=='richness':
+            idx_lo = np.digitize(self.catalog['LAMBDA_MCMF_COMB'][dataID], obsArr[1]) -1
+            Delta_l = (self.catalog['LAMBDA_MCMF_COMB'][dataID]-obsArr[1][idx_lo]) / (obsArr[1][idx_lo+1]-obsArr[1][idx_lo])
+            Delta_lny = np.log(dP_dobs01[:,idx_lo+1]/dP_dobs01[:,idx_lo])
+            dP_dobs0 = np.exp(np.log(dP_dobs01[:,idx_lo]) + Delta_l*Delta_lny)
+            likeli = np.trapz(dP_dobs0*Pwl, obsArr[0])
 
-        ##### Likelihood
-        likeli = np.trapz(np.trapz(dP_dobs01*Pobs, obsArr[1], axis=1), obsArr[0])
+        else:
+            Px = norm.pdf(obsmeas[1], obsArr[1], obserr[1])
+            Pobs = Pwl[:,None] * Px[None,:]
+            likeli = np.trapz(np.trapz(dP_dobs01*Pobs, obsArr[1], axis=1), obsArr[0])
 
         return likeli
