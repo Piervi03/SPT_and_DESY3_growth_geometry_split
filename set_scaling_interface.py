@@ -12,11 +12,10 @@ def setup(options):
 def execute(block, scaling_setter):
     # Read scaling relation parameters from block
     scaling = {}
-    for p in ['Dsz', 'Dx', 'Drichness', 'WLbias', 'WLscatter']:
-        scaling[p] = block.get_double('mor_parameters', p)
-    for p in ['MegacamBias', 'HSTbias']:
-        scaling[p] = block.get_double('mor_parameters', p)
-    for p in ['rhoSZWL', 'rhoSZX', 'rhoWLX', 'rhoSZrichness', 'rhoXdisp', 'rhoSZdisp', 'rhoWLrichness']:
+    for p in ['Dsz', 'Dx', 'Drichness', 'WLbias', 'WLscatter',
+              'MegacamBias', 'HSTbias',
+              'DES_s_0', 'DES_s_M', 'DES_s_z', 'DES_m_piv', 'DES_z_piv',
+              'rhoSZWL', 'rhoSZX', 'rhoWLX', 'rhoSZrichness', 'rhoXdisp', 'rhoSZdisp', 'rhoWLrichness']:
         scaling[p] = block.get_double('mor_parameters', p)
     # Set everything
     if scaling_setter.execute(scaling):
