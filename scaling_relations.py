@@ -14,7 +14,7 @@ def dlnzeta_dxi(xi):
 
 
 ####################
-def mass2obs(name, mass, z, scaling, cosmology, cluster_ID=None):
+def mass2obs(name, mass, z, scaling, cosmology=None, cluster_ID=None):
     """Returns observable given (mass, z) using scaling relation."""
     if name=='zeta':
         lnzeta = scaling['Asz'] + scaling['Bsz'] * np.log(mass/scaling['SZmPivot'])\
@@ -41,7 +41,7 @@ def mass2obs(name, mass, z, scaling, cosmology, cluster_ID=None):
         return scaling['Adisp'] * (M200c/1e15/cosmology['h'])**(1/scaling['Bdisp']) * h70z**scaling['Cdisp']
     elif name=='richness':
         return scaling['Arichness'] * (mass/scaling['richmPivot'])**scaling['Brichness']\
-            * (cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology))**scaling['Crichness']
+            * ((1+z)/1.6)**scaling['Crichness']
     elif name=='WLMegacam':
         return scaling['bWL_Megacam'] * mass
     elif name=='WLHST':
