@@ -27,7 +27,8 @@ def setup(options):
 def execute(block, multi_obs_convolution):
     ##### Extract from datablock
     scaling = {}
-    for p in ['Bsz', 'Bx', 'Brichness', 'Dsz', 'Drichness',
+    for p in ['Bsz', 'Bx', 'Brichness', 'Dsz',
+              'Arichness', 'Brichness', 'Crichness', 'Drichness',
               'DES_b_m', 'DES_s_0', 'DES_s_M', 'DES_s_z', 'DES_m_piv', 'DES_z_piv',
               'rhoSZWL', 'rhoSZrichness', 'rhoWLrichness']:
         scaling[p] = block.get_double('mor_parameters', p)
