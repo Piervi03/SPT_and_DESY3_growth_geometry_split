@@ -61,11 +61,14 @@ def execute(block, masscalibration):
     scaling = {'YXPARAM': masscalibration.YXPARAM}
     for p in ['Asz', 'Bsz', 'Csz', 'Bsz2', 'Csz2', 'Esz', 'SPECS_calib', 'SZmPivot', 'zeta_min',
               'Ax', 'Bx', 'Cx', 'Ex', 'dlnMg_dlnr', 'XraymPivot',
-              'r_core_inv', 'DES_b_0', 'DES_b_m', 'DES_b_z', 'DES_m_piv', 'DES_z_piv',
+              'r_core_inv',
+              'DES_b_dev', 'DES_b_m', 'DES_m_piv',
               'HSTscatterLSS', 'MegacamScatterLSS', 'DESscatterLSS',
               'Arichness', 'Brichness', 'Crichness', 'richmPivot',
               'Adisp', 'Bdisp', 'Cdisp',]:
         scaling[p] = block.get_double('mor_parameters', p)
+    for p in ['DESwl_z', 'DESwl_bias_mean', 'DESwl_bias_std']:
+        scaling[p] = block.get_double_array_1d('mor_parameters', p)
 
     scaling['bWL_HST'] = {}
     for name in masscalibration.WLcalib['HSTsim'].keys():
