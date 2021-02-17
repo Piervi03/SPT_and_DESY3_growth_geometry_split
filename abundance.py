@@ -1,11 +1,9 @@
 from __future__ import division
 import numpy as np
 from multiprocessing import Pool
-import scipy.ndimage
 from scipy.stats import norm
 from scipy.interpolate import RectBivariateSpline
-
-import cosmo
+from scipy.ndimage import gaussian_filter1d
 import scaling_relations
 
 # Because multiprocessing within classes doesn't really work...
@@ -49,7 +47,7 @@ class NumberCount:
         self.ln_zeta_xi_arr = np.log(scaling_relations.xi2zeta(self.xi_bins))
         self.dlnzeta_dxi_arr = scaling_relations.dlnzeta_dxi(self.xi_bins)
 
-        self.dN_dlnzeta_unitSolidAng = scaling_relations.dlnM_dlnobs('zeta', self.scaling) * self.HMF['dNdlnM']
+        self.dN_dlnzeta_unitSolidAng = scaling_relations.dlnM_dlnobs('zeta', self.scaling) * np.exp(self.HMF['dNdlnM'])
 
         ##### Evaluate (log)-likelihood for each SPT field (optional multiprocessing)
         num_fields = len(self.SPT_survey)
@@ -94,7 +92,7 @@ class NumberCount:
             for i in range(self.HMF['len_z'])]))
 
         # Convolve with unit scatter (measurement uncertainty)
-        dN_dxi = scipy.ndimage.gaussian_filter1d(dN_dxi, 1/self.dxi, axis=1, mode='constant')
+        dN_dxi = gaussian_filter1d(dN_dxi, 1/self.dxi, axis=1, mode='constant')
         if np.any(dN_dxi==0):
             dN_dxi[np.where(dN_dxi==0)] = np.nextafter(0, 1)
 
