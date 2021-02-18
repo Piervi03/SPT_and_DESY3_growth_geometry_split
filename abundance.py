@@ -49,6 +49,9 @@ class NumberCount:
 
         self.dN_dlnzeta_unitSolidAng = scaling_relations.dlnM_dlnobs('zeta', self.scaling) * np.exp(self.HMF['dNdlnM'])
 
+        # zeta[z,M]
+        self.zeta_m = scaling_relations.mass2obs('zeta', self.HMF['M_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling, self.cosmology)
+
         ##### Evaluate (log)-likelihood for each SPT field (optional multiprocessing)
         num_fields = len(self.SPT_survey)
         if self.NPROC==0:
@@ -75,26 +78,23 @@ class NumberCount:
         if np.any(dN_dlnzeta==0):
             dN_dlnzeta[np.where(dN_dlnzeta==0)] = np.nextafter(0, 1)
 
-        # zeta[z,M]
-        zeta_m = scaling_relations.mass2obs('zeta', self.HMF['M_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling, self.cosmology)
-
         # Apply field scaling factor
-        zeta_m*= self.SPT_survey['GAMMA'][fieldidx]
+        this_zeta_m = self.zeta_m * self.SPT_survey['GAMMA'][fieldidx]
         if self.SPT_survey['SURVEY'][fieldidx]=='SPECS':
-            zeta_m*= self.scaling['SPECS_calib']
+            this_zeta_m*= self.scaling['SPECS_calib']
 
         # dN/dxi = dN/dlnzeta dlnzeta/dxi (unconvolved)
         # Unfortunately, the zeta_m table is not regular
         # and repeated spline interp is way too slow (1.6sec per field)
         # So we do linear interpolation (in ln(M), and for ln(dN/dlnzeta))
         dN_dxi = self.dlnzeta_dxi_arr\
-            * np.exp(np.array([np.interp(self.ln_zeta_xi_arr, np.log(zeta_m[i]), np.log(dN_dlnzeta[i]))
+            * np.exp(np.array([np.interp(self.ln_zeta_xi_arr, np.log(this_zeta_m[i]), np.log(dN_dlnzeta[i]))
             for i in range(self.HMF['len_z'])]))
 
         # Convolve with unit scatter (measurement uncertainty)
         dN_dxi = gaussian_filter1d(dN_dxi, 1/self.dxi, axis=1, mode='constant')
         if np.any(dN_dxi==0):
-            dN_dxi[np.where(dN_dxi==0)] = np.nextafter(0, 1)
+            dN_dxi[dN_dxi==0] = np.nextafter(0, 1)
 
         # Set up interpolation for cluster list below
         lndNdxi = RectBivariateSpline(np.log(self.HMF['z_arr']), np.log(self.xi_bins), np.log(dN_dxi))
