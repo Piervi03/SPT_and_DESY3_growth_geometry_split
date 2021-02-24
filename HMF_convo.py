@@ -156,7 +156,7 @@ class MultiObsConvolution:
         """Return dN/dlnzeta."""
         dN_dlnM, = np.exp(self.HMF_interp(np.log(z), np.log(self.HMF['M_arr'])))
         dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
-        Nbin = self.scaling['Dsz'] * dlnM_dlnzeta / np.log(self.HMF['M_arr'][1]/self.HMF['M_arr'][0])
+        Nbin = self.scaling['Dsz'] * dlnM_dlnzeta / self.Delta_lnM
         HMF_1d = gaussian_filter1d(dN_dlnM, Nbin, mode='constant')
         # Compress
         HMF_1d = HMF_1d[::self.compression]
