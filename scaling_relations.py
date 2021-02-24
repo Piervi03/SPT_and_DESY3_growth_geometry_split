@@ -49,7 +49,7 @@ def mass2obs(name, mass, z, scaling, cosmology=None, cluster_ID=None):
     elif name=='WLDES':
         b = np.interp(z, scaling['DESwl_z'], scaling['DESwl_bias_mean'])
         d = np.interp(z, scaling['DESwl_z'], scaling['DESwl_bias_std'])
-        return np.exp(b + scaling['DES_b_dev']*d) * (mass/scaling['DES_m_piv'])**scaling['DES_b_m']
+        return scaling['DES_m_piv'] * np.exp(b + scaling['DES_b_dev']*d) * (mass/scaling['DES_m_piv'])**scaling['DES_b_m']
         # return np.exp(scaling['DES_b_0']) * scaling['DES_m_piv'] * (mass/scaling['DES_m_piv'])**scaling['DES_b_m'] * ((1+z)/(1+scaling['DES_z_piv']))**scaling['DES_b_z']
     else:
         raise ValueError("Observable not known:",name)
