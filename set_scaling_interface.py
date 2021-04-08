@@ -14,9 +14,11 @@ def execute(block, scaling_setter):
     scaling = {}
     for p in ['Dsz', 'Dx', 'Drichness', 'WLbias', 'WLscatter',
               'MegacamBias', 'HSTbias',
-              'DES_s_0', 'DES_s_M', 'DES_s_z', 'DES_m_piv', 'DES_z_piv',
+              'DES_s_dev', 'DES_s_M', 'DES_m_piv', 
               'rhoSZWL', 'rhoSZX', 'rhoWLX', 'rhoSZrichness', 'rhoXdisp', 'rhoSZdisp', 'rhoWLrichness']:
         scaling[p] = block.get_double('mor_parameters', p)
+    for p in ['DESwl_z', 'DESwl_scatter_mean', 'DESwl_scatter_std']:
+        scaling[p] = block.get_double_array_1d('mor_parameters', p)
     # Set everything
     if scaling_setter.execute(scaling):
         # Put into block

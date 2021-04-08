@@ -1,11 +1,9 @@
 from __future__ import division
 import numpy as np
 from multiprocessing import Pool
-import scipy.ndimage
 from scipy.stats import norm
 from scipy.interpolate import RectBivariateSpline
-
-import cosmo
+from scipy.ndimage import gaussian_filter1d
 import scaling_relations
 
 # Because multiprocessing within classes doesn't really work...
@@ -16,22 +14,16 @@ def unwrap_self_f(arg):
 class NumberCount:
 
     def __init__(self, catalog, SPT_survey,
-                 surveyCutSZ, surveyCutRedshift, NPROC):
+                 surveyCutSZ, surveyCutLambda, surveyCutRedshift,
+                 NPROC):
         self.catalog = catalog
         self.SPT_survey = SPT_survey
         self.surveyCutSZ = surveyCutSZ
+        self.surveyCutLambda = surveyCutLambda
         self.surveyCutRedshift = surveyCutRedshift
         self.NPROC = NPROC
 
         ##### Observable arrays
-        # Lin spaced for convo with unit scatter (+3 sigma margin)
-        Nxi = int((self.surveyCutSZ[1]+3 - 2.7)/.1 + 1)
-        self.xi_bins = np.linspace(2.7, self.surveyCutSZ[1]+3, Nxi)
-        self.dxi = self.xi_bins[1] - self.xi_bins[0]
-        # ln(zeta(xi_bins))
-        self.ln_zeta_xi_arr = np.log(scaling_relations.xi2zeta(self.xi_bins))
-        # dlnzeta/dxi (xi_bins)
-        self.dlnzeta_dxi_arr = scaling_relations.dlnzeta_dxi(self.xi_bins)
         # Arrays over which we'll integrate (survey cuts applied)
         Nxi = int(np.log10(self.surveyCutSZ[1]/self.surveyCutSZ[0])/.005 + 1)
         self.xi_arr = np.logspace(np.log10(self.surveyCutSZ[0]), np.log10(self.surveyCutSZ[1]), Nxi)
@@ -47,43 +39,18 @@ class NumberCount:
         self.cosmology = cosmology
         self.scaling = scaling
 
-        ##### Convert HMF to dN/dln(zeta) = dN/dlog10(M) * dlog10(M)/dln(zeta)
-        if ((self.scaling['Bsz2']!=0.)|(self.scaling['Csz2']!=0)|(self.scaling['Esz']!=0.)|(self.scaling['DszM']!=0.)):
-            lnzetaM = np.log(scaling_relations.mass2obs('zeta', self.HMF['M_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling, self.cosmology))
+        # Lin spaced array in xi for convo with unit scatter (+3 sigma margin)
+        xi_min = scaling_relations.zeta2xi(self.scaling['zeta_min'])
+        Nxi = int((self.surveyCutSZ[1]+3 - xi_min)/.1 + 1)
+        self.xi_bins = np.linspace(xi_min, self.surveyCutSZ[1]+3, Nxi)
+        self.dxi = self.xi_bins[1] - self.xi_bins[0]
+        self.ln_zeta_xi_arr = np.log(scaling_relations.xi2zeta(self.xi_bins))
+        self.dlnzeta_dxi_arr = scaling_relations.dlnzeta_dxi(self.xi_bins)
 
-        # dln(M)/dln(zeta)
-        if ((self.scaling['Bsz2']==0.)&(self.scaling['Esz']==0.)):
-            dlnM_dlnzeta = 1/self.scaling['Bsz']
-        else:
-            lnEz_E0p6 = np.log(cosmo.Ez(self.HMF['z_arr'], self.cosmology)/cosmo.Ez(.6, self.cosmology))
-            lnmassRatio = np.log(self.HMF['M_arr']/self.scaling['SZmPivot'])
-            bLin = self.scaling['Bsz'] + self.scaling['Esz']*lnEz_E0p6
-            cEff = self.scaling['Csz']*lnEz_E0p6 + self.scaling['Csz2']*lnEz_E0p6**2
-            # [z,M]
-            dlnzeta_dlnmRatio = bLin[:,None] + 2*self.scaling['Bsz2']*lnmassRatio[None,:]
-            if np.any(dlnzeta_dlnmRatio<=0.):
-                return -np.inf
-            # [z,M]
-            sqrtTerm = bLin[:,None]**2 - 4.*self.scaling['Bsz2']* (cEff[:,None] + np.log(self.scaling['Asz']) - lnzetaM)
-            if np.any(sqrtTerm<0.):
-                return -np.inf
-            dlnM_dlnzeta = sqrtTerm**-.5
+        self.dN_dlnzeta_unitSolidAng = scaling_relations.dlnM_dlnobs('zeta', self.scaling) * np.exp(self.HMF['dNdlnM'])
 
-        dN_dlnzeta_noScatter = self.HMF['dNdlnM'] * dlnM_dlnzeta
-
-        # Concolve with intrinsic scatter
-        if((self.scaling['Bsz2']==0.)&(self.scaling['Csz2']==0)&(self.scaling['Esz']==0.)&(self.scaling['DszM']==0)):
-            dlnzeta = self.scaling['Bsz']*np.log(self.HMF['M_arr'][1]/self.HMF['M_arr'][0])
-            Nbin = self.scaling['Dsz'] / dlnzeta
-            self.dN_dlnzeta_unitSolidAng = scipy.ndimage.gaussian_filter1d(dN_dlnzeta_noScatter, Nbin, axis=1, mode='constant')
-        else:
-            scatter = np.sqrt(self.scaling['Dsz']**2 + self.scaling['DszM']**2*(self.HMF['M_arr']/3e14)**(2*scaling['DszMslope']))
-            scatter[np.where(scatter<.01)[0]] = .01
-            self.dN_dlnzeta_unitSolidAng = np.empty((self.HMF['len_z'],self.HMF['len_M']))
-            for i in range(self.HMF['len_z']):
-                lnzetaArr = lnzetaM[i]
-                integrand = dN_dlnzeta_noScatter[i,None,:] * norm.pdf(lnzetaArr[:,None], lnzetaArr[None,:], scatter)
-                self.dN_dlnzeta_unitSolidAng[i] = np.trapz(integrand, lnzetaArr, axis=1)
+        # zeta[z,M]
+        self.zeta_m = scaling_relations.mass2obs('zeta', self.HMF['M_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling, self.cosmology)
 
         ##### Evaluate (log)-likelihood for each SPT field (optional multiprocessing)
         num_fields = len(self.SPT_survey)
@@ -111,29 +78,26 @@ class NumberCount:
         if np.any(dN_dlnzeta==0):
             dN_dlnzeta[np.where(dN_dlnzeta==0)] = np.nextafter(0, 1)
 
-        # zeta[z,M]
-        zeta_m = scaling_relations.mass2obs('zeta', self.HMF['M_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling, self.cosmology)
-
         # Apply field scaling factor
-        zeta_m*= self.SPT_survey['GAMMA'][fieldidx]
+        this_zeta_m = self.zeta_m * self.SPT_survey['GAMMA'][fieldidx]
         if self.SPT_survey['SURVEY'][fieldidx]=='SPECS':
-            zeta_m*= self.scaling['SPECS_calib']
+            this_zeta_m*= self.scaling['SPECS_calib']
 
         # dN/dxi = dN/dlnzeta dlnzeta/dxi (unconvolved)
         # Unfortunately, the zeta_m table is not regular
         # and repeated spline interp is way too slow (1.6sec per field)
         # So we do linear interpolation (in ln(M), and for ln(dN/dlnzeta))
         dN_dxi = self.dlnzeta_dxi_arr\
-            * np.exp(np.array([np.interp(self.ln_zeta_xi_arr, np.log(zeta_m[i]), np.log(dN_dlnzeta[i]))
+            * np.exp(np.array([np.interp(self.ln_zeta_xi_arr, np.log(this_zeta_m[i]), np.log(dN_dlnzeta[i]))
             for i in range(self.HMF['len_z'])]))
 
         # Convolve with unit scatter (measurement uncertainty)
-        dN_dxi = scipy.ndimage.gaussian_filter1d(dN_dxi, 1/self.dxi, axis=1, mode='constant')
+        dN_dxi = gaussian_filter1d(dN_dxi, 1/self.dxi, axis=1, mode='constant')
         if np.any(dN_dxi==0):
-            dN_dxi[np.where(dN_dxi==0)] = np.nextafter(0, 1)
+            dN_dxi[dN_dxi==0] = np.nextafter(0, 1)
 
         # Set up interpolation for cluster list below
-        lndNdxi = RectBivariateSpline(np.log(self.HMF['z_arr'][1:]), np.log(self.xi_bins), np.log(dN_dxi[1:,:]))
+        lndNdxi = RectBivariateSpline(np.log(self.HMF['z_arr']), np.log(self.xi_bins), np.log(dN_dxi))
 
         # Ntotal (trapz except that we sum in log-space)
         integrand = np.exp(.5*(lndNdxi(np.log(self.z_arr), np.log(self.xi_arr[1:])) + lndNdxi(np.log(self.z_arr), np.log(self.xi_arr[:-1]))))\
@@ -147,6 +111,7 @@ class NumberCount:
         ##### confirmed clusters
         thisfield_conf = np.where((self.catalog['FIELD']==self.SPT_survey['FIELD'][fieldidx])
             & (self.catalog['XI']>=self.surveyCutSZ[0]) & (self.catalog['XI']<=self.surveyCutSZ[1])
+            & (self.catalog['LAMBDA_MCMF_COMB']>=self.surveyCutLambda[0]) & (self.catalog['LAMBDA_MCMF_COMB']<=self.surveyCutLambda[1])
             & (self.catalog['REDSHIFT']>=self.surveyCutRedshift[0]) & (self.catalog['REDSHIFT']<=self.surveyCutRedshift[1]))[0]
         for i in thisfield_conf:
             # spec-z: Evaluate dN/dxi/dz at exact location
