@@ -4,6 +4,7 @@ import os
 import imp
 from multiprocessing import Pool
 from astropy.table import Table
+# import time
 
 import scipy.special as ss
 from scipy import integrate, signal
@@ -98,6 +99,7 @@ class MassCalibration:
         """Return multi-wavelength mass-calibration likelihood (no log!) for a
         given cluster (index) by calling get_P_1obs_xi or get_P_2obs_xi or
         returning 1 if no follow-up data is available."""
+        # t0 = time.time()
         name = self.catalog['SPT_ID'][i]
 
         ##### Do we actually want this guy? (some clusters in SPT-SZ are at field boundaries)
@@ -161,7 +163,7 @@ class MassCalibration:
             return 0
             # raise ValueError("P(obs|xi) =", probability, name)
 
-        # print(name, obsnames, probability)
+        # print(name, obsnames, probability, time.time()-t0)
         return probability
 
 
@@ -191,8 +193,12 @@ class MassCalibration:
         interpolation of z_arr in log-log space."""
         idx_lo = np.digitize(z, z_arr)-1
         Delta_lnz = np.log(z/z_arr[idx_lo]) / np.log(z_arr[idx_lo+1]/z_arr[idx_lo])
-        Delta_lny = lnHMF[idx_lo+1]-lnHMF[idx_lo]
-        res = lnHMF[idx_lo] + Delta_lnz*Delta_lny
+        # We know we'll get NANs because we're potentially doing -inf -(-inf)
+        with np.errstate(invalid='ignore'):
+            Delta_lny = lnHMF[idx_lo+1]-lnHMF[idx_lo]
+            res = lnHMF[idx_lo] + Delta_lnz*Delta_lny
+        # Remove those NANs
+        res[np.isnan(res)] = -np.inf
         return res
 
 
@@ -208,18 +214,21 @@ class MassCalibration:
         idx_lo = np.digitize(xi_arr_int, xi_arr)-1
         Delta_lnxi = np.log(xi_arr_int/xi_arr[idx_lo]) / np.log(xi_arr[idx_lo+1]/xi_arr[idx_lo])
         shape = ln_HMF.shape
-        if len(shape)==2:
-            Delta_lnH = ln_HMF[:,idx_lo+1]-ln_HMF[:,idx_lo]
-            HMF_integrand = np.exp(ln_HMF[:,idx_lo] + Delta_lnxi*Delta_lnH)
-            this_xi_arr = xi_arr_int[None,:]
-        elif len(shape)==3:
-            Delta_lnH = ln_HMF[:,:,idx_lo+1]-ln_HMF[:,:,idx_lo]
-            HMF_integrand = np.exp(ln_HMF[:,:,idx_lo] + Delta_lnxi*Delta_lnH)
-            this_xi_arr = xi_arr_int[None,None,:]
-        elif len(shape)==4:
-            Delta_lnH = ln_HMF[:,:,:,idx_lo+1]-ln_HMF[:,:,:,idx_lo]
-            HMF_integrand = np.exp(ln_HMF[:,:,:,idx_lo] + Delta_lnxi*Delta_lnH)
-            this_xi_arr = xi_arr_int[None,None,None,:]
+        # We know we'll get NANs because we're potentially doing -inf -(-inf)
+        with np.errstate(invalid='ignore'):
+            if len(shape)==2:
+                Delta_lnH = ln_HMF[:,idx_lo+1]-ln_HMF[:,idx_lo]
+                HMF_integrand = np.exp(ln_HMF[:,idx_lo] + Delta_lnxi*Delta_lnH)
+                this_xi_arr = xi_arr_int[None,:]
+            elif len(shape)==3:
+                Delta_lnH = ln_HMF[:,:,idx_lo+1]-ln_HMF[:,:,idx_lo]
+                HMF_integrand = np.exp(ln_HMF[:,:,idx_lo] + Delta_lnxi*Delta_lnH)
+                this_xi_arr = xi_arr_int[None,None,:]
+            elif len(shape)==4:
+                Delta_lnH = ln_HMF[:,:,:,idx_lo+1]-ln_HMF[:,:,:,idx_lo]
+                HMF_integrand = np.exp(ln_HMF[:,:,:,idx_lo] + Delta_lnxi*Delta_lnH)
+                this_xi_arr = xi_arr_int[None,None,None,:]
+            HMF_integrand[np.isnan(HMF_integrand)] = 0.
         # dP/dxi = dP/dlnzeta dlnzeta/dxi
         HMF_xi = HMF_integrand * scaling_relations.dlnzeta_dxi(this_xi_arr)
         # Simultaneous convolution and evaluation at xi
@@ -244,25 +253,6 @@ class MassCalibration:
         # Normalize to be sure
         dP_dobs/= np.trapz(dP_dobs, obs_arr)
         return dP_dobs
-
-
-    def downsample_distribution(self, x, y, N_target=48):
-        idx_zero = np.where(y>0)[0]
-        x_out = x[idx_zero]
-        y_out = y[idx_zero]
-        if len(x_out)<=N_target:
-            return x_out, y_out
-
-        y_interp = InterpolatedUnivariateSpline(x_out, y_out)
-
-        mean = np.trapz(x_out*y_out, x_out)
-        std = np.sqrt(np.trapz((y_out-mean)**2, x_out))
-        x_min = np.amax((x_out[0], mean-4*std))
-        x_max = np.amin((x_out[-1], mean+4*std))
-        x_new = np.linspace(x_min, x_max, N_target)
-        y_new = y_interp(x_new)
-
-        return x_new, y_new
 
 
     ############################################################################
@@ -340,7 +330,6 @@ class MassCalibration:
             # Convolve with Gaussian LSS scatter
             if LSSnoise>0.:
                 dP_dobs = self.convolve_WL_LSS(obsArr, dP_dobs, LSSnoise)
-            # obsArr, dP_dobs = self.downsample_distribution(obsArr, dP_dobs)
             # P(Mwl) from data
             WL_interp = InterpolatedUnivariateSpline(np.log(self.WL.M_arr), self.catalog['lnp_Mwl'][dataID], k=1)
             # Get likelihood
@@ -374,7 +363,6 @@ class MassCalibration:
 
         ##### P(ln(obs0, obs1) | xi)
         dP_dlnobs = self.convolve_HMF_lnobs_to_xi(self.catalog['XI'][dataID], xi_arr, lnHMF_3d)
-
 
         ##### Observable arrays
         obsArr, lnobsArr, obsmeas, obserr = [], [], np.empty(2), np.empty(2)
