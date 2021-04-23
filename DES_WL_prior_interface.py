@@ -7,15 +7,23 @@ from cosmosis.datablock import option_section
 def setup(options):
     # Posterior distribution file from Grandis&Bocquet et al. (2021)
     DES_WL_priors_file = options.get_string(option_section, 'DES_WL_priors_file')
-
     tmp = np.loadtxt(DES_WL_priors_file)
-    DES_WL_prior = {'mean': np.mean(tmp[:,:10], axis=0),
-                    'cov': np.cov(tmp[:,:10], rowvar=False),
-                    'DESwl_z': [.252, .470, .783, 1.18],
-                    'DESwl_bias_mean': np.mean(tmp[:,:4], axis=0),
-                    'DESwl_bias_std': np.std(tmp[:,:4], axis=0),
-                    'DESwl_scatter_mean': np.mean(tmp[:,5:9], axis=0),
-                    'DESwl_scatter_std': np.std(tmp[:,5:9], axis=0)}
+    DES_WL_prior = {'DESwl_z': [.252, .470, .783],
+                    'mean': np.mean(tmp[:,:8], axis=0),
+                    'cov': np.cov(tmp[:,:8], rowvar=False),}
+    # Add systematic uncertainty due to hydro
+    hydro_corr = {'b': .02, 'b_M': .018, 's': .25, 's_M': .59}
+    # corrcoef = np.corrcoef(tmp[:,:8], rowvar=False)
+    DES_WL_prior['cov'][:3,:3]+= hydro_corr['b']**2 * np.eye(3)
+    DES_WL_prior['cov'][3,3]+= hydro_corr['b_M']**2
+    DES_WL_prior['cov'][4:7,4:7]+= hydro_corr['s']**2 * np.eye(3)
+    DES_WL_prior['cov'][7,7]+= hydro_corr['s_M']**2
+    
+    # Individual components for ease of use
+    DES_WL_prior['DESwl_bias_mean'] = np.mean(tmp[:,:3], axis=0)
+    DES_WL_prior['DESwl_scatter_mean'] = np.mean(tmp[:,4:7], axis=0)
+    DES_WL_prior['DESwl_bias_std'] = np.sqrt(np.diag(DES_WL_prior['cov'][:3,:3]))
+    DES_WL_prior['DESwl_scatter_std'] = np.sqrt(np.diag(DES_WL_prior['cov'][4:7,4:7]))
 
     return DES_WL_prior
 
@@ -24,7 +32,7 @@ def execute(block, DES_WL_prior):
     # Create full array of entries as in posterior file
     b = DES_WL_prior['DESwl_bias_mean'] + block.get_double('mor_parameters', 'DES_b_dev')*DES_WL_prior['DESwl_bias_std']
     s = DES_WL_prior['DESwl_scatter_mean'] + block.get_double('mor_parameters', 'DES_s_dev')*DES_WL_prior['DESwl_scatter_std']
-    p = [b[0], b[1], b[2], b[3], block.get_double('mor_parameters', 'DES_b_m'), s[0], s[1], s[2], s[3], block.get_double('mor_parameters', 'DES_s_m')]
+    p = [b[0], b[1], b[2], block.get_double('mor_parameters', 'DES_b_m'), s[0], s[1], s[2], block.get_double('mor_parameters', 'DES_s_m')]
 
     # Likelihood
     resi = np.array(p) - DES_WL_prior['mean']
