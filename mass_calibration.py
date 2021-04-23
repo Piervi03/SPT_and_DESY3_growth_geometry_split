@@ -127,14 +127,14 @@ class MassCalibration:
         if self.todo['Mgas'] and self.catalog['Mg_fid'][i]!=0:
             nobs+= 1
             obsnames.append('Mgas')
-        if self.todo['richness'] and self.catalog['LAMBDA_MCMF_COMB'][i]!=0.:
+        if self.todo['richness'] and self.catalog['richness'][i]!=0.:
             nobs+= 1
             obsnames.append('richness')
         if nobs==0:
             return 1.
 
         ##### Set SPT field scaling factor
-        self.thisSPTfield_gamma = self.SPT_survey['GAMMA'][self.SPT_survey['FIELD']==self.catalog['FIELD'][i]]
+        self.thisSPTfield_gamma = float(self.SPT_survey['GAMMA'][self.SPT_survey['FIELD']==self.catalog['FIELD'][i]])
         if self.SPT_survey['SURVEY'][self.SPT_survey['FIELD']==self.catalog['FIELD'][i]]=='SPECS':
             self.thisSPTfield_gamma*= self.scaling['SPECS_calib']
 
@@ -157,10 +157,6 @@ class MassCalibration:
 
         else:
             raise ValueError(name,"has",nobs,"follow-up observables. I don't know what to do!")
-
-        # Pmatch for RM richness
-        if 'richness' in obsnames:
-             probability*= (1-self.catalog['LAMBDA_PROB_MATCH'][i])
 
         if (probability<0) | (np.isnan(probability)):
             return 0
@@ -311,7 +307,7 @@ class MassCalibration:
         ##### Evaluate likelihood
         if obsname=='richness':
             dP_dobs[dP_dobs==0] = np.nextafter(0, 1)
-            likeli = np.exp(np.interp(self.catalog['LAMBDA_MCMF_COMB'][dataID], obsArr, np.log(dP_dobs)))
+            likeli = np.exp(np.interp(self.catalog['richness'][dataID], obsArr, np.log(dP_dobs)))
 
         if obsname in ('Yx', 'Mgas'):
             if obsname=='Yx':
@@ -422,8 +418,8 @@ class MassCalibration:
         WL_interp = InterpolatedUnivariateSpline(np.log(self.WL.M_arr), self.catalog['lnp_Mwl'][dataID], k=1)
         Pwl = np.exp(WL_interp(lnobsArr[0]))
         if obsnames[1]=='richness':
-            idx_lo = np.digitize(self.catalog['LAMBDA_MCMF_COMB'][dataID], obsArr[1]) -1
-            Delta_l = (self.catalog['LAMBDA_MCMF_COMB'][dataID]-obsArr[1][idx_lo]) / (obsArr[1][idx_lo+1]-obsArr[1][idx_lo])
+            idx_lo = np.digitize(self.catalog['richness'][dataID], obsArr[1]) -1
+            Delta_l = (self.catalog['richness'][dataID]-obsArr[1][idx_lo]) / (obsArr[1][idx_lo+1]-obsArr[1][idx_lo])
             Delta_lny = np.log(dP_dobs01[:,idx_lo+1]/dP_dobs01[:,idx_lo])
             dP_dobs0 = np.exp(np.log(dP_dobs01[:,idx_lo]) + Delta_l*Delta_lny)
             likeli = np.trapz(dP_dobs0*Pwl, obsArr[0])
