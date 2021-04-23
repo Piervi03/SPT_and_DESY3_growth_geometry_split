@@ -4,7 +4,6 @@ from numpy.lib import scimath as sm
 from scipy.interpolate import interp1d, InterpolatedUnivariateSpline, RectBivariateSpline
 from scipy.stats import norm
 from scipy.interpolate import InterpolatedUnivariateSpline, RectBivariateSpline
-# from scipy.linalg import cho_factor, cho_solve
 from multiprocessing import Pool
 
 import h5py
@@ -15,10 +14,9 @@ import cosmo, Mconversion_concentration, miscentering, scaling_relations
 
 ########################################
 
-# Radius [Mpc/h]
-len_r_fine = 64
-grid_lgr_fine_min = -4
-grid_lgr_fine_max = 1
+# DES SOMPZ bins
+DES_SOMPZ_z = np.linspace(.005, 2.995, 300)
+
 # Mass [Msun/h]
 grid_lgM_min = 12.5
 grid_lgM_max = 15.5
@@ -34,12 +32,10 @@ class SPTlensing:
                  mcType):
         WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
         self.WLcalib = WLsimcalib.WLcalibration
-        # self.Delta_crit = self.WLcalib['Delta_crit']
-        self.miscenterer = miscentering.MisCentering('SPT')
+        self.miscenterer = miscentering.MisCentering(self.WLcalib['miscenter_opt'])
 
         self.len_M_arr = 32
         self.M_arr = np.logspace(grid_lgM_min, grid_lgM_max, self.len_M_arr)
-        self.r_fine = np.logspace(grid_lgr_fine_min, grid_lgr_fine_max, len_r_fine)
 
         self.NPROC = 0
 
@@ -58,6 +54,7 @@ class SPTlensing:
         if self.mcType != 'None':
             self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, self.cosmology,
                                                                            setup_interp=True, interp_massdef=500)
+        self.MCrel_DES = Mconversion_concentration.ConcentrationConversion('Child18_obs')
 
         # Go through all clusters with WL data
         WL_idx = (catalog['WLdata'] != None).nonzero()[0]
@@ -118,14 +115,13 @@ class SPTlensing:
     ########################################
 
 
-    def lnlikelihood_DES(self, g_t):
-        """Return lnP(DES data|Mwl)"""
-        diff = self.cat_cl['WLdata']['shear'] - g_t
-        chi2 = np.dot(diff, cho_solve(self.cat_cl['WLdata']['shear_cho_factor'], diff))
-        lnlikeli = -.5 * chi2
-
-        return lnlikeli
-
+    def cluster_member_cont(self, r, cluster):
+        """Return f_cl as function of `r`."""
+        r_s = (cluster['richness']/70)**(1/3) / 10**self.WLcalib['boost']['logc']
+        P_r = get_Sigma(r/r_s, r_s, 1, 1)/get_Sigma(1/r_s, r_s, 1, 1)
+        A_z = np.exp(self.WLcalib['boost']['A_inf'] + np.sum(self.WLcalib['boost']['A'] * np.exp(-.5*(cluster['REDSHIFT']-self.WLcalib['boost']['z_arr'])**2/self.WLcalib['boost']['corr_len']**2)))
+        A = (cluster['richness']/70)**self.WLcalib['boost']['Blambda'] * A_z * P_r
+        return A
 
 
     def lnlike_DES(self):
@@ -136,24 +132,19 @@ class SPTlensing:
         Sigma_c = 1.6624541593797974e+18/Dl/self.beta_avg
         rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.cat_cl['REDSHIFT'], self.cosmology)**2 # [h^2 Msun/Mpc^3]
         r200c = (3*self.M_arr/4/np.pi/200/rho_c_z)**(1/3)
-        c200c = 3.
+        c200c = self.MCrel_DES.calC200(self.M_arr, self.cat_cl['REDSHIFT'])
         delta_c = 200/3 * c200c**3 / (np.log(1+c200c) - c200c/(1+c200c))
         r_s = r200c/c200c
 
         # Get miscentering radius
-        # zeta = scaling_relations.mass2obs('zeta', self.M_arr, self.cat_cl['REDSHIFT'], self.scaling, self.cosmology)
-        # xi = scaling_relations.zeta2xi(zeta)
-        # r_core = 1/self.scaling['r_core_inv']
-        # R_mis = self.miscenterer.get_mean_Rmis_SPT(r200c, r_core, xi, Dl)
-        R_mis_arcmin = self.miscenterer.get_Rmis_extr_opt(self.cat_cl['LAMBDA_MCMF_COMB'], self.cat_cl['REDSHIFT'], self.WLcalib['miscenter_opt'], self.cosmology)
-        R_mis = R_mis_arcmin * Dl * np.pi/60/180
+        R_mis = self.miscenterer.get_mean_Rmis(self.cat_cl, self.cosmology)
 
         # NFW surface mass densities [mass][radius]
         r_Mpch = self.cat_cl['WLdata']['r_arcmin'] * Dl * np.pi/60/180
         x = r_Mpch[None,:] / r_s[:,None]
 
-        Sigma_NFW = get_Sigma(x, r_s[:,None], rho_c_z, delta_c)
-        Delta_Sigma_NFW = get_Delta_Sigma(x, r_s[:,None], rho_c_z, delta_c)
+        Sigma_NFW = get_Sigma(x, r_s[:,None], rho_c_z, delta_c[:,None])
+        Delta_Sigma_NFW = get_Delta_Sigma(x, r_s[:,None], rho_c_z, delta_c[:,None])
         Sigma_NFW_mean = Sigma_NFW - Delta_Sigma_NFW
 
         # NFW surface mass densities at Rmis [mass]
@@ -177,13 +168,8 @@ class SPTlensing:
         reduced_shear = (Sigma_mis-Sigma_mis_mean)/Sigma_c / (1 - Sigma_mis/Sigma_c)
 
         # Cluster member contamination
-        r_s_fcl = self.cat_cl['WLdata']['r200_fid'] / self.WLcalib['c_fcl']
-        delta_c_fcl = 200/3 * self.WLcalib['c_fcl']**3 / (np.log(1+self.WLcalib['c_fcl']) - self.WLcalib['c_fcl']/(1+self.WLcalib['c_fcl']))
-        x_fcl = r_Mpch / r_s_fcl
-        Sigma_fcl = get_Sigma(x_fcl, r_s_fcl, rho_c_z, delta_c_fcl)/get_Sigma(self.WLcalib['x0_fcl'], r_s_fcl, rho_c_z, delta_c_fcl)
-        idx = np.digitize(self.cat_cl['REDSHIFT'], self.WLcalib['A_fcl_z'])-1
-        f_cl = self.WLcalib['A_fcl'][idx] * (self.cat_cl['LAMBDA_MCMF_COMB']/self.WLcalib['lambda_piv_fcl'])**self.WLcalib['B_fcl'] * Sigma_fcl
-        reduced_shear_cont = (1-f_cl) * reduced_shear
+        A = self.cluster_member_cont(r_Mpch, self.cat_cl)
+        reduced_shear_cont = 1/(1+A) * reduced_shear
 
         # Likelihood!
         diffs = reduced_shear_cont - self.cat_cl['WLdata']['shear']
@@ -297,7 +283,26 @@ class SPTlensing:
 
 
     ########################################
+
     def get_beta(self, cosmology):
+        if self.cat_cl['WLdata']['datatype']=='DES':
+            self.get_beta_DES(cosmology)
+        else:
+            self.get_beta_HST_Megacam(cosmology)
+        return 0
+
+
+    def get_beta_DES(self, cosmology):
+        """Return mean(beta) for DES clusters."""
+        beta = np.zeros(len(DES_SOMPZ_z))
+        bgIdx = (DES_SOMPZ_z>self.cat_cl['REDSHIFT']).nonzero()[0]
+        beta[bgIdx] = self.dA_twoz_interp(np.log(self.cat_cl['REDSHIFT']), np.log(DES_SOMPZ_z[bgIdx]))
+        beta[bgIdx]/= np.exp(self.lndA_interp(np.log(DES_SOMPZ_z[bgIdx])))
+        self.beta_avg = np.average(beta, weights=self.cat_cl['WLdata']['Nz'])
+        return 0
+
+
+    def get_beta_HST_Megacam(self, cosmology):
         """Compute <beta> and <beta^2> from distribution of redshift galaxies."""
         ##### Only consider redshift bins behind the cluster
         betaArr = np.zeros(len(self.cat_cl['WLdata']['redshifts']))
@@ -309,7 +314,7 @@ class SPTlensing:
         betaArr[bgIdx]/= np.exp(self.lndA_interp(np.log(self.cat_cl['WLdata']['redshifts'][bgIdx])))
 
         ##### Weight beta(z) with N(z) distribution to get <beta> and <beta^2>
-        if self.cat_cl['WLdata']['datatype'] in ['DES', 'Megacam']:
+        if self.cat_cl['WLdata']['datatype']=='Megacam':
             self.beta_avg = np.average(betaArr, weights=self.cat_cl['WLdata']['Nz'])
             self.beta2_avg = np.average(betaArr**2, weights=self.cat_cl['WLdata']['Nz'])
 
@@ -318,6 +323,7 @@ class SPTlensing:
             for i in self.cat_cl['WLdata']['pzs'].keys():
                 self.beta_avg[i] = np.sum(self.cat_cl['WLdata']['pzs'][i]*betaArr)/self.cat_cl['WLdata']['Ntot'][i]
                 self.beta2_avg[i] = np.sum(self.cat_cl['WLdata']['pzs'][i]*betaArr**2)/self.cat_cl['WLdata']['Ntot'][i]
+        return 0
 
 
 ################################################################################
@@ -387,12 +393,8 @@ def readdata(catalog, HSTfile, MegacamFile, DESfile):
             for i,name in enumerate(catalog['SPT_ID']):
                 if name in f.keys():
                     catalog['WLdata'][i] = {'datatype':'DES',
-                        'r_arcmin': f[name]['r_arcmin'][:],
-                        'shear': f[name]['shear'][:],
-                        'shear_err': f[name]['shear_err'][:],
-                        'redshifts': f[name]['source_redshifts'][:],
-                        'Nz': f[name]['source_Nz'][:],
-                        'r200_fid': f[name]['r200_fid'][()],
-                        # 'R_mis_arcmin': f[name]['R_mis_arcmin'][()],
-                        # 'shear_cho_factor': cho_factor(f[name]['shear_profile_cov'][:]),
-                        }
+                                            'r_arcmin': f[name]['r_arcmin'][:],
+                                            'shear': f[name]['shear'][:],
+                                            'shear_err': f[name]['shear_err'][:],
+                                            'Nz': f[name]['source_Nz'][:],
+                                            }
