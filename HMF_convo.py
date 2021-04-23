@@ -109,10 +109,9 @@ class MultiObsConvolution:
             P_obs_grid = np.array([self.get_P_multiobs_z(z) for z in z_arr])
         else:
             # Launch and execute a multiprocessing pool
-            pool = Pool(processes=self.NPROC)
-            argin = zip([self]*len(z_arr), z_arr)
-            P_obs_grid = np.array(pool.map(unwrap_self_f, argin, chunksize=len(z_arr)//self.NPROC))
-            pool.close()
+            with Pool(processes=self.NPROC) as pool:
+                argin = zip([self]*len(z_arr), z_arr)
+                P_obs_grid = np.array(pool.map(unwrap_self_f, argin))
         return P_obs_grid
 
 

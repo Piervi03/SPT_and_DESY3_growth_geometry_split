@@ -57,10 +57,9 @@ class NumberCount:
         if self.NPROC==0:
             field_results = [self.lnlike_field(fieldidx) for fieldidx in range(num_fields)]
         else:
-            pool = Pool(processes=self.NPROC)
-            argin = zip([self]*num_fields, range(num_fields))
-            field_results = pool.map(unwrap_self_f, argin)
-            pool.close()
+            with Pool(processes=self.NPROC) as pool:
+                argin = zip([self]*num_fields, range(num_fields))
+                field_results = pool.map(unwrap_self_f, argin)
         field_results = np.array(field_results)
         lnlike = np.sum(field_results[:,0])
         Ntotal = np.sum(field_results[:,1])

@@ -79,10 +79,9 @@ class MassCalibration:
             likelihoods = np.array([self.clusterlike(i) for i in range(len_data)])
         else:
             # Launch a multiprocessing pool and get the likelihoods
-            pool = Pool(processes=self.NPROC)
-            argin = zip([self]*len_data, range(len_data))
-            likelihoods = pool.map(unwrap_self_f, argin)
-            pool.close()
+            with Pool(processes=self.NPROC) as pool:
+                argin = zip([self]*len_data, range(len_data))
+                likelihoods = pool.map(unwrap_self_f, argin)
 
         # If likelihood computation failed it returned 0
         if np.count_nonzero(likelihoods)<len_data:

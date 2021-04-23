@@ -70,10 +70,9 @@ class SPTlensing:
         if self.NPROC==0:
             lnp_Mwl = [self.lnlike_cluster(catalog[i]) for i in WL_idx]
         else:
-            pool = Pool(processes=self.NPROC)
-            argin = zip([self]*len(WL_idx), catalog[WL_idx])
-            lnp_Mwl = pool.map(unwrap_self_lnlike_cluster, argin)
-            pool.close()
+            with Pool(processes=self.NPROC) as pool:
+                argin = zip([self]*len(WL_idx), catalog[WL_idx])
+                lnp_Mwl = pool.map(unwrap_self_lnlike_cluster, argin)
 
         catalog['lnp_Mwl'] = [None]*len(catalog)
         catalog['lnp_Mwl'][WL_idx] = lnp_Mwl
