@@ -22,7 +22,7 @@ class HMFCalculator:
 
         else:
             emu_dict = self.HMFemu.predict_raw_emu(cosmology)
-            HMF_interp_input = np.log(np.nextafter(0,1)) * np.ones((len(self.HMFemu.z_arr_asc), 3501))
+            HMF_interp_input = np.full((len(self.HMFemu.z_arr_asc), 3501), -np.inf)
             for i,emu_z in enumerate(self.HMFemu.z_arr_asc):
                 HMF_interp_input[i,:len(emu_dict[emu_z]['HMF'])] = np.log(emu_dict[emu_z]['HMF'])
             HMF_interp = RectBivariateSpline(self.HMFemu.z_arr_asc, np.linspace(13, 16.5, 3501), HMF_interp_input, kx=1, ky=1)

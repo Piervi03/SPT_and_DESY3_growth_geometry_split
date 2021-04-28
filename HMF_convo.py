@@ -70,10 +70,9 @@ class MultiObsConvolution:
         self.scaling = scaling
         self.covmat = covmat
         # Set up interpolation for HMF
-        HMF_in = self.HMF['dNdlnM'][1:,:]
-        if np.any(HMF_in==0):
-            HMF_in[np.where(HMF_in==0)] = np.nextafter(0, 1)
-        self.HMF_interp = RectBivariateSpline(np.log(self.HMF['z_arr'][1:]), np.log(self.HMF['M_arr']), np.log(HMF_in), kx=1, ky=1)
+        with np.errstate(divide='ignore'):
+            lnHMF_in = np.log(self.HMF['dNdlnM'][1:,:])
+        self.HMF_interp = RectBivariateSpline(np.log(self.HMF['z_arr'][1:]), np.log(self.HMF['M_arr']), lnHMF_in, kx=1, ky=1)
         self.Delta_lnM = np.log(HMF['M_arr'][1]/self.HMF['M_arr'][0])
         # Check length of HMF mass array for compression factor
         assert (len(HMF['M_arr'])-1)%self.compression==0, "HMF has non-standard shape"

@@ -295,8 +295,9 @@ class MassCalibration:
 
         ##### Evaluate likelihood
         if obsname=='richness':
-            dP_dobs[dP_dobs==0] = np.nextafter(0, 1)
-            likeli = np.exp(np.interp(self.catalog['richness'][dataID], obsArr, np.log(dP_dobs)))
+            with np.errstate(divide='ignore'):
+                lndP_dobs = np.log(dP_dobs)
+            likeli = np.exp(np.interp(self.catalog['richness'][dataID], obsArr, lndP_dobs))
 
         if obsname in ('Yx', 'Mgas'):
             if obsname=='Yx':
@@ -397,8 +398,6 @@ class MassCalibration:
         ##### Normalize
         N = np.trapz(np.trapz(dP_dobs01, obsArr[1], axis=1), obsArr[0])
         dP_dobs01/= N
-        # Prepare for log
-        dP_dobs01[dP_dobs01==0] = np.nextafter(0, 1)
 
         ##### P(obs0, obs1)
         # P(Mwl) from data
@@ -406,9 +405,16 @@ class MassCalibration:
         Pwl = np.exp(WL_interp(lnobsArr[0]))
         if obsnames[1]=='richness':
             idx_lo = np.digitize(self.catalog['richness'][dataID], obsArr[1]) -1
+            if (self.catalog['richness'][dataID]<obsArr[1][0])|(self.catalog['richness'][dataID]>obsArr[1][-1]):
+                print('Problem with richness', self.catalog['richness'][dataID], self.catalog['SPT_ID'][dataID])
+                return 0
             Delta_l = (self.catalog['richness'][dataID]-obsArr[1][idx_lo]) / (obsArr[1][idx_lo+1]-obsArr[1][idx_lo])
-            Delta_lny = np.log(dP_dobs01[:,idx_lo+1]/dP_dobs01[:,idx_lo])
-            dP_dobs0 = np.exp(np.log(dP_dobs01[:,idx_lo]) + Delta_l*Delta_lny)
+            # dP_dobs01 can be zero so we're ignoring all warnings here
+            with np.errstate(all='ignore'):
+                Delta_lny = np.log(dP_dobs01[:,idx_lo+1]/dP_dobs01[:,idx_lo])
+                lndP_dobs0 = np.log(dP_dobs01[:,idx_lo]) + Delta_l*Delta_lny
+            lndP_dobs0[np.isnan(lndP_dobs0)] = -np.inf
+            dP_dobs0 = np.exp(lndP_dobs0)
             likeli = np.trapz(dP_dobs0*Pwl, obsArr[0])
 
         else:

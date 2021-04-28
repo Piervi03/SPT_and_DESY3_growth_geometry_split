@@ -45,10 +45,9 @@ class MultiObsConvolution:
     ############################################################################
     def execute(self):
         ##### Set up interpolation for HMF
-        HMF_in = self.HMF['dNdlnM'][1:,:]
-        if np.any(HMF_in==0):
-            HMF_in[np.where(HMF_in==0)] = np.nextafter(0, 1)
-        self.HMF_interp = RectBivariateSpline(np.log(self.HMF['z_arr'][1:]), np.log(self.HMF['M_arr']), np.log(HMF_in))
+        with np.errstate(divide='ignore'):
+            lnHMF_in = np.log(self.HMF['dNdlnM'][1:,:])
+        self.HMF_interp = RectBivariateSpline(np.log(self.HMF['z_arr'][1:]), np.log(self.HMF['M_arr']), lnHMF_in, kx=1, ky=1)
         self.Delta_lnM = np.log(self.HMF['M_arr'][1]/self.HMF['M_arr'][0])
 
         ##### Pre-compute the intrinsic scatter convolutions
@@ -113,10 +112,11 @@ class MultiObsConvolution:
         # Compress
         HMF_2d = HMF_2d[::self.compression,::self.compression]
 
-        # Remove 0
-        HMF_2d[(HMF_2d==0).nonzero()] = np.nextafter(0, 1)
+        # Ignore ln(0) warnings
+        with np.errstate(divide='ignore'):
+            lnHMF_2d = np.log(HMF_2d)
 
-        return np.log(HMF_2d)
+        return lnHMF_2d
 
 
     def get_P_3obs_z(self, obsnames, covmat, z): 
@@ -150,8 +150,9 @@ class MultiObsConvolution:
         # Compress
         HMF_3d = HMF_3d[::self.compression,::self.compression,::self.compression]
 
-        # Remove 0
-        HMF_3d[(HMF_3d==0).nonzero()] = np.nextafter(0, 1)
+        # Ignore ln(0) warnings
+        with np.errstate(divide='ignore'):
+            lnHMF_3d = np.log(HMF_3d)
 
-        return np.log(HMF_3d)
+        return lnHMF_3d
      
