@@ -29,7 +29,8 @@ class SPTlensing:
 
     def __init__(self, catalog, WLsimcalibfile,
                  HSTfile, MegacamFile, DESfile,
-                 mcType):
+                 mcType,
+                 NPROC):
         WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
         self.WLcalib = WLsimcalib.WLcalibration
         self.miscenterer = miscentering.MisCentering(self.WLcalib['miscenter_opt'])
@@ -37,7 +38,7 @@ class SPTlensing:
         self.len_M_arr = 32
         self.M_arr = np.logspace(grid_lgM_min, grid_lgM_max, self.len_M_arr)
 
-        self.NPROC = 0
+        self.NPROC = NPROC
 
         self.mcType = mcType
 

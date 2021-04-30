@@ -42,7 +42,8 @@ def setup(options):
         masscalibration.WL = lensing.SPTlensing(masscalibration.catalog,
                                                 WLsimcalibfile,
                                                 HSTfile, MegacamFile, DESfile,
-                                                mcType)
+                                                mcType,
+                                                NPROC)
 
     return masscalibration
 
