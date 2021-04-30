@@ -141,7 +141,6 @@ class SPTlensing:
         # NFW surface mass densities [mass][radius]
         r_Mpch = self.cat_cl['WLdata']['r_arcmin'] * Dl * np.pi/60/180
         x = r_Mpch[None,:] / r_s[:,None]
-
         Sigma_NFW = get_Sigma(x, r_s[:,None], rho_c_z, delta_c[:,None])
         Delta_Sigma_NFW = get_Delta_Sigma(x, r_s[:,None], rho_c_z, delta_c[:,None])
         Sigma_NFW_mean = Sigma_NFW - Delta_Sigma_NFW
@@ -150,21 +149,17 @@ class SPTlensing:
         x_Rmis = R_mis/r_s
         Sigma_NFW_at_Rmis = get_Sigma(x_Rmis, r_s, rho_c_z, delta_c)
         Delta_Sigma_NFW_at_Rmis = get_Delta_Sigma(x_Rmis, r_s, rho_c_z, delta_c)
-        Sigma_NFW_mean_at_Rmis = Sigma_NFW_at_Rmis - Delta_Sigma_NFW_at_Rmis
 
         # Miscentered quantities
         # Sigma = Sigma(R_mis) for r<R_mis
         Sigma_mis = Sigma_NFW.copy()
-        if not R_mis<r_Mpch[0]:
-            Sigma_mis[:,r_Mpch<R_mis] = Sigma_NFW_at_Rmis
-
-        Sigma_mis_mean = np.empty(Sigma_NFW.shape)
-        for i in range(self.len_M_arr):
-            Sigma_mis_mean[i,r_Mpch<R_mis] = Sigma_NFW_at_Rmis[i]
-            Sigma_mis_mean[i,r_Mpch>R_mis] = Sigma_NFW_mean[i,:] + (R_mis/r_Mpch)**2 * (Sigma_NFW_at_Rmis-Sigma_NFW_mean_at_Rmis)[i]
+        if R_mis>r_Mpch[0]:
+            Sigma_mis[:,r_Mpch<R_mis] = Sigma_NFW_at_Rmis[:,None]
+        Delta_Sigma = np.zeros(Sigma_NFW.shape)
+        Delta_Sigma[:,r_Mpch>R_mis] = Delta_Sigma_NFW[:,r_Mpch>R_mis] - (R_mis/r_Mpch[r_Mpch>R_mis][None,:])**2 * Delta_Sigma_NFW_at_Rmis[:,None]
 
         # Reduced shear profile [mass][radius]
-        reduced_shear = (Sigma_mis-Sigma_mis_mean)/Sigma_c / (1 - Sigma_mis/Sigma_c)
+        reduced_shear = Delta_Sigma/Sigma_c / (1 - Sigma_mis/Sigma_c)
 
         # Cluster member contamination
         A = self.cluster_member_cont(r_Mpch, self.cat_cl)
