@@ -23,7 +23,7 @@ def unwrap_self_f(arg):
 ################################################################################
 class MassCalibration:
 
-    def __init__(self, todo, mcType, surveyCutSZ, surveyCutRedshift,
+    def __init__(self, todo, mcType, surveyCutSZ, surveyCutRedshift, surveyCutRichness,
                  SPT_survey_fields, SPT_doublecounts, SPTcatalogfile,
                  observable_pairs,
                  WLsimcalibfile,
@@ -34,6 +34,7 @@ class MassCalibration:
         self.mcType = mcType
         self.surveyCutSZ = surveyCutSZ
         self.surveyCutRedshift = surveyCutRedshift
+        self.surveyCutRichness = surveyCutRichness
         self.observable_pairs = observable_pairs
 
         # Read input files
@@ -266,6 +267,20 @@ class MassCalibration:
                                                  z_arr=self.HMF_convos['%s_z'%pairname],
                                                  lnHMF=self.HMF_convos[pairname])
 
+        ##### Observable array
+        obsArr = scaling_relations.mass2obs(obsname, self.HMF_convos['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, self.catalog['SPT_ID'][dataID])
+        # Account for radial dependence for X-ray observables
+        if obsname in ('Mgas', 'Yx'):
+            correction = self.conversion_factor_Xray_obs_r500ref(dataID)
+            obsArr*= correction
+        # Truncate at richness cut
+        elif obsname=='richness':
+            lnHMF_2d_at_cut = [np.interp(self.surveyCutRichness, obsArr, lnHMF_2d[:,i]) for i in range(lnHMF_2d.shape[1])]
+            idx = obsArr>self.surveyCutRichness
+            obsArr = np.insert(obsArr[idx], 0, self.surveyCutRichness)
+            lnHMF_2d = np.insert(lnHMF_2d[idx,:], 0, lnHMF_2d_at_cut, axis=0)
+        lnobsArr = np.log(obsArr)
+
         ##### SZ array
         zeta_arr = self.thisSPTfield_gamma * scaling_relations.mass2obs('zeta', self.HMF_convos['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
         lnzeta_arr = np.log(zeta_arr)
@@ -273,23 +288,8 @@ class MassCalibration:
         if (xi_arr[0]>2.7)|(self.catalog['XI'][dataID]>xi_arr[-1]-2):
             return 0
 
-        ##### P(ln(obs) | xi)
+        ##### P(obs | xi)
         dP_dlnobs = self.convolve_HMF_lnobs_to_xi(self.catalog['XI'][dataID], xi_arr, lnHMF_2d)
-
-        ##### Observable array
-        obsArr = scaling_relations.mass2obs(obsname, self.HMF_convos['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, self.catalog['SPT_ID'][dataID])
-        # Account for radial dependence for X-ray observables
-        if obsname in ('Mgas', 'Yx'):
-            correction = self.conversion_factor_Xray_obs_r500ref(dataID)
-            obsArr*= correction
-        lnobsArr = np.log(obsArr)
-
-        ##### Convolve with additional lognormal scatter in richness
-        #if obsname=='richness':
-        #    dP_dlnobs = self.apply_sys_Poisson_scatter_richness(obsArr, lnobsArr, dP_dlnobs)
-
-        #### Go to linear obs space and normalize
-        # dP/dobs = dP/dlnobs * dlnobs/dobs = dP/dlnobs /obs
         dP_dobs = dP_dlnobs/obsArr
         dP_dobs/= np.trapz(dP_dobs, obsArr)
 
@@ -299,7 +299,7 @@ class MassCalibration:
                 lndP_dobs = np.log(dP_dobs)
             likeli = np.exp(np.interp(self.catalog['richness'][dataID], obsArr, lndP_dobs))
 
-        if obsname in ('Yx', 'Mgas'):
+        elif obsname in ('Yx', 'Mgas'):
             if obsname=='Yx':
                 obsmeas, obserr = self.catalog['Yx_fid'][dataID], self.catalog['Yx_err'][dataID]
             elif obsname=='Mgas':
@@ -336,8 +336,7 @@ class MassCalibration:
             # Get likelihood
             likeli = np.trapz(np.exp(WL_interp(lnobsArr))*dP_dobs, obsArr)
 
-
-        if ((likeli<0)|(np.isnan(likeli))):
+        if (likeli<=0)|(np.isnan(likeli))|(np.isinf(likeli)):
             print(self.catalog['SPT_ID'][dataID], obsname, likeli)
             #np.savetxt(self.catalog['SPT_ID'][dataID],np.transpose((obsArr, dP_dobs)))
             return 0.
@@ -354,16 +353,6 @@ class MassCalibration:
         lnHMF_3d = self.get_multiobs_lnHMF_z(z=self.catalog['REDSHIFT'][dataID],
                                              z_arr=self.HMF_convos['%s_z'%pairname],
                                              lnHMF=self.HMF_convos[pairname])
-
-        ##### SZ arrays
-        zeta_arr = self.thisSPTfield_gamma * scaling_relations.mass2obs('zeta', self.HMF_convos['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
-        lnzeta_arr = np.log(zeta_arr)
-        xi_arr = scaling_relations.zeta2xi(zeta_arr)
-        if (xi_arr[0]>2.7)|(self.catalog['XI'][dataID]>xi_arr[-1]-2):
-            return 0
-
-        ##### P(ln(obs0, obs1) | xi)
-        dP_dlnobs = self.convolve_HMF_lnobs_to_xi(self.catalog['XI'][dataID], xi_arr, lnHMF_3d)
 
         ##### Observable arrays
         obsArr, lnobsArr, obsmeas, obserr = [], [], np.empty(2), np.empty(2)
@@ -388,9 +377,34 @@ class MassCalibration:
             if obsnames[i] in ('Mgas', 'Yx'):
                 correction = self.conversion_factor_Xray_obs_r500ref(dataID)
                 obsArrTemp*= correction
+            # Truncate at richness cut
+            elif obsnames[i]=='richness':
+                idx = (obsArrTemp>self.surveyCutRichness).nonzero()[0]
+                Delta_x0 = self.surveyCutRichness-obsArrTemp[idx[0]-1]
+                Delta_x = obsArrTemp[idx[0]]-obsArrTemp[idx[0]-1]
+                if i==0:
+                    with np.errstate(invalid='ignore'):
+                        Delta_y = lnHMF_3d[idx[0],:,:]-lnHMF_3d[idx[0]-1,:,:]
+                        lnHMF_3d_at_cut = lnHMF_3d[idx[0]-1,:,:] + Delta_y*Delta_x0/Delta_x
+                    lnHMF_3d = np.insert(lnHMF_3d[idx,:,:], 0, lnHMF_3d_at_cut, axis=0)
+                elif i==1:
+                    with np.errstate(invalid='ignore'):
+                        Delta_y = lnHMF_3d[:,idx[0],:]-lnHMF_3d[:,idx[0]-1,:]
+                        lnHMF_3d_at_cut = lnHMF_3d[:,idx[0]-1,:] + Delta_y*Delta_x0/Delta_x
+                    lnHMF_3d = np.insert(lnHMF_3d[:,idx,:], 0, lnHMF_3d_at_cut, axis=1)
+                obsArrTemp = np.insert(obsArrTemp[idx], 0, self.surveyCutRichness)
             obsArr.append( obsArrTemp )
             lnobsArr.append( np.log(obsArrTemp) )
 
+        ##### SZ arrays
+        zeta_arr = self.thisSPTfield_gamma * scaling_relations.mass2obs('zeta', self.HMF_convos['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
+        lnzeta_arr = np.log(zeta_arr)
+        xi_arr = scaling_relations.zeta2xi(zeta_arr)
+        if (xi_arr[0]>2.7)|(self.catalog['XI'][dataID]>xi_arr[-1]-2):
+            return 0
+
+        ##### P(ln(obs0, obs1) | xi)
+        dP_dlnobs = self.convolve_HMF_lnobs_to_xi(self.catalog['XI'][dataID], xi_arr, lnHMF_3d)
 
         ##### Go to linear space [obs0][obs1]
         dP_dobs01 = dP_dlnobs/obsArr[0][:,None]/obsArr[1][None,:]

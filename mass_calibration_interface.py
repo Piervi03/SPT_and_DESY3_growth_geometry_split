@@ -12,6 +12,7 @@ def setup(options):
     mcType = options.get_string(option_section, 'mcType')
     surveyCutSZ = options.get_double_array_1d(option_section, 'surveyCutSZ')
     surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
+    surveyCutRichness = options.get_double(option_section, 'surveyCutRichness')
     NPROC = options.get_int(option_section, 'NPROC')
     # SPT survey
     SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
@@ -25,7 +26,7 @@ def setup(options):
     WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
 
     masscalibration = mass_calibration.MassCalibration(todo, mcType,
-                                                       surveyCutSZ, surveyCutRedshift,
+                                                       surveyCutSZ, surveyCutRedshift, surveyCutRichness,
                                                        SPT_survey_fields, SPT_doublecounts, SPTcatalogfile,
                                                        observable_pairs,
                                                        WLsimcalibfile,
