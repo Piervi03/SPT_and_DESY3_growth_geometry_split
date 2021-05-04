@@ -1,15 +1,16 @@
 from __future__ import division, print_function
 import sys
 import time
+import fitsio
 import h5py
 import numpy as np
 from numpy.lib import scimath as sm
 from scipy import stats
 import importlib
 from astropy.table import Table
-from scipy.interpolate import InterpolatedUnivariateSpline
+from scipy.interpolate import interp1d, InterpolatedUnivariateSpline
 
-import cosmo, Mconversion_concentration
+import cosmo, Mconversion_concentration, miscentering
 
 # Syntax
 # python mock_WL.py WLconfig mockconfig catalog.fits
@@ -24,12 +25,8 @@ def main():
 
     with h5py.File('mock_WL_%s.hdf5'%time.strftime("%y%m%d-%H%M%S"), 'w') as f:
         for i,name in enumerate(cat['SPT_ID']):
-            if cat['REDSHIFT'][i]>0 and cat['REDSHIFT'][i]<WLconfigMod.WL_z_max:
-                r_Mpch, r_arcmin, g_2d, g_2d_err, source_dist, g_2d_cen, g_2d_mis, g_2d_noerr = mock_WL(cat[i])
-
-                z_max = (int(np.amax(source_dist)/.01)+1)/100
-                z_bins = np.linspace(.2, z_max, round((z_max-.2)*100)+1)
-                z_cen = .5*(z_bins[1:]+z_bins[:-1])
+            if (cat['REDSHIFT'][i]>0)&(cat['REDSHIFT'][i]<WLconfigMod.WL_z_max)&(cat['FIELD'][i] not in ['ra11hdec-25', 'ra13hdec-25']):
+                r_Mpch, r_arcmin, g_2d, g_2d_err, source_dist, g_2d_cen, g_2d_mis, g_2d_noerr, beta = mock_WL(cat[i])
 
                 g = f.create_group(name)
 
@@ -41,9 +38,8 @@ def main():
                 d = g.create_dataset('shear_cen', data=g_2d_cen)
                 d = g.create_dataset('shear_mis', data=g_2d_mis)
                 d = g.create_dataset('shear_noerr', data=g_2d_noerr)
-                d = g.create_dataset('source_redshifts', data=z_cen)
-                d = g.create_dataset('source_Nz', data=np.histogram(source_dist, bins=z_bins)[0])
-                g.create_dataset('r200_fid', data=cat['r200_fid'][i])
+                d = g.create_dataset('source_Nz', data=source_dist)
+                d = g.create_dataset('beta', data=beta)
 
 
 ##### Compute the inverse sec of the complex number z.
@@ -85,24 +81,28 @@ class MockUpWL:
         self.config_mod = importlib.import_module('WL_input')
         self.Delta_crit = self.config_mod.Delta_crit
         self.rng = np.random.default_rng(self.config_mod.random_seed)
-        # Radial binning scheme following data
-        self.r_edges = np.logspace(-1, 1, 21)
-        self.r_mean = 2/3 * (self.r_edges[1:]**3-self.r_edges[:-1]**3)/(self.r_edges[1:]**2-self.r_edges[:-1]**2)
-
-
-    def get_Rmis_opt(self, lam, z, miscenter_opt):
-        sigma0 = miscenter_opt['sigma0'] * ((1+lam)/60)**miscenter_opt['sigma0_lam'] * ((1+z)/1.6)**miscenter_opt['sigma0_z']
-        sigma1 = miscenter_opt['sigma1'] * ((1+lam)/60)**miscenter_opt['sigma1_lam']
-        mis = miscenter_opt['rho']*sigma0 + (1-miscenter_opt['rho'])*sigma1
-
-        return mis
+        self.miscenterer = miscentering.MisCentering(self.config_mod.miscenter_opt)
+        # DES Y3 source P(z)
+        fits = fitsio.FITS(self.config_mod.source_Pz_file)
+        self.source_z = {'z': fits['nz_source']['Z_MID'][:]}
+        for i in range(2,5):
+            self.source_z['BIN%d'%i] = fits['nz_source']['BIN%d'%i][:]
+        self.source_z['allbins'] = np.array([self.source_z['BIN%d'%i] for i in range(2,5)])
+        # DES Y3 source weights
+        self.source_weights = np.loadtxt(self.config_mod.source_weights_file, unpack=True)
+        self.source_weights_mean = np.average(self.source_weights[0]*np.ones(self.source_weights[1:].shape), weights=self.source_weights[1:], axis=1)
+        self.source_weights_cum = np.cumsum(self.source_weights[1:], axis=1)
+        self.source_weights_cum/= self.source_weights_cum[:,-1][:,None]
+        # DES Y3 tomo bin weights
+        weights = np.load(self.config_mod.tomo_bin_weight_file)
+        self.w_interp = interp1d(weights[0], weights[1:])
 
 
     def get_miscentered_gt(self, z, beta_avg):
         """Return the predicted radial shear profile for a given mass, redshift,
         and betas."""
         ##### M200 and scale radius, wrt critical density, everything in h units
-        c = 3#10**self.rng.random()#self.MCrel.calC200(self.M_Delta, z)
+        c = self.MCrel.calC200(self.M_Delta, z)
         delta_c = self.Delta_crit/3 * c**3 / (np.log(1+c) - c/(1+c))
         rs = self.r_Delta/c
 
@@ -113,7 +113,7 @@ class MockUpWL:
         Sigma_c = 1.6624541593797974e+18/self.Dl/beta_avg
 
         # Miscentered Sigma(r)
-        R_mis = self.get_Rmis_opt(self.lam, z, self.config_mod.WL_params['miscenter_opt']) * self.Dl * np.pi/(60*180)
+        R_mis = self.miscenterer.get_mean_Rmis(self.cat, self.cosmology)
 
         Sigma_NFW = get_Sigma(x, rs, self.rho_c_z, delta_c)
         Delta_Sigma_NFW = get_Delta_Sigma(x, rs, self.rho_c_z, delta_c)
@@ -133,7 +133,7 @@ class MockUpWL:
 
         Sigma_mis_mean = np.empty(Sigma_NFW.shape)
         Sigma_mis_mean[self.r_arr<R_mis] = Sigma_NFW_at_Rmis
-        Sigma_mis_mean[self.r_arr>R_mis] = Sigma_NFW_mean[:] + (R_mis/self.r_arr)**2 * (Sigma_NFW_at_Rmis-Sigma_NFW_mean_at_Rmis)
+        Sigma_mis_mean[self.r_arr>R_mis] = Sigma_NFW_mean[self.r_arr>R_mis] + (R_mis/self.r_arr[self.r_arr>R_mis])**2 * (Sigma_NFW_at_Rmis-Sigma_NFW_mean_at_Rmis)
 
         # Reduced shear profile [mass][radius]
         g_t_mis = (Sigma_mis-Sigma_mis_mean)/Sigma_c / (1 - Sigma_mis/Sigma_c)
@@ -142,51 +142,56 @@ class MockUpWL:
         return g_t_mis, g_t_cen
 
 
-    def get_source_gals(self, z):
-        """Return stochastic realization of source galaxy redshifts with `z>z_cl
-        + z_offset` for each radial bin."""
-        area_bin_arcmin = np.pi * (self.r_arcmin[1:]**2 - self.r_arcmin[:-1]**2)
-        N = self.rng.poisson(area_bin_arcmin * self.config_mod.source_p_arcmin2)
-        z_dist = [self.rng.lognormal(np.log(self.config_mod.source_lognorm_dist_mean),
-                                     self.config_mod.source_lognorm_dist_sigma,
-                                     this_N) for this_N in N]
-        for i in range(len(N)):
-            idx_behind = np.where(z_dist[i] > z+self.config_mod.z_offset)
-            z_dist[i] = z_dist[i][idx_behind]
+    def draw_source_weight(self, BIN, N):
+        """Return `N` draws from the distribution of weights of tomo bin `BIN`, labeled from 1 to 4."""
+        devs = self.rng.random(N)
+        w = np.interp(devs, self.source_weights_cum[BIN-2], self.source_weights[0])
+        return w
 
-        z_dist_total = [item for sublist in z_dist for item in sublist]
 
-        return z_dist, z_dist_total
+    def get_source_gals(self, z_cl):
+        """Return stochastic realization of source galaxy redshifts and weights for each radial bin.
+        Assume equal number of sources in all tomographic bins."""
+        area_bin_arcmin = np.pi * (self.r_arcmin_edges[1:]**2 - self.r_arcmin_edges[:-1]**2)
+        z_dist_r = np.empty((len(area_bin_arcmin), len(self.source_z['z'])))
+        w_dist_b = 3*[None]
+        N_r = np.zeros(len(area_bin_arcmin))
+        for i in range(len(area_bin_arcmin)):
+            # Each tomo bin gets N/3 sources with weights w_dist_b
+            for b in range(3):
+                this_N = self.rng.poisson(area_bin_arcmin[i] * self.config_mod.source_p_arcmin2 /3)
+                N_r[i]+= this_N
+                w_dist_b[b] = self.draw_source_weight(b+2, this_N)
+            sum_w = self.w_interp(z_cl)[1:] * [np.sum(w_dist_b[b]) for b in range(3)]
+            z_dist_r[i] = np.sum(self.source_z['allbins']*sum_w[:,None], axis=0)/np.sum(sum_w)
+        z_dist = np.average(self.source_z['allbins'], weights=self.w_interp(z_cl)[1:]*self.source_weights_mean, axis=0)
+        return z_dist_r, z_dist, N_r 
 
 
     def get_beta(self, z_cl, z_dist):
         """Return `<beta>` and `<beta**2>` given a redshift distribution."""
-        beta = np.array([cosmo.dA_two_z(z_cl, z, self.cosmology)/cosmo.dA(z, self.cosmology) for z in z_dist])
-        beta_avg = np.mean(beta)
+        beta = np.array([cosmo.dA_two_z(z_cl, z, self.cosmology)/cosmo.dA(z, self.cosmology) for z in self.source_z['z']])
+        beta[self.source_z['z']<=z_cl] = 0
+        beta_2d = beta * np.ones(z_dist.shape)
+        beta_avg = np.average(beta_2d, weights=z_dist, axis=1)
         return beta_avg
 
 
     def apply_cl_mem_contamination(self, z, g_2d):
-        r_s_fcl = self.r200_fid / self.config_mod.WL_params['c_fcl']
-        delta_c_fcl = 200/3 * self.config_mod.WL_params['c_fcl']**3 / (np.log(1+self.config_mod.WL_params['c_fcl']) - self.config_mod.WL_params['c_fcl']/(1+self.config_mod.WL_params['c_fcl']))
-        x_fcl = self.r_arr / r_s_fcl
-        Sigma_fcl = get_Sigma(x_fcl, r_s_fcl, self.rho_c_z, delta_c_fcl)/get_Sigma(self.config_mod.WL_params['x0_fcl'], r_s_fcl, self.rho_c_z, delta_c_fcl)
-        idx = np.digitize(z, self.config_mod.WL_params['A_fcl_z'])-1
-        f_cl = self.config_mod.WL_params['A_fcl'][idx] * (self.lam/self.config_mod.WL_params['lambda_piv_fcl'])**self.config_mod.WL_params['B_fcl'] * Sigma_fcl
-        reduced_shear_cont = (1-f_cl) * g_2d
+        r_s_fcl = (self.cat['richness']/70)**(1/3) / 10**self.config_mod.boost['logc']
+        Sigma_fcl = get_Sigma(self.r_arr/r_s_fcl, r_s_fcl, self.rho_c_z, 1)/get_Sigma(1/r_s_fcl, r_s_fcl, self.rho_c_z, 1)
+        A_z = np.exp(self.config_mod.boost['A_inf'] + np.sum(self.config_mod.boost['A'] * np.exp(-.5*(z-self.config_mod.boost['z_arr'])**2/self.config_mod.boost['corr_len']**2)))
+        A = (self.cat['richness']/70)**self.config_mod.boost['Blambda'] * A_z * Sigma_fcl
+        reduced_shear_cont = 1/(1+A) * g_2d
 
         return reduced_shear_cont
 
 
     def __call__(self, cat):
         """Wrapper function: Call all workers and return everything."""
+        self.cat = cat
         z_cl = cat['REDSHIFT']
-        self.SPT_ID = cat['SPT_ID']
-        self.xi = cat['XI']
-        self.theta_c = cat['THETA_CORE']
         self.M_Delta = cat['Mwl_200']
-        self.lam = cat['LAMBDA_MCMF_COMB']
-        self.r200_fid = cat['r200_fid']
 
         self.rho_c_z = cosmo.RHOCRIT * cosmo.Ez(z_cl, self.cosmology)**2
         self.Dl = cosmo.dA(z_cl, self.cosmology)
@@ -194,31 +199,30 @@ class MockUpWL:
         self.r_Delta = (3*self.M_Delta/4/np.pi/self.Delta_crit/self.rho_c_z)**(1/3)
 
         # Radii
-        r_min = .25
-        r_max = 3 * (1+z_cl)**(-1.3)
-        good_idx = ((r_min<=self.r_edges)&(self.r_edges<=r_max)).nonzero()[0]
-        self.r_arr = self.r_mean[good_idx[:-1]]
+        r_min = .5
+        r_max = 3.2 / (1+z_cl)
+        all_edges = np.logspace(-1, 1, 21)*self.cosmology['h']
+        good_idx = ((r_min<=all_edges)&(all_edges<=r_max)).nonzero()[0]
+        these_edges = all_edges[good_idx]
+        these_edges = np.append(np.insert(these_edges, 0, r_min), r_max)
+        self.r_arr = 2/3 * (these_edges[1:]**3-these_edges[:-1]**3)/(these_edges[1:]**2-these_edges[:-1]**2)
         self.r_arcmin = self.r_arr / self.Dl * 60*180/np.pi
+        self.r_arcmin_edges = these_edges / self.Dl * 60*180/np.pi
 
-        source_dist_r, source_dist = self.get_source_gals(z_cl)
-        beta_avg = self.get_beta(z_cl, source_dist)
+        source_dist_r, source_dist, N_r = self.get_source_gals(z_cl)
+        beta_avg = self.get_beta(z_cl, source_dist_r)
+        # beta_avg0 = self.get_beta(z_cl, source_dist[None,:])
+        # print(beta_avg, beta_avg0)
         g_2d_mis, g_2d_cen = self.get_miscentered_gt(z_cl, beta_avg)
         g_2d_cont = self.apply_cl_mem_contamination(z_cl, g_2d_mis)
+
         # Error on shear is shape_noise / sqrt(N(r))
-        N_r = np.array([len(source_dist_r[i]) for i in range(len(source_dist_r))])
-
-        good_idx = (N_r>4).nonzero()[0]
-
-        N_r = N_r[good_idx]
+        good_idx = (np.isfinite(g_2d_cont)&(N_r>4)).nonzero()[0]
         g_2d = g_2d_cont[good_idx]
-
-        # Shape and shot noise
-        g_2d_err = self.config_mod.shape_noise / np.sqrt(N_r)
-
-        # Apply scatter
+        g_2d_err = self.config_mod.shape_noise / np.sqrt(N_r[good_idx])
         g_2d+= g_2d_err*self.rng.standard_normal(len(g_2d))
 
-        return self.r_arr[good_idx], self.r_arcmin[good_idx], g_2d, g_2d_err, source_dist, g_2d_cen[good_idx], g_2d_mis[good_idx], g_2d_cont[good_idx]
+        return self.r_arr[good_idx], self.r_arcmin[good_idx], g_2d, g_2d_err, source_dist, g_2d_cen[good_idx], g_2d_mis[good_idx], g_2d_cont[good_idx], beta_avg[good_idx]
 
 
 
