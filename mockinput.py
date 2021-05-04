@@ -1,4 +1,6 @@
-SPT_survey = '/home/bocquet/SPT_cluster_data/SPT_SZ_survey_190418.txt'
+import numpy as np
+
+SPT_survey = '/home/bocquet/SPT_cluster_data/SPT_SZ_ECS_500d_100d_survey_210319.txt'
 
 random_seed = 0
 
@@ -12,7 +14,7 @@ cosmology['Omega_b'] = cosmology['Ombh2']/cosmology['h']**2
 cosmology['Ommh2'] = cosmology['Omega_m']*cosmology['h']**2
 cosmology['Omega_l'] = 1-cosmology['Omega_m']
 
-scaling = {'Asz': .96, 'Bsz': 1.5, 'Csz': .5, 'Dsz': .2,
+scaling = {'Asz': .96, 'Bsz': 1.5, 'Csz': .5, 'Dsz': .2, 'zeta_min': 2.,
            'Bsz2':0, 'Csz2':0, 'DszM':0, 'Esz':0,
            'WLbias': 0., 'WLscatter': 0.,
            'HSTbias': 0., 'HSTscatterLSS':5.6e13,
@@ -20,8 +22,8 @@ scaling = {'Asz': .96, 'Bsz': 1.5, 'Csz': .5, 'Dsz': .2,
            'DWL_Megacam': .3, 'bWL_Megacam': 1,
            'DESbias': 0., 'DESscatterLSS': 6.3e13,
 
-           'DES_b_0': -4.7014e-02, 'DES_s_0': -2.2815e+00 , 'DES_b_m': 9.9980e-01,  'DES_s_M': -2.2429e-01, 'DES_b_z': -1.3346e-02, 'DES_s_z': -2.7614e-01,
-           'DES_m_piv': 2e14, 'DES_z_piv': .6,
+           'DES_m_piv': 2e14,
+           'DES_b_dev': 0, 'DES_b_m': .98, 'DES_s_dev': 0, 'DES_s_M': -.826,
 
            'Adisp':939., 'Bdisp':2.91, 'Cdisp':.33, 'Ddisp0':.2, 'DdispN':3.,
            'Arichness': 70., 'Brichness': 1., 'Crichness': 0., 'Drichness': .2,
@@ -35,12 +37,19 @@ scaling = {'Asz': .96, 'Bsz': 1.5, 'Csz': .5, 'Dsz': .2,
            'richmPivot': 3e14,
             'YXPARAM': 'SPT_XVP',
            }
+tmp = np.loadtxt('/archive2/users/grandis/DES-Y3-SPT/SPTmis-centering/_18-25_metapost_')
+scaling['DESwl_z'] = [.252, .470, .783,]
+scaling['DESwl_bias_mean'] = np.mean(tmp[:,:3], axis=0)
+scaling['DESwl_bias_std'] = np.std(tmp[:,:3], axis=0)
+scaling['DESwl_scatter_mean'] = np.mean(tmp[:,4:7], axis=0)
+scaling['DESwl_scatter_std'] = np.std(tmp[:,4:7], axis=0)
 
 # SPT survey cuts
-surveyCutSZ = (5., 47.)
+surveyCutSZ = (4.5, 200.)
 surveyCutRedshift = (0.25, 2.)
-# Type of M-c scaling relation, 'Duffy08' or 'DK15' or float
-mcType = 'DK15'
+surveyCutRichness = 0.
+# Type of M-c scaling relation, 'Duffy08' or 'DK15' or 'Cihld18_obs' or float
+mcType = 'Child18_obs'
 # How to model X-ray profiles? 'PL' or 'beta'
 profile_shape = 'PL'
 # Observable errors
