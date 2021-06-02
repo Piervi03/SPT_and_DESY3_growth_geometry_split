@@ -56,6 +56,15 @@ def mass2obs(name, mass, z, scaling, cosmology=None, cluster_ID=None):
 
 
 ####################
+def zeta2mass(zeta, z, scaling, cosmology):
+    """Inverse zeta(mass, z) relation."""
+    ln_M_M0 = (np.log(zeta) - scaling['Asz'] - scaling['Csz']*np.log(cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology)))\
+              / (scaling['Bsz'] + scaling['Esz']*np.log(cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology)))
+    mass = scaling['SZmPivot'] * np.exp(ln_M_M0)
+    return mass
+
+
+####################
 def dlnM_dlnobs(name, scaling, cosmology=None, M0_arr=None, z=None):
     """Returns dlnM/dln(obs) for a given observable."""
     if name=='zeta':
