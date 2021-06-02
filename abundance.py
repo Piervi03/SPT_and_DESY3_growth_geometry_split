@@ -57,10 +57,9 @@ class NumberCount:
         if self.NPROC==0:
             field_results = [self.lnlike_field(fieldidx) for fieldidx in range(num_fields)]
         else:
-            pool = Pool(processes=self.NPROC)
-            argin = zip([self]*num_fields, range(num_fields))
-            field_results = pool.map(unwrap_self_f, argin)
-            pool.close()
+            with Pool(processes=self.NPROC) as pool:
+                argin = zip([self]*num_fields, range(num_fields))
+                field_results = pool.map(unwrap_self_f, argin)
         field_results = np.array(field_results)
         lnlike = np.sum(field_results[:,0])
         Ntotal = np.sum(field_results[:,1])
@@ -75,8 +74,8 @@ class NumberCount:
         """Returns (ln-likelihood, Ntotal) for a given SPT field (index)."""
         # dN/dln(zeta)
         dN_dlnzeta = self.dN_dlnzeta_unitSolidAng * self.SPT_survey['AREA'][fieldidx] * (np.pi/180)**2
-        if np.any(dN_dlnzeta==0):
-            dN_dlnzeta[np.where(dN_dlnzeta==0)] = np.nextafter(0, 1)
+        with np.errstate(divide='ignore'):
+            lndN_dlnzeta = np.log(dN_dlnzeta)
 
         # Apply field scaling factor
         this_zeta_m = self.zeta_m * self.SPT_survey['GAMMA'][fieldidx]
@@ -88,16 +87,16 @@ class NumberCount:
         # and repeated spline interp is way too slow (1.6sec per field)
         # So we do linear interpolation (in ln(M), and for ln(dN/dlnzeta))
         dN_dxi = self.dlnzeta_dxi_arr\
-            * np.exp(np.array([np.interp(self.ln_zeta_xi_arr, np.log(this_zeta_m[i]), np.log(dN_dlnzeta[i]))
+            * np.exp(np.array([np.interp(self.ln_zeta_xi_arr, np.log(this_zeta_m[i]), lndN_dlnzeta[i])
             for i in range(self.HMF['len_z'])]))
 
         # Convolve with unit scatter (measurement uncertainty)
         dN_dxi = gaussian_filter1d(dN_dxi, 1/self.dxi, axis=1, mode='constant')
-        if np.any(dN_dxi==0):
-            dN_dxi[dN_dxi==0] = np.nextafter(0, 1)
 
         # Set up interpolation for cluster list below
-        lndNdxi = RectBivariateSpline(np.log(self.HMF['z_arr']), np.log(self.xi_bins), np.log(dN_dxi))
+        with np.errstate(divide='ignore'):
+            lndN_dxi = np.log(dN_dxi)
+        lndNdxi = RectBivariateSpline(np.log(self.HMF['z_arr']), np.log(self.xi_bins), lndN_dxi)
 
         # Ntotal (trapz except that we sum in log-space)
         integrand = np.exp(.5*(lndNdxi(np.log(self.z_arr), np.log(self.xi_arr[1:])) + lndNdxi(np.log(self.z_arr), np.log(self.xi_arr[:-1]))))\
@@ -111,7 +110,7 @@ class NumberCount:
         ##### confirmed clusters
         thisfield_conf = np.where((self.catalog['FIELD']==self.SPT_survey['FIELD'][fieldidx])
             & (self.catalog['XI']>=self.surveyCutSZ[0]) & (self.catalog['XI']<=self.surveyCutSZ[1])
-            & (self.catalog['LAMBDA_MCMF_COMB']>=self.surveyCutLambda[0]) & (self.catalog['LAMBDA_MCMF_COMB']<=self.surveyCutLambda[1])
+            & (self.catalog['richness']>=self.surveyCutLambda[0]) & (self.catalog['richness']<=self.surveyCutLambda[1])
             & (self.catalog['REDSHIFT']>=self.surveyCutRedshift[0]) & (self.catalog['REDSHIFT']<=self.surveyCutRedshift[1]))[0]
         for i in thisfield_conf:
             # spec-z: Evaluate dN/dxi/dz at exact location

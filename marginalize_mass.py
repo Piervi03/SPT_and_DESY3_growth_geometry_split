@@ -20,10 +20,9 @@ class MarginalizeMass:
     def do_it(self):
         """Return ln-likelihood for SPT cluster abundance."""
         ##### Set up interpolation for HMF
-        HMF_in = self.HMF['dNdlnM'][1:,:]
-        if np.any(HMF_in==0):
-            HMF_in[np.where(HMF_in==0)] = np.nextafter(0, 1)
-        HMF_interp = RectBivariateSpline(np.log(self.HMF['z_arr'][1:]), np.log(self.HMF['M_arr']), np.log(HMF_in))
+        with np.errstate(divide='ignore'):
+            lnHMF_in = np.log(self.HMF['dNdlnM'][1:,:])
+        HMF_interp = RectBivariateSpline(np.log(self.HMF['z_arr'][1:]), np.log(self.HMF['M_arr']), lnHMF_in, kx=1, ky=1)
 
         ##### Now go through cluster catalog
         M500, M200, weight = [], [], []

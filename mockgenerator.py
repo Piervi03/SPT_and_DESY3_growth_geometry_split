@@ -6,6 +6,7 @@ import time
 import importlib
 from scipy.interpolate import RectBivariateSpline
 from astropy.table import Table
+from scipy.stats import expon
 # import xarray as xr
 
 import compute_HMF_MiraTitan, cosmo, Mconversion_concentration, scaling_relations
@@ -88,7 +89,7 @@ def main():
 
                 obs = np.exp(rng.multivariate_normal(np.log(obs_0[:,i,j]), covs[i,j], N[i,j]))
 
-                keep = (obs[:,2]>2).nonzero()[0]
+                keep = (obs[:,2]>scaling['zeta_min']).nonzero()[0]
                 for k in keep:
                     # draw xi|zeta
                     xi = rng.normal(scaling_relations.zeta2xi(obs[k,2]), scale=1.)
@@ -99,19 +100,19 @@ def main():
                         # M200h_WL = np.exp(MCrel.lnM_to_lnM200(z, np.log(obs[k,0]))[0,0])
 
                         # Observed richness
-                        richness_int = rng.lognormal(np.log(obs[k,3]), obs[k,3]**-.5)
-                        richness_obs = rng.normal(richness_int, configMod.richness_err)
-
-                        mock.append((M, z, xi, Mg, obs[k,0], richness_obs))
-                        fieldnames.append(field)
+                        richness_obs = obs[k,3]#rng.lognormal(np.log(obs[k,3]), obs[k,3]**-.5)
+                        #richness_obs = rng.normal(richness_int, configMod.richness_err)
+                        if richness_obs>configMod.surveyCutRichness:
+                            mock.append((M, z, xi, Mg, obs[k,0], richness_obs))
+                            fieldnames.append(field)
 
         # False detections
-        dNdxiFalse = SPT_survey['BETA'][fieldidx] * SPT_survey['AREA'][fieldidx]/2500. * SPT_survey['ALPHA'][fieldidx] * np.exp(-SPT_survey['BETA'][fieldidx]*(xiArrBin-5.)) * dxi
-        for i in range(len(dNdxiFalse)):
-            N = rng.poisson(dNdxiFalse[i])
-            for k in range(N):
-                mock.append((0., 0., xiArrBin[i], 0., 0., 0.))
-                fieldnames.append(field)
+        # dNdxiFalse = SPT_survey['BETA'][fieldidx] * SPT_survey['AREA'][fieldidx]/2500. * SPT_survey['ALPHA'][fieldidx] * np.exp(-SPT_survey['BETA'][fieldidx]*(xiArrBin-5.)) * dxi
+        # for i in range(len(dNdxiFalse)):
+        #     N = rng.poisson(dNdxiFalse[i])
+        #     for k in range(N):
+        #         mock.append((0., 0., xiArrBin[i], 0., 0., 0.))
+        #         fieldnames.append(field)
 
     names = np.array(['cluster%d'%i for i in range(len(mock))])
 
@@ -120,7 +121,7 @@ def main():
 
     ##### Select XVP
     nCluster = len(mock)
-    print(nCluster,'clusters')
+    print(nCluster,'clusters', 'xi max', np.amax(mock[:,2]), 'lambda min', np.amin(mock[:,5]))
 
     # Select nXrayCluster highest xi for Yx follow-up
     XVP = np.argsort(mock[:,2])
@@ -186,20 +187,20 @@ def main():
     M500_noh = rng.lognormal(np.log(mock[:,0]/cosmology['h']), scaling['Dsz']/scaling['Bsz'])
 
     # Theta_core (random)
-    theta_core = .25 * rng.integers(1, 13, len(names))
-
-    r200 = (3*mock[:,0]/(4*np.pi*200* cosmo.RHOCRIT * cosmo.Ez(mock[:,1], cosmology)**2.))**(1/3)
-
+    theta_core_Mpc = expon.rvs(scale=1/3.76, size=len(mock))
+    theta_core_arcmin = theta_core_Mpc*cosmology['h'] / [cosmo.dA(z, cosmology) for z in mock[:,1]] * 180/np.pi * 60
+    theta_core = np.round(theta_core_arcmin*4)/4
+    theta_core[theta_core>3] = 3.
 
     ##### Save catalog file
     names_arr = ['SPT_ID', 'FIELD', 'XI', 'THETA_CORE', 'REDSHIFT', 'REDSHIFT_UNC', 'REDSHIFT_LIMIT',
                  'Mg_MM', 'lnMg_err_MM', 'lnYx_err_MM',
-                 'M_true', 'Tx_MM', 'M500', 'Mwl_200', 'r200_fid',
-                 'LAMBDA_MCMF_COMB', 'LAMBDA_RM_UNC', 'LAMBDA_PROB_MATCH']
+                 'M_true', 'Tx_MM', 'M500', 'Mwl_200',
+                 'richness',]
     data_arr = [names, fieldnames, mock[:,2], theta_core, mock[:,1], np.zeros(nCluster), redshiftLim,
                 Mgas, Xerrarr, Xerrarr,
-                mock[:,0], 1e14*np.ones(nCluster), M500_noh, mock[:,4], r200,
-                mock[:,5], configMod.richness_err*np.ones(nCluster), np.zeros(nCluster)]
+                mock[:,0], 1e14*np.ones(nCluster), M500_noh, mock[:,4],
+                mock[:,5],]
     # Save to fits
     cat = Table(data_arr, names=names_arr)
     cat.write('mock_%s.fits'%time.strftime("%y%m%d-%H%M%S"))

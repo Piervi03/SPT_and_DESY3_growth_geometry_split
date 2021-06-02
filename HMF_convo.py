@@ -70,10 +70,9 @@ class MultiObsConvolution:
         self.scaling = scaling
         self.covmat = covmat
         # Set up interpolation for HMF
-        HMF_in = self.HMF['dNdlnM'][1:,:]
-        if np.any(HMF_in==0):
-            HMF_in[np.where(HMF_in==0)] = np.nextafter(0, 1)
-        self.HMF_interp = RectBivariateSpline(np.log(self.HMF['z_arr'][1:]), np.log(self.HMF['M_arr']), np.log(HMF_in), kx=1, ky=1)
+        with np.errstate(divide='ignore'):
+            lnHMF_in = np.log(self.HMF['dNdlnM'][1:,:])
+        self.HMF_interp = RectBivariateSpline(np.log(self.HMF['z_arr'][1:]), np.log(self.HMF['M_arr']), lnHMF_in, kx=1, ky=1)
         self.Delta_lnM = np.log(HMF['M_arr'][1]/self.HMF['M_arr'][0])
         # Check length of HMF mass array for compression factor
         assert (len(HMF['M_arr'])-1)%self.compression==0, "HMF has non-standard shape"
@@ -109,10 +108,9 @@ class MultiObsConvolution:
             P_obs_grid = np.array([self.get_P_multiobs_z(z) for z in z_arr])
         else:
             # Launch and execute a multiprocessing pool
-            pool = Pool(processes=self.NPROC)
-            argin = zip([self]*len(z_arr), z_arr)
-            P_obs_grid = np.array(pool.map(unwrap_self_f, argin, chunksize=len(z_arr)//self.NPROC))
-            pool.close()
+            with Pool(processes=self.NPROC) as pool:
+                argin = zip([self]*len(z_arr), z_arr)
+                P_obs_grid = np.array(pool.map(unwrap_self_f, argin))
         return P_obs_grid
 
 
@@ -160,9 +158,10 @@ class MultiObsConvolution:
         HMF_1d = gaussian_filter1d(dN_dlnM, Nbin, mode='constant')
         # Compress
         HMF_1d = HMF_1d[::self.compression]
-        # Make it safe to take log
-        HMF_1d[HMF_1d==0] = np.nextafter(0,1)
-        return np.log(HMF_1d)
+        # We know we're doing log(0)...
+        with np.errstate(divide='ignore'):
+            lnHMF_1d = np.log(HMF_1d)
+        return lnHMF_1d
 
 
     def get_P_zeta_lambdacut_z(self, covmat, z):
@@ -189,9 +188,10 @@ class MultiObsConvolution:
         HMF_1d = convolution.convolve_HMF_1obs_varkernel(dN_dlnM, self.Delta_lnM, kernels, Nbins_zeta)
         # Compress
         HMF_1d = HMF_1d[::self.compression]
-        # Make it safe to take log
-        HMF_1d[HMF_1d==0] = np.nextafter(0,1)
-        return np.log(HMF_1d)
+        # We know we're doing log(0)...
+        with np.errstate(divide='ignore'):
+            lnHMF_1d = np.log(HMF_1d)
+        return lnHMF_1d
 
 
     def get_P_2obs_z(self, obsname, covmat, z):
@@ -213,9 +213,10 @@ class MultiObsConvolution:
         HMF_2d = convolution.convolve_HMF_2obs_fixedkernel(dN_dlnM, self.Delta_lnM, kernel, Nbins_obs, Nbins_zeta)
         # Compress
         HMF_2d = HMF_2d[::self.compression,::self.compression]
-        # Make it safe to take log
-        HMF_2d[HMF_2d==0] = np.nextafter(0,1)
-        return np.log(HMF_2d)
+        # We know we're doing log(0)...
+        with np.errstate(divide='ignore'):
+            lnHMF_2d = np.log(HMF_2d)
+        return lnHMF_2d
 
 
     def get_P_2obs_DES_z(self, obsname, z):
@@ -251,9 +252,10 @@ class MultiObsConvolution:
         HMF_2d = convolution.convolve_HMF_2obs_varkernel(dN_dlnM, self.Delta_lnM, kernels, Nbins_obs, Nbins_zeta)
         # Compress
         HMF_2d = HMF_2d[::self.compression,::self.compression]
-        # Make it safe to take log
-        HMF_2d[HMF_2d==0] = np.nextafter(0,1)
-        return np.log(HMF_2d)
+        # We know we're doing log(0)...
+        with np.errstate(divide='ignore'):
+            lnHMF_2d = np.log(HMF_2d)
+        return lnHMF_2d
 
 
     def get_P_2obs_DES_lambdaconf_z(self, z):
@@ -299,9 +301,10 @@ class MultiObsConvolution:
         HMF_2d = convolution.convolve_HMF_2obs_varkernel(dN_dlnM, self.Delta_lnM, kernels, Nbins_DES, Nbins_zeta)
         # Compress
         HMF_2d = HMF_2d[::self.compression,::self.compression]
-        # Make it safe to take log
-        HMF_2d[HMF_2d==0] = np.nextafter(0,1)
-        return np.log(HMF_2d)
+        # We know we're doing log(0)...
+        with np.errstate(divide='ignore'):
+            lnHMF_2d = np.log(HMF_2d)
+        return lnHMF_2d
 
 
     def get_P_3obs_DES_z(self, obsnames, z):
@@ -340,9 +343,10 @@ class MultiObsConvolution:
         HMF_3d = convolution.convolve_HMF_3obs_varkernel(dN_dlnM, self.Delta_lnM, kernels, Nbins_obs0, Nbins_obs1, Nbins_zeta)
         # Compress
         HMF_3d = HMF_3d[::self.compression,::self.compression,::self.compression]
-        # Make it safe to take log
-        HMF_3d[HMF_3d==0] = np.nextafter(0,1)
-        return np.log(HMF_3d)
+        # We know we're doing log(0)...
+        with np.errstate(divide='ignore'):
+            lnHMF_3d = np.log(HMF_3d)
+        return lnHMF_3d
 
 
     def get_P_3obs_z(self, obsnames, covmat, z):
@@ -366,6 +370,8 @@ class MultiObsConvolution:
         HMF_3d = convolution.convolve_HMF_3obs_fixedkernel(dN_dlnM, self.Delta_lnM, kernel, Nbins_obs0, Nbins_obs1, Nbins_zeta)
         # Compress
         HMF_3d = HMF_3d[::self.compression,::self.compression,::self.compression]
-        # Make it safe to take log
-        HMF_3d[HMF_3d==0] = np.nextafter(0,1)
-        return np.log(HMF_3d)
+        # We know we're doing log(0)...
+        with np.errstate(divide='ignore'):
+            lnHMF_3d = np.log(HMF_3d)
+        return lnHMF_3d
+

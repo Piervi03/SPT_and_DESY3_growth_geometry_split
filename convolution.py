@@ -33,7 +33,7 @@ def convolve_HMF_2obs_fixedkernel(dN_dlnM, Delta_lnM, kernel, Nbins_0, Nbins_1):
     res = np.zeros(shape_out)
     for i in range(len_HMF):
         res[i:i+kernel_shape[0], i:i+kernel_shape[1]]+= dN_dlnM[i] * kernel
-    res_out = Delta_lnM * res[Nbins_0[0]:-Nbins_0[1], Nbins_1[0]:-Nbins_1[1]]
+    res_out = Delta_lnM**2 * res[Nbins_0[0]:-Nbins_0[1], Nbins_1[0]:-Nbins_1[1]]
     return res_out
 
 
@@ -48,7 +48,7 @@ def convolve_HMF_3obs_fixedkernel(dN_dlnM, Delta_lnM, kernel, Nbins_0, Nbins_1, 
     res = np.zeros(shape_out)
     for i in range(len_HMF):
         res[i:i+kernel_shape[0], i:i+kernel_shape[1], i:i+kernel_shape[2]]+= dN_dlnM[i] * kernel
-    res_out = Delta_lnM * res[Nbins_0[0]:-Nbins_0[1], Nbins_1[0]:-Nbins_1[1], Nbins_2[0]:-Nbins_2[1]]
+    res_out = Delta_lnM**3 * res[Nbins_0[0]:-Nbins_0[1], Nbins_1[0]:-Nbins_1[1], Nbins_2[0]:-Nbins_2[1]]
     return res_out
 
 
@@ -75,7 +75,7 @@ def convolve_HMF_2obs_varkernel(dN_dlnM, Delta_lnM, kernels, Nbins_0, Nbins_1):
         idx_1_hi = i+pad_1_lo+Nbins_1[i,1]+1
         res[idx_0_lo:idx_0_hi, idx_1_lo:idx_1_hi]+= dN_dlnM[i] * kernels[i]
     # Remove padding
-    res_out = Delta_lnM * res[pad_0_lo:-pad_0_hi, pad_1_lo:-pad_1_hi]
+    res_out = Delta_lnM**2 * res[pad_0_lo:-pad_0_hi, pad_1_lo:-pad_1_hi]
     return res_out
 
 
@@ -105,5 +105,5 @@ def convolve_HMF_3obs_varkernel(dN_dlnM, Delta_lnM, kernels, Nbins_0, Nbins_1, N
         idx_2_hi = i+pad_2_lo+Nbins_2[i,1]+1
         res[idx_0_lo:idx_0_hi, idx_1_lo:idx_1_hi, idx_2_lo:idx_2_hi]+= dN_dlnM[i] * kernels[i]
     # Remove padding
-    res_out = Delta_lnM * res[pad_0_lo:-pad_0_hi, pad_1_lo:-pad_1_hi, pad_2_lo:-pad_2_hi]
+    res_out = Delta_lnM**3 * res[pad_0_lo:-pad_0_hi, pad_1_lo:-pad_1_hi, pad_2_lo:-pad_2_hi]
     return res_out

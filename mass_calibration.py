@@ -4,6 +4,7 @@ import os
 import imp
 from multiprocessing import Pool
 from astropy.table import Table
+# import time
 
 import scipy.special as ss
 from scipy import integrate, signal
@@ -22,7 +23,7 @@ def unwrap_self_f(arg):
 ################################################################################
 class MassCalibration:
 
-    def __init__(self, todo, mcType, surveyCutSZ, surveyCutRedshift,
+    def __init__(self, todo, mcType, surveyCutSZ, surveyCutRedshift, surveyCutRichness,
                  SPT_survey_fields, SPT_doublecounts, SPTcatalogfile,
                  observable_pairs,
                  WLsimcalibfile,
@@ -33,6 +34,7 @@ class MassCalibration:
         self.mcType = mcType
         self.surveyCutSZ = surveyCutSZ
         self.surveyCutRedshift = surveyCutRedshift
+        self.surveyCutRichness = surveyCutRichness
         self.observable_pairs = observable_pairs
 
         # Read input files
@@ -79,10 +81,9 @@ class MassCalibration:
             likelihoods = np.array([self.clusterlike(i) for i in range(len_data)])
         else:
             # Launch a multiprocessing pool and get the likelihoods
-            pool = Pool(processes=self.NPROC)
-            argin = zip([self]*len_data, range(len_data))
-            likelihoods = pool.map(unwrap_self_f, argin)
-            pool.close()
+            with Pool(processes=self.NPROC) as pool:
+                argin = zip([self]*len_data, range(len_data))
+                likelihoods = pool.map(unwrap_self_f, argin)
 
         # If likelihood computation failed it returned 0
         if np.count_nonzero(likelihoods)<len_data:
@@ -99,6 +100,7 @@ class MassCalibration:
         """Return multi-wavelength mass-calibration likelihood (no log!) for a
         given cluster (index) by calling get_P_1obs_xi or get_P_2obs_xi or
         returning 1 if no follow-up data is available."""
+        # t0 = time.time()
         name = self.catalog['SPT_ID'][i]
 
         ##### Do we actually want this guy? (some clusters in SPT-SZ are at field boundaries)
@@ -127,14 +129,14 @@ class MassCalibration:
         if self.todo['Mgas'] and self.catalog['Mg_fid'][i]!=0:
             nobs+= 1
             obsnames.append('Mgas')
-        if self.todo['richness'] and self.catalog['LAMBDA_MCMF_COMB'][i]!=0.:
+        if self.todo['richness'] and self.catalog['richness'][i]!=0.:
             nobs+= 1
             obsnames.append('richness')
         if nobs==0:
             return 1.
 
         ##### Set SPT field scaling factor
-        self.thisSPTfield_gamma = self.SPT_survey['GAMMA'][self.SPT_survey['FIELD']==self.catalog['FIELD'][i]]
+        self.thisSPTfield_gamma = float(self.SPT_survey['GAMMA'][self.SPT_survey['FIELD']==self.catalog['FIELD'][i]])
         if self.SPT_survey['SURVEY'][self.SPT_survey['FIELD']==self.catalog['FIELD'][i]]=='SPECS':
             self.thisSPTfield_gamma*= self.scaling['SPECS_calib']
 
@@ -158,15 +160,11 @@ class MassCalibration:
         else:
             raise ValueError(name,"has",nobs,"follow-up observables. I don't know what to do!")
 
-        # Pmatch for RM richness
-        if 'richness' in obsnames:
-             probability*= (1-self.catalog['LAMBDA_PROB_MATCH'][i])
-
         if (probability<0) | (np.isnan(probability)):
             return 0
             # raise ValueError("P(obs|xi) =", probability, name)
 
-        # print(name, obsnames, probability)
+        # print(name, obsnames, probability, time.time()-t0)
         return probability
 
 
@@ -196,8 +194,12 @@ class MassCalibration:
         interpolation of z_arr in log-log space."""
         idx_lo = np.digitize(z, z_arr)-1
         Delta_lnz = np.log(z/z_arr[idx_lo]) / np.log(z_arr[idx_lo+1]/z_arr[idx_lo])
-        Delta_lny = lnHMF[idx_lo+1]-lnHMF[idx_lo]
-        res = lnHMF[idx_lo] + Delta_lnz*Delta_lny
+        # We know we'll get NANs because we're potentially doing -inf -(-inf)
+        with np.errstate(invalid='ignore'):
+            Delta_lny = lnHMF[idx_lo+1]-lnHMF[idx_lo]
+            res = lnHMF[idx_lo] + Delta_lnz*Delta_lny
+        # Remove those NANs
+        res[np.isnan(res)] = -np.inf
         return res
 
 
@@ -213,18 +215,21 @@ class MassCalibration:
         idx_lo = np.digitize(xi_arr_int, xi_arr)-1
         Delta_lnxi = np.log(xi_arr_int/xi_arr[idx_lo]) / np.log(xi_arr[idx_lo+1]/xi_arr[idx_lo])
         shape = ln_HMF.shape
-        if len(shape)==2:
-            Delta_lnH = ln_HMF[:,idx_lo+1]-ln_HMF[:,idx_lo]
-            HMF_integrand = np.exp(ln_HMF[:,idx_lo] + Delta_lnxi*Delta_lnH)
-            this_xi_arr = xi_arr_int[None,:]
-        elif len(shape)==3:
-            Delta_lnH = ln_HMF[:,:,idx_lo+1]-ln_HMF[:,:,idx_lo]
-            HMF_integrand = np.exp(ln_HMF[:,:,idx_lo] + Delta_lnxi*Delta_lnH)
-            this_xi_arr = xi_arr_int[None,None,:]
-        elif len(shape)==4:
-            Delta_lnH = ln_HMF[:,:,:,idx_lo+1]-ln_HMF[:,:,:,idx_lo]
-            HMF_integrand = np.exp(ln_HMF[:,:,:,idx_lo] + Delta_lnxi*Delta_lnH)
-            this_xi_arr = xi_arr_int[None,None,None,:]
+        # We know we'll get NANs because we're potentially doing -inf -(-inf)
+        with np.errstate(invalid='ignore'):
+            if len(shape)==2:
+                Delta_lnH = ln_HMF[:,idx_lo+1]-ln_HMF[:,idx_lo]
+                HMF_integrand = np.exp(ln_HMF[:,idx_lo] + Delta_lnxi*Delta_lnH)
+                this_xi_arr = xi_arr_int[None,:]
+            elif len(shape)==3:
+                Delta_lnH = ln_HMF[:,:,idx_lo+1]-ln_HMF[:,:,idx_lo]
+                HMF_integrand = np.exp(ln_HMF[:,:,idx_lo] + Delta_lnxi*Delta_lnH)
+                this_xi_arr = xi_arr_int[None,None,:]
+            elif len(shape)==4:
+                Delta_lnH = ln_HMF[:,:,:,idx_lo+1]-ln_HMF[:,:,:,idx_lo]
+                HMF_integrand = np.exp(ln_HMF[:,:,:,idx_lo] + Delta_lnxi*Delta_lnH)
+                this_xi_arr = xi_arr_int[None,None,None,:]
+            HMF_integrand[np.isnan(HMF_integrand)] = 0.
         # dP/dxi = dP/dlnzeta dlnzeta/dxi
         HMF_xi = HMF_integrand * scaling_relations.dlnzeta_dxi(this_xi_arr)
         # Simultaneous convolution and evaluation at xi
@@ -251,25 +256,6 @@ class MassCalibration:
         return dP_dobs
 
 
-    def downsample_distribution(self, x, y, N_target=48):
-        idx_zero = np.where(y>0)[0]
-        x_out = x[idx_zero]
-        y_out = y[idx_zero]
-        if len(x_out)<=N_target:
-            return x_out, y_out
-
-        y_interp = InterpolatedUnivariateSpline(x_out, y_out)
-
-        mean = np.trapz(x_out*y_out, x_out)
-        std = np.sqrt(np.trapz((y_out-mean)**2, x_out))
-        x_min = np.amax((x_out[0], mean-4*std))
-        x_max = np.amin((x_out[-1], mean+4*std))
-        x_new = np.linspace(x_min, x_max, N_target)
-        y_new = y_interp(x_new)
-
-        return x_new, y_new
-
-
     ############################################################################
     def get_P_1obs_xi(self, obsname, dataID, pairname):
         """Returns P(obs|xi,z,p) for a single type of follow-up data."""
@@ -281,6 +267,20 @@ class MassCalibration:
                                                  z_arr=self.HMF_convos['%s_z'%pairname],
                                                  lnHMF=self.HMF_convos[pairname])
 
+        ##### Observable array
+        obsArr = scaling_relations.mass2obs(obsname, self.HMF_convos['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, self.catalog['SPT_ID'][dataID])
+        # Account for radial dependence for X-ray observables
+        if obsname in ('Mgas', 'Yx'):
+            correction = self.conversion_factor_Xray_obs_r500ref(dataID)
+            obsArr*= correction
+        # Truncate at richness cut
+        elif obsname=='richness':
+            lnHMF_2d_at_cut = [np.interp(self.surveyCutRichness, obsArr, lnHMF_2d[:,i]) for i in range(lnHMF_2d.shape[1])]
+            idx = obsArr>self.surveyCutRichness
+            obsArr = np.insert(obsArr[idx], 0, self.surveyCutRichness)
+            lnHMF_2d = np.insert(lnHMF_2d[idx,:], 0, lnHMF_2d_at_cut, axis=0)
+        lnobsArr = np.log(obsArr)
+
         ##### SZ array
         zeta_arr = self.thisSPTfield_gamma * scaling_relations.mass2obs('zeta', self.HMF_convos['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
         lnzeta_arr = np.log(zeta_arr)
@@ -288,32 +288,18 @@ class MassCalibration:
         if (xi_arr[0]>2.7)|(self.catalog['XI'][dataID]>xi_arr[-1]-2):
             return 0
 
-        ##### P(ln(obs) | xi)
+        ##### P(obs | xi)
         dP_dlnobs = self.convolve_HMF_lnobs_to_xi(self.catalog['XI'][dataID], xi_arr, lnHMF_2d)
-
-        ##### Observable array
-        obsArr = scaling_relations.mass2obs(obsname, self.HMF_convos['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, self.catalog['SPT_ID'][dataID])
-        # Account for radial dependence for X-ray observables
-        if obsname in ('Mgas', 'Yx'):
-            correction = self.conversion_factor_Xray_obs_r500ref(dataID)
-            obsArr*= correction
-        lnobsArr = np.log(obsArr)
-
-        ##### Convolve with additional lognormal scatter in richness
-        #if obsname=='richness':
-        #    dP_dlnobs = self.apply_sys_Poisson_scatter_richness(obsArr, lnobsArr, dP_dlnobs)
-
-        #### Go to linear obs space and normalize
-        # dP/dobs = dP/dlnobs * dlnobs/dobs = dP/dlnobs /obs
         dP_dobs = dP_dlnobs/obsArr
         dP_dobs/= np.trapz(dP_dobs, obsArr)
 
         ##### Evaluate likelihood
         if obsname=='richness':
-            dP_dobs[dP_dobs==0] = np.nextafter(0, 1)
-            likeli = np.exp(np.interp(self.catalog['LAMBDA_MCMF_COMB'][dataID], obsArr, np.log(dP_dobs)))
+            with np.errstate(divide='ignore'):
+                lndP_dobs = np.log(dP_dobs)
+            likeli = np.exp(np.interp(self.catalog['richness'][dataID], obsArr, lndP_dobs))
 
-        if obsname in ('Yx', 'Mgas'):
+        elif obsname in ('Yx', 'Mgas'):
             if obsname=='Yx':
                 obsmeas, obserr = self.catalog['Yx_fid'][dataID], self.catalog['Yx_err'][dataID]
             elif obsname=='Mgas':
@@ -345,14 +331,12 @@ class MassCalibration:
             # Convolve with Gaussian LSS scatter
             if LSSnoise>0.:
                 dP_dobs = self.convolve_WL_LSS(obsArr, dP_dobs, LSSnoise)
-            # obsArr, dP_dobs = self.downsample_distribution(obsArr, dP_dobs)
             # P(Mwl) from data
             WL_interp = InterpolatedUnivariateSpline(np.log(self.WL.M_arr), self.catalog['lnp_Mwl'][dataID], k=1)
             # Get likelihood
             likeli = np.trapz(np.exp(WL_interp(lnobsArr))*dP_dobs, obsArr)
 
-
-        if ((likeli<0)|(np.isnan(likeli))):
+        if (likeli<=0)|(np.isnan(likeli))|(np.isinf(likeli)):
             print(self.catalog['SPT_ID'][dataID], obsname, likeli)
             #np.savetxt(self.catalog['SPT_ID'][dataID],np.transpose((obsArr, dP_dobs)))
             return 0.
@@ -369,17 +353,6 @@ class MassCalibration:
         lnHMF_3d = self.get_multiobs_lnHMF_z(z=self.catalog['REDSHIFT'][dataID],
                                              z_arr=self.HMF_convos['%s_z'%pairname],
                                              lnHMF=self.HMF_convos[pairname])
-
-        ##### SZ arrays
-        zeta_arr = self.thisSPTfield_gamma * scaling_relations.mass2obs('zeta', self.HMF_convos['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
-        lnzeta_arr = np.log(zeta_arr)
-        xi_arr = scaling_relations.zeta2xi(zeta_arr)
-        if (xi_arr[0]>2.7)|(self.catalog['XI'][dataID]>xi_arr[-1]-2):
-            return 0
-
-        ##### P(ln(obs0, obs1) | xi)
-        dP_dlnobs = self.convolve_HMF_lnobs_to_xi(self.catalog['XI'][dataID], xi_arr, lnHMF_3d)
-
 
         ##### Observable arrays
         obsArr, lnobsArr, obsmeas, obserr = [], [], np.empty(2), np.empty(2)
@@ -404,9 +377,34 @@ class MassCalibration:
             if obsnames[i] in ('Mgas', 'Yx'):
                 correction = self.conversion_factor_Xray_obs_r500ref(dataID)
                 obsArrTemp*= correction
+            # Truncate at richness cut
+            elif obsnames[i]=='richness':
+                idx = (obsArrTemp>self.surveyCutRichness).nonzero()[0]
+                Delta_x0 = self.surveyCutRichness-obsArrTemp[idx[0]-1]
+                Delta_x = obsArrTemp[idx[0]]-obsArrTemp[idx[0]-1]
+                if i==0:
+                    with np.errstate(invalid='ignore'):
+                        Delta_y = lnHMF_3d[idx[0],:,:]-lnHMF_3d[idx[0]-1,:,:]
+                        lnHMF_3d_at_cut = lnHMF_3d[idx[0]-1,:,:] + Delta_y*Delta_x0/Delta_x
+                    lnHMF_3d = np.insert(lnHMF_3d[idx,:,:], 0, lnHMF_3d_at_cut, axis=0)
+                elif i==1:
+                    with np.errstate(invalid='ignore'):
+                        Delta_y = lnHMF_3d[:,idx[0],:]-lnHMF_3d[:,idx[0]-1,:]
+                        lnHMF_3d_at_cut = lnHMF_3d[:,idx[0]-1,:] + Delta_y*Delta_x0/Delta_x
+                    lnHMF_3d = np.insert(lnHMF_3d[:,idx,:], 0, lnHMF_3d_at_cut, axis=1)
+                obsArrTemp = np.insert(obsArrTemp[idx], 0, self.surveyCutRichness)
             obsArr.append( obsArrTemp )
             lnobsArr.append( np.log(obsArrTemp) )
 
+        ##### SZ arrays
+        zeta_arr = self.thisSPTfield_gamma * scaling_relations.mass2obs('zeta', self.HMF_convos['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
+        lnzeta_arr = np.log(zeta_arr)
+        xi_arr = scaling_relations.zeta2xi(zeta_arr)
+        if (xi_arr[0]>2.7)|(self.catalog['XI'][dataID]>xi_arr[-1]-2):
+            return 0
+
+        ##### P(ln(obs0, obs1) | xi)
+        dP_dlnobs = self.convolve_HMF_lnobs_to_xi(self.catalog['XI'][dataID], xi_arr, lnHMF_3d)
 
         ##### Go to linear space [obs0][obs1]
         dP_dobs01 = dP_dlnobs/obsArr[0][:,None]/obsArr[1][None,:]
@@ -414,18 +412,23 @@ class MassCalibration:
         ##### Normalize
         N = np.trapz(np.trapz(dP_dobs01, obsArr[1], axis=1), obsArr[0])
         dP_dobs01/= N
-        # Prepare for log
-        dP_dobs01[dP_dobs01==0] = np.nextafter(0, 1)
 
         ##### P(obs0, obs1)
         # P(Mwl) from data
         WL_interp = InterpolatedUnivariateSpline(np.log(self.WL.M_arr), self.catalog['lnp_Mwl'][dataID], k=1)
         Pwl = np.exp(WL_interp(lnobsArr[0]))
         if obsnames[1]=='richness':
-            idx_lo = np.digitize(self.catalog['LAMBDA_MCMF_COMB'][dataID], obsArr[1]) -1
-            Delta_l = (self.catalog['LAMBDA_MCMF_COMB'][dataID]-obsArr[1][idx_lo]) / (obsArr[1][idx_lo+1]-obsArr[1][idx_lo])
-            Delta_lny = np.log(dP_dobs01[:,idx_lo+1]/dP_dobs01[:,idx_lo])
-            dP_dobs0 = np.exp(np.log(dP_dobs01[:,idx_lo]) + Delta_l*Delta_lny)
+            idx_lo = np.digitize(self.catalog['richness'][dataID], obsArr[1]) -1
+            if (self.catalog['richness'][dataID]<obsArr[1][0])|(self.catalog['richness'][dataID]>obsArr[1][-1]):
+                print('Problem with richness', self.catalog['richness'][dataID], self.catalog['SPT_ID'][dataID])
+                return 0
+            Delta_l = (self.catalog['richness'][dataID]-obsArr[1][idx_lo]) / (obsArr[1][idx_lo+1]-obsArr[1][idx_lo])
+            # dP_dobs01 can be zero so we're ignoring all warnings here
+            with np.errstate(all='ignore'):
+                Delta_lny = np.log(dP_dobs01[:,idx_lo+1]/dP_dobs01[:,idx_lo])
+                lndP_dobs0 = np.log(dP_dobs01[:,idx_lo]) + Delta_l*Delta_lny
+            lndP_dobs0[np.isnan(lndP_dobs0)] = -np.inf
+            dP_dobs0 = np.exp(lndP_dobs0)
             likeli = np.trapz(dP_dobs0*Pwl, obsArr[0])
 
         else:

@@ -4,28 +4,25 @@ random_seed = 0
 
 Delta_crit = 200
 
-WL_z_max = .9
+WL_z_max = .85
 
 # DES Y3
-source_p_arcmin2 = 10
-
-# Completely arbitrary
-source_lognorm_dist_mean = .7
-source_lognorm_dist_sigma = .5
+source_p_arcmin2 = 6
 
 # From Grandis+19
 shape_noise = .27
 
-# Offset in redshift behind the cluster
-z_offset = .1
+boost = {'logc': .625, 'Blambda': .7774, 'corr_len': .0691, 'A_inf': -3,
+         'A': [-2.12, -.355, 1.005, -.042, .877, -.455, 2.312, -2.995, 2.129, -2.959],
+         'z_arr': np.linspace(.2, .9, 10)
+}
 
-WL_params = {'x0_fcl': 1.01,
-             'lambda_piv_fcl': 67.,
-             'A_fcl': [.087, .12, .161, .105, .056, .079, .108, .089],
-             'A_fcl_z': [.15, .2, .25, .3, .4, .5, .6, .7, .9],
-             'B_fcl': .515,
-             'c_fcl': 1.91,
-             'miscenter_opt': {'rho': 0.06910239, 'sigma0': 0.31633618, 'sigma0_z': 0.5141243, 'sigma0_lam': -0.61753193, 'sigma1': 0.03232347, 'sigma1_lam': -1.60232199,
-                               'A_lambda': 60, 'B_lambda': 1., 'C_lambda': 0},
-            }
+miscenter_opt = {
+                 'kind': 'SPT',
+                 'alpha_opt_0': 1.75, 'alpha_opt_lambda': 3.20, 'sigma_opt_0': -2.78, 'sigma_opt_1': -.43,
+                 'kappa_SPT': 1.35, 'alpha_SZ_0': .47, 'SZ_comp0_0': -1.53, 'SZ_comp1_0': -.96
+                 }
 
+source_Pz_file = "2pt_NG_final_2ptunblind_11_13_20_wnz.fits"
+source_weights_file = "tomo_weight_hist.txt"
+tomo_bin_weight_file = "beta_boost_tomo_bin.npy"
