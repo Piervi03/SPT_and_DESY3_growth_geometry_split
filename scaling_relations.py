@@ -52,16 +52,28 @@ def mass2obs(name, mass, z, scaling, cosmology=None, cluster_ID=None):
         return scaling['DES_m_piv'] * np.exp(b + scaling['DES_b_dev']*d) * (mass/scaling['DES_m_piv'])**scaling['DES_b_m']
         # return np.exp(scaling['DES_b_0']) * scaling['DES_m_piv'] * (mass/scaling['DES_m_piv'])**scaling['DES_b_m'] * ((1+z)/(1+scaling['DES_z_piv']))**scaling['DES_b_z']
     else:
-        raise ValueError("Observable not known:",name)
+        raise ValueError("Observable not known:", name)
 
 
 ####################
-def zeta2mass(zeta, z, scaling, cosmology):
-    """Inverse zeta(mass, z) relation."""
-    ln_M_M0 = (np.log(zeta) - scaling['Asz'] - scaling['Csz']*np.log(cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology)))\
-              / (scaling['Bsz'] + scaling['Esz']*np.log(cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology)))
-    mass = scaling['SZmPivot'] * np.exp(ln_M_M0)
-    return mass
+def obs2mass(name, obs, z, scaling, cosmology=None, cluster_ID=None):
+    """Return mass given observable and z."""
+    if name=='zeta':
+        ln_M_M0 = (np.log(obs) - scaling['Asz'] - scaling['Csz']*np.log(cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology)))\
+                  / (scaling['Bsz'] + scaling['Esz']*np.log(cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology)))
+        mass = scaling['SZmPivot'] * np.exp(ln_M_M0)
+        return mass
+    elif name=='richness':
+        mass = scaling['richmPivot'] * (obs / scaling['Arichness'] / ((1+z)/1.6)**scaling['Crichness']) ** (1/scaling['Brichness'])
+        return mass
+    elif name=='WLHST':
+        return obs/scaling['bWL_HST'][cluster_ID]
+    elif name=='WLDES':
+        b = np.interp(z, scaling['DESwl_z'], scaling['DESwl_bias_mean'])
+        d = np.interp(z, scaling['DESwl_z'], scaling['DESwl_bias_std'])
+        return scaling['DES_m_piv'] * (obs / scaling['DES_m_piv'] / np.exp(b + scaling['DES_b_dev']*d))**(1/scaling['DES_b_m'])
+    else:
+        raise ValueError("Observable not known:", name)
 
 
 ####################
