@@ -50,3 +50,40 @@ def trivariate_normal(x, y, z, cov):
     res = np.exp(-.5*chi2)/np.sqrt(np.linalg.det(cov)*(2*np.pi)**3)
     return res
 
+def bivariate_chi2_multivec(x, y, cov_inv):
+    """Return chi2 for array of 2d vectors and an array of (inverse) covariance
+    matrices. Everything must have the same length."""
+    cdef Py_ssize_t i, j
+    cdef Py_ssize_t len_vec = len(x)
+    cdef double[:] x_v = x
+    cdef double[:] y_v = y
+    cdef double [:,:,:] cov_inv_v = cov_inv
+    chi2 = np.empty(len_vec)
+    cdef double[:] chi2_v = chi2
+    cdef double[2] tmp
+
+    for i in range(len_vec):
+      for j in range(2):
+        tmp[j] = cov_inv_v[i,j,0]*x_v[i] + cov_inv_v[i,j,1]*y_v[i]
+      chi2_v[i] = x_v[i]*tmp[0] + y_v[i]*tmp[1]
+    return chi2
+
+def trivariate_chi2_multivec(x, y, z, cov_inv):
+    """Return chi2 for array of 3d verctors and an array of (inverse) covariance
+    matrices. Everything must have the same length."""
+    cdef Py_ssize_t i, j
+    cdef Py_ssize_t len_vec = len(x)
+    cdef double[:] x_v = x 
+    cdef double[:] y_v = y
+    cdef double[:] z_v = z
+    cdef double [:,:,:] cov_inv_v = cov_inv
+    chi2 = np.empty(len_vec)
+    cdef double[:] chi2_v = chi2
+    cdef double[3] tmp
+
+    for i in range(len_vec):
+      for j in range(3):
+        tmp[j] = cov_inv_v[i,j,0]*x_v[i] + cov_inv_v[i,j,1]*y_v[i] + cov_inv_v[i,j,2]*z_v[i]
+      chi2_v[i] = x_v[i]*tmp[0] + y_v[i]*tmp[1] + z_v[i]*tmp[2]
+    return chi2
+
