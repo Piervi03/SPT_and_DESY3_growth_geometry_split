@@ -183,6 +183,21 @@ class MassCalibration:
         return zeta, zeta_weights
 
 
+    def get_Mwl_draws(self, dataID):
+        """Draw Mwl from lensing likelihood. We draw from ln(P(Mwl)) to get a
+        broader distribution. Correct for this with weights."""
+        # Draw lnMwl from ln(P(Mwl))
+        WL_interp = InterpolatedUnivariateSpline(self.WL.lnM_arr, self.catalog['lnp_Mwl'][dataID], k=1)
+        WL_cum = integrate.cumtrapz(self.catalog['lnp_Mwl'][dataID], self.WL.lnM_arr)
+        WL_cum = np.insert(WL_cum/WL_cum[-1], 0, 0.)
+        r = self.rng.random(size=Ndraw)
+        lnMwl = np.interp(r, WL_cum, self.WL.lnM_arr)
+        lnP = WL_interp(lnMwl)
+        # We drew from ln(P(Mwl)) but we want to sample P(Mwl)
+        WL_weights = np.exp(lnP)/np.abs(lnP)
+        return lnMwl, WL_weights
+
+
     def draw_lnm_given_lnobs(self, ln_obs, cov_inv):
         """Return draws of ln(mass) given ln(vec(obs))."""
         D = cov_inv.shape[1]
@@ -207,13 +222,55 @@ class MassCalibration:
         # Draw zeta w/ weights
         zeta, zeta_weights = self.get_zeta_draws(self.catalog['XI'][dataID])
         lnM_zeta = np.log(scaling_relations.obs2mass('zeta', zeta, self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)/self.thisSPTfield_gamma)
-        # Draw mass given multi-obs covariance
+
+        # Mass(observable) and covariance matrix
+        dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
+        dlnM_dlnobs = scaling_relations.dlnM_dlnobs(obsname, self.scaling)
+        Jacobian = np.array([[dlnM_dlnobs**2, dlnM_dlnobs*dlnM_dlnzeta],
+                             [dlnM_dlnobs*dlnM_dlnzeta, dlnM_dlnzeta**2]])
         if obsname=='richness':
             lnM_obs = np.log(scaling_relations.obs2mass(obsname, self.catalog['richness'][dataID], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology))
-            cov = np.array([[self.scaling['Drichness']**2, self.scaling['rhoSZrichness']*self.scaling['Dsz']*self.scaling['Drichness']],
-                            [self.scaling['rhoSZrichness']*self.scaling['Dsz']*self.scaling['Drichness'], self.scaling['Dsz']**2]])
-            cov_inv = np.linalg.inv(cov)
+            obs_weights = 1.
+            covmat = self.scaling['cov_richness_SZ']
+        elif obsname in ['WLDES', 'WLHST', 'WLMegacam']:
+            lnMwl, obs_weights = self.get_Mwl_draws(dataID)
+            lnM_obs = np.log(scaling_relations.obs2mass('WLDES', np.exp(lnMwl), self.catalog['REDSHIFT'][dataID], self.scaling))
+            if obsname=='WLDES':
+                cov_base = np.array([[1, self.scaling['rhoSZWL']*self.scaling['Dsz']],
+                                     [self.scaling['rhoSZWL']*self.scaling['Dsz'], self.scaling['Dsz']**2]])
+                # Covariance matrix based on central SZ mass
+                m_fid = scaling_relations.obs2mass('zeta', scaling_relations.xi2zeta(self.catalog['XI'][dataID]), self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
+                DES_scatter = scaling_relations.WLscatter('main', m_fid, self.catalog['REDSHIFT'][dataID], self.scaling)
+                covmat = cov_base * np.array([[DES_scatter**2, DES_scatter], [DES_scatter, 1.]])
+            elif obsname=='WLHST':
+                covmat = self.scaling['cov_HST_SZ_%s'%self.catalog['SPT_ID'][dataID]]
+
+        # Convert ln-observable covmat into covmat in ln-mass
+        covmat_lnM = covmat * Jacobian
+
+        # Draw mass given multi-obs covariance     
+        cov_inv = np.linalg.inv(covmat_lnM)
         lnM = self.draw_lnm_given_lnobs([lnM_obs, lnM_zeta], cov_inv)
+
+        # Correct for the fact that we drew from inexact covariance matrix for DES
+        if obsname=='WLDES':
+            # chi2 using SZ-based covariance matrix
+            chi2_obs = multivariate_normal.bivariate_chi2_multivec(lnM-lnM_obs,
+                                                                   lnM-lnM_zeta,
+                                                                   np.tile(cov_inv, (Ndraw,1,1)))
+            # Covariance matrix based on mass
+            DES_scatter = scaling_relations.WLscatter('main', np.exp(lnM), self.catalog['REDSHIFT'][dataID], self.scaling)
+            covmat = cov_base * np.array([[DES_scatter**2, DES_scatter], [DES_scatter, 1.]])
+            covmat_lnM = covmat * Jacobian
+            cov_inv = np.linalg.inv(covmat_lnM)
+            # chi2 using mass-based covariance matrix
+            chi2_m = multivariate_normal.bivariate_chi2_multivec(lnM-lnM_obs,
+                                                                 lnM-lnM_zeta,
+                                                                 cov_inv)
+            chi2_weights = np.exp(-.5 * (chi2_m-chi2_obs))
+        else:
+            chi2_weights = 1.
+
         # Normalized mass function
         lndN_dlnM = self.HMF_interp(np.log(self.catalog['REDSHIFT'][dataID]), self.lnM_arr)[0]
         P_m_norm = np.sum(np.diff(self.lnM_arr) * np.exp(.5*(lndN_dlnM[1:]+lndN_dlnM[:-1])))
@@ -221,8 +278,9 @@ class MassCalibration:
         idx = np.argsort(lnM)
         mass_weights = np.zeros(Ndraw)
         mass_weights[idx] = np.exp(self.HMF_interp(np.log(self.catalog['REDSHIFT'][dataID]), lnM[idx]) - lnM[idx]) / P_m_norm
+
         # Final likelihood
-        likelihood = np.average(zeta_weights*mass_weights)
+        likelihood = np.average(zeta_weights*obs_weights*chi2_weights*mass_weights)
         return likelihood
 
 
@@ -233,7 +291,8 @@ class MassCalibration:
         # Draw zeta w/ weights
         zeta, zeta_weights = self.get_zeta_draws(self.catalog['XI'][dataID])
         lnM_zeta = np.log(scaling_relations.obs2mass('zeta', zeta, self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)/self.thisSPTfield_gamma)
-        # Set up mass given observable
+
+        # Mass(observable) 
         lnM_obs = 2*[None]
         for i in range(2):
             if obsnames[i]=='Yx':
@@ -247,48 +306,41 @@ class MassCalibration:
                 obsmeas[i], obserr[i] = self.catalog['veldisp'][dataID], self.scaling['DdispN']/self.catalog['Ngal'][dataID]
             elif obsnames[i]=='richness':
                 lnM_obs[i] = np.log(scaling_relations.obs2mass('richness', self.catalog['richness'][dataID], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology))
-            elif obsnames[i]=='WLMegacam':
-                raise NotImplementedError("2d mass calibration for %s not ready"%obsnames[i])
-                LSSnoise = self.WLcalib['Megacam_LSS'][0] + self.scaling['MegacamScatterLSS'] * self.WLcalib['Megacam_LSS'][1]
-            elif obsnames[i]=='WLHST':
-                LSSnoise = self.WLcalib['HSTsim'][self.catalog['SPT_ID'][dataID]]['obs_scatter']
-            elif obsnames[i]=='WLDES':
-                # Draw lnMwl from ln(P(Mwl))
-                WL_interp = InterpolatedUnivariateSpline(self.WL.lnM_arr, self.catalog['lnp_Mwl'][dataID], k=1)
-                WL_cum = integrate.cumtrapz(self.catalog['lnp_Mwl'][dataID], self.WL.lnM_arr)
-                WL_cum = np.insert(WL_cum/WL_cum[-1], 0, 0.) 
-                r = self.rng.random(size=Ndraw)
-                lnMwl = np.interp(r, WL_cum, self.WL.lnM_arr)
-                lnP = WL_interp(lnMwl)
-                # We drew from ln(P(Mwl)) but we want to sample P(Mwl)
-                WL_weights = np.exp(lnP)/np.abs(lnP)
-                # Convert to halo mass
+                obs_weights = 1.
+            elif obsnames[i] in ['WLDES', 'WLHST', 'WLMegacam']:
+                lnMwl, obs_weights = self.get_Mwl_draws(dataID)
                 lnM_obs[i] = np.log(scaling_relations.obs2mass('WLDES', np.exp(lnMwl), self.catalog['REDSHIFT'][dataID], self.scaling))
-        # Draw from multi-obs covariance matrix
-        if obsnames[1]=='richness':
-            # Prerequisits for covariance matrix in mass space
-            cov_base = np.array([[1, self.scaling['rhoWLrichness']*self.scaling['Drichness'], self.scaling['rhoSZWL']*self.scaling['Dsz']],
-                                 [self.scaling['rhoWLrichness']*self.scaling['Drichness'], self.scaling['Drichness']**2, self.scaling['rhoSZrichness']*self.scaling['Dsz']*self.scaling['Drichness']],
-                                 [self.scaling['rhoSZWL']*self.scaling['Dsz'], self.scaling['rhoSZrichness']*self.scaling['Dsz']*self.scaling['Drichness'], self.scaling['Dsz']**2]])
-            # Convert observable covmat into covmat in mass
-            dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
-            dlnM_dlnobs = [scaling_relations.dlnM_dlnobs(obs, self.scaling) for obs in obsnames]
-            Jacobian = np.array([[dlnM_dlnobs[0]**2,             dlnM_dlnobs[0]*dlnM_dlnobs[1], dlnM_dlnobs[0]*dlnM_dlnzeta],
+
+        # Covariance matrix
+        dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
+        dlnM_dlnobs = [scaling_relations.dlnM_dlnobs(obs, self.scaling) for obs in obsnames]
+        Jacobian = np.array([[dlnM_dlnobs[0]**2,             dlnM_dlnobs[0]*dlnM_dlnobs[1], dlnM_dlnobs[0]*dlnM_dlnzeta],
                                  [dlnM_dlnobs[0]*dlnM_dlnobs[1], dlnM_dlnobs[1]**2,             dlnM_dlnobs[1]*dlnM_dlnzeta],
                                  [dlnM_dlnobs[0]*dlnM_dlnzeta,   dlnM_dlnobs[1]*dlnM_dlnzeta,   dlnM_dlnzeta**2]])
-            # Covariance matrix based on central SZ mass
-            m_fid = scaling_relations.obs2mass('zeta', scaling_relations.xi2zeta(self.catalog['XI'][dataID]), self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
-            DES_scatter = scaling_relations.WLscatter('main', m_fid, self.catalog['REDSHIFT'][dataID], self.scaling)
-            covmat = cov_base * np.array([[DES_scatter**2, DES_scatter, DES_scatter],
-                                          [DES_scatter, 1, 1],
-                                          [DES_scatter, 1, 1]])
-            # covmat = cov_base * np.array([DES_scatter**2, DES_scatter, DES_scatter,
-            #                               DES_scatter, np.ones(len(DES_scatter)), np.ones(len(DES_scatter)),
-            #                               DES_scatter, np.ones(len(DES_scatter)), np.ones(len(DES_scatter))]).T.reshape(len(DES_scatter),3,3)
+        if obsnames[1]=='richness':
+            if obsnames[0]=='WLDES':
+                # Prerequisits for covariance matrix in mass space
+                cov_base = np.array([[1, self.scaling['rhoWLrichness']*self.scaling['Drichness'], self.scaling['rhoSZWL']*self.scaling['Dsz']],
+                                     [self.scaling['rhoWLrichness']*self.scaling['Drichness'], self.scaling['Drichness']**2, self.scaling['rhoSZrichness']*self.scaling['Dsz']*self.scaling['Drichness']],
+                                     [self.scaling['rhoSZWL']*self.scaling['Dsz'], self.scaling['rhoSZrichness']*self.scaling['Dsz']*self.scaling['Drichness'], self.scaling['Dsz']**2]])
+                # Covariance matrix based on central SZ mass
+                m_fid = scaling_relations.obs2mass('zeta', scaling_relations.xi2zeta(self.catalog['XI'][dataID]), self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
+                DES_scatter = scaling_relations.WLscatter('main', m_fid, self.catalog['REDSHIFT'][dataID], self.scaling)
+                covmat = cov_base * np.array([[DES_scatter**2, DES_scatter, DES_scatter],
+                                              [DES_scatter, 1, 1],
+                                              [DES_scatter, 1, 1]])
+            elif obsnames[0]=='WLHST':
+                covmat = self.scaling['cov_HST_richness_SZ_%s'%self.catalog['SPT_ID'][dataID]]
+
+            # Convert ln-observable covmat into covmat in ln-mass
             covmat_lnM = covmat * Jacobian
+
             # Draw masses
             cov_inv = np.linalg.inv(covmat_lnM)
             lnM = self.draw_lnm_given_lnobs([lnM_obs[0], lnM_obs[1], lnM_zeta], cov_inv)
+
+        # Correct for the fact that we drew from inexact covariance matrix for DES
+        if obsnames[0]=='WLDES':
             # chi2 using SZ-based covariance matrix
             chi2_obs = multivariate_normal.trivariate_chi2_multivec(lnM-lnM_obs[0],
                                                                     lnM-lnM_obs[1],
@@ -307,6 +359,9 @@ class MassCalibration:
                                                                   lnM-lnM_zeta,
                                                                   cov_inv)
             chi2_weights = np.exp(-.5 * (chi2_m-chi2_obs))
+        else:
+            chi2_weights = 1.
+
         # Normalized mass function
         lndN_dlnM = self.HMF_interp(np.log(self.catalog['REDSHIFT'][dataID]), self.lnM_arr)[0]
         P_m_norm = np.sum(np.diff(self.lnM_arr) * np.exp(.5*(lndN_dlnM[1:]+lndN_dlnM[:-1])))
@@ -314,6 +369,7 @@ class MassCalibration:
         idx = np.argsort(lnM)
         mass_weights = np.zeros(Ndraw)
         mass_weights[idx] = np.exp(self.HMF_interp(np.log(self.catalog['REDSHIFT'][dataID]), lnM[idx]) - lnM[idx]) / P_m_norm
+
         # Final likelihood
-        likeli = np.average(zeta_weights*mass_weights*WL_weights*chi2_weights)
+        likeli = np.average(zeta_weights*obs_weights*chi2_weights*mass_weights)
         return likeli

@@ -54,6 +54,14 @@ class SetScaling:
             if np.linalg.det(cov)<THRESHOLD:
                 return False
             scaling['cov_HST_X_SZ_%s'%name] = np.array(cov)
+            # SZ WL richness covariance matrix
+            cov = [[DWL_HST**2, scaling['rhoWLrichness']*DWL_HST*scaling['Drichness'], scaling['rhoSZWL']*scaling['Dsz']*DWL_HST],
+                   [scaling['rhoWLrichness']*DWL_HST*scaling['Drichness'], scaling['Drichness']**2, scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness']],
+                   [scaling['rhoSZWL']*scaling['Dsz']*DWL_HST, scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness'], scaling['Dsz']**2]]
+            if np.linalg.det(cov)<THRESHOLD:
+                return False
+            scaling['cov_HST_richness_SZ_%s'%name] = np.array(cov)
+ 
 
         # X-ray
         cov = [[scaling['Dx']**2, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx']],
