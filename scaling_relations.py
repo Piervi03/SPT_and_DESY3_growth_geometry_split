@@ -108,7 +108,8 @@ def WLscatter(name, mass, z, scaling):
         b = np.interp(z, scaling['DESwl_z'], scaling['DESwl_scatter_mean'])
         d = np.interp(z, scaling['DESwl_z'], scaling['DESwl_scatter_std'])
         lnvar = b + scaling['DES_s_dev']*d + scaling['DES_s_M']*np.log(mass/scaling['DES_m_piv'])
+        s = np.exp(.5 * lnvar)
         # lnvar = scaling['DES_s_0'] + scaling['DES_s_M']*np.log(mass/scaling['DES_m_piv']) + scaling['DES_s_z']*np.log((1+z)/(1+scaling['DES_z_piv']))
-        return np.sqrt(np.exp(lnvar))
+        return s
     elif name=='wide':
         return np.sqrt(np.exp(scaling['DES_wide_s_0'] + scaling['DES_wide_s_1']*(mass/scaling['DES_m_piv'])))
