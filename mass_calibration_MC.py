@@ -77,13 +77,10 @@ class MassCalibration:
                 argin = zip([self]*len_data, range(len_data))
                 likelihoods = pool.map(unwrap_self_f, argin)
 
-        # If likelihood computation failed it returned 0
-        if np.count_nonzero(likelihoods)<len_data:
-            return -np.inf
+        with np.errstate(all='ignore'):
+            lnlike = np.sum(np.log(likelihoods))
 
-        lnlike = np.sum(np.log(likelihoods))
-
-        if np.isinf(lnlike):
+        if np.isinf(lnlike)|np.isnan(lnlike):
             return -np.inf
 
         return lnlike
@@ -238,7 +235,7 @@ class MassCalibration:
         idx = np.argsort(lnM)
         # ln(dn/dM) = ln(dn/dlmM * dlnM/dM) = ln(dn/dlmM) - lnM
         mass_lnweights = np.zeros(len(lnM))
-        mass_lnweights[idx] = self.HMF_interp(np.log(z), lnM[idx]) - lnM[idx]#
+        mass_lnweights[idx] = self.HMF_interp(np.log(z), lnM[idx]) - lnM[idx]
         return mass_lnweights
 
 
@@ -260,11 +257,11 @@ class MassCalibration:
             xi_lambdacut_lnweights = np.log(norm.cdf(lnlambda_mean, np.log(self.surveyCutRichness), lnlambda_std))
         else:
             xi_lambdacut_lnweights = 0.
-        mass_lnweights_norm = self.get_mass_function_lnweights(z, lnM[idx])
-        lnweights = zeta_lnweights[idx]+mass_lnweights_norm+xi_lambdacut_lnweights
+        mass_lnweights = self.get_mass_function_lnweights(z, lnM[idx])
+        lnweights = zeta_lnweights[idx]+mass_lnweights+xi_lambdacut_lnweights
         mean_lnweights = np.mean(lnweights)
         diff_lnweights = lnweights - mean_lnweights
-        with np.errstate(over='ignore'):
+        with np.errstate(all='ignore'):
             Pxi = np.exp(mean_lnweights) * np.mean(np.exp(diff_lnweights))
         return Pxi
  
@@ -329,17 +326,17 @@ class MassCalibration:
             chi2_obs = multivariate_normal.bivariate_chi2_multivec(lnM-lnM_obs,
                                                                    lnM-lnM_zeta,
                                                                    np.tile(cov_inv, (len(lnM),1,1)))
+            chi2_lnweights = -(-.5 * np.log((2*np.pi)**2 * np.linalg.det(covmat_lnM)) - .5 * chi2_obs)
             # Covariance matrix based on mass
             DES_scatter = scaling_relations.WLscatter('main', np.exp(lnM), self.catalog['REDSHIFT'][dataID], self.scaling)
             covmat = cov_base * np.array([[DES_scatter**2, DES_scatter], [DES_scatter, np.ones(len(DES_scatter))]]).T
             covmat_lnM = covmat * Jacobian
             cov_inv = np.linalg.inv(covmat_lnM)
-            # chi2 using mass-based covariance matrix:q
-
+            # chi2 using mass-based covariance matrix
             chi2_m = multivariate_normal.bivariate_chi2_multivec(lnM-lnM_obs,
                                                                  lnM-lnM_zeta,
                                                                  cov_inv)
-            chi2_lnweights = -.5 * (chi2_m-chi2_obs)
+            chi2_lnweights+= -.5 * np.log((2*np.pi)**2 * np.linalg.det(covmat_lnM)) -.5 * chi2_m
         else:
             chi2_lnweights = 0.
 
@@ -350,7 +347,7 @@ class MassCalibration:
         lnweights = zeta_lnweights+obs_lnweights+mass_draw_lnweights+chi2_lnweights+mass_lnweights
         mean_lnweights = np.mean(lnweights)
         diff_lnweights = lnweights - mean_lnweights
-        with np.errstate(over='ignore'):
+        with np.errstate(all='ignore'):
             Pobsxi = np.exp(mean_lnweights) * np.mean(np.exp(diff_lnweights))
         like = Pobsxi/Pxi
         return like
@@ -438,7 +435,7 @@ class MassCalibration:
                                                                     lnM-lnM_obs[1],
                                                                     lnM-lnM_zeta,
                                                                     np.tile(cov_inv, (len(lnM),1,1)))
-
+            chi2_lnweights = -(-.5 * np.log((2*np.pi)**3 * np.linalg.det(covmat_lnM)) - .5 * chi2_obs)
             # Covariance matrix based on mass
             DES_scatter = scaling_relations.WLscatter('main', np.exp(lnM), self.catalog['REDSHIFT'][dataID], self.scaling)
             covmat = cov_base * np.array([[DES_scatter**2, DES_scatter, DES_scatter],
@@ -451,7 +448,7 @@ class MassCalibration:
                                                                   lnM-lnM_obs[1],
                                                                   lnM-lnM_zeta,
                                                                   cov_inv)
-            chi2_lnweights = -.5 * (chi2_m-chi2_obs)
+            chi2_lnweights+= -.5 * np.log((2*np.pi)**3 * np.linalg.det(covmat_lnM)) -.5 * chi2_m
         else:
             chi2_lnweights = 0.
 
@@ -462,6 +459,7 @@ class MassCalibration:
         lnweights = zeta_lnweights+obs_lnweights[0]+obs_lnweights[1]+mass_draw_lnweights+chi2_lnweights+mass_lnweights
         mean_lnweights = np.mean(lnweights)
         diff_lnweights = lnweights - mean_lnweights
-        with np.errstate(over='ignore'):
-            like = np.exp(mean_lnweights) * np.mean(np.exp(diff_lnweights))
+        with np.errstate(all='ignore'):
+            Pobsxi = np.exp(mean_lnweights) * np.mean(np.exp(diff_lnweights))
+        like = Pobsxi/Pxi
         return like
