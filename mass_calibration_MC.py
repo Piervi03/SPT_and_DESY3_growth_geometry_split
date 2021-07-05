@@ -228,12 +228,11 @@ class MassCalibration:
 
     def get_mass_function_lnweights(self, z, lnM):
         """Return log-probability of halo mass function
-        ln(P(M)) = ln(dn/dM / \int_dM dn/dM) at given `z` and array `lnM`."""
+        ln(P(lnM)) = ln(dN/dlnM) at given `z` and array `lnM`."""
         # Scipy.RectBivariateSpline only accepts sorted inputs
         idx = np.argsort(lnM)
-        # ln(dn/dM) = ln(dn/dlmM * dlnM/dM) = ln(dn/dlmM) - lnM
         mass_lnweights = np.zeros(len(lnM))
-        mass_lnweights[idx] = self.HMF_interp(np.log(z), lnM[idx]) - lnM[idx]
+        mass_lnweights[idx] = self.HMF_interp(np.log(z), lnM[idx])
         return mass_lnweights
 
 
@@ -249,10 +248,10 @@ class MassCalibration:
         if not np.any(idx):
             return 0.
         if self.surveyCutRichness>0.:
-            lnlambda = np.log(scaling_relations.mass2obs('richness', np.exp(lnM[idx]), z, self.scaling, self.cosmology))
+            #lnlambda = np.log(scaling_relations.mass2obs('richness', np.exp(lnM[idx]), z, self.scaling, self.cosmology))
             cov = np.array([[covmat_lnM[pos['richness'],pos['richness']], covmat_lnM[pos['zeta'],pos['richness']]],
                             [covmat_lnM[pos['zeta'],pos['richness']], covmat_lnM[pos['zeta'],pos['zeta']]]])
-            lnlambda_mean = lnlambda - covmat_lnM[0,1]/covmat_lnM[1,1]*np.log(zeta[idx])
+            lnM_lambda_mean = lnM[idx] - covmat_lnM[0,1]/covmat_lnM[1,1]*lnM_zeta[idx]
             lnlambda_std = covmat_lnM[0,0] - covmat_lnM[0,1]**2/covmat_lnM[1,1]
             xi_lambdacut_lnweights = np.log(norm.cdf(lnlambda_mean, np.log(self.surveyCutRichness), lnlambda_std))
         else:
