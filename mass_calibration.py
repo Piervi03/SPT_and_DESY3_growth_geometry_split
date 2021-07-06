@@ -275,10 +275,11 @@ class MassCalibration:
             obsArr*= correction
         # Truncate at richness cut
         elif obsname=='richness':
-            lnHMF_2d_at_cut = [np.interp(self.surveyCutRichness, obsArr, lnHMF_2d[:,i]) for i in range(lnHMF_2d.shape[1])]
-            idx = obsArr>self.surveyCutRichness
-            obsArr = np.insert(obsArr[idx], 0, self.surveyCutRichness)
-            lnHMF_2d = np.insert(lnHMF_2d[idx,:], 0, lnHMF_2d_at_cut, axis=0)
+            if self.surveyCutRichness>0.:
+                lnHMF_2d_at_cut = [np.interp(self.surveyCutRichness, obsArr, lnHMF_2d[:,i]) for i in range(lnHMF_2d.shape[1])]
+                idx = obsArr>self.surveyCutRichness
+                obsArr = np.insert(obsArr[idx], 0, self.surveyCutRichness)
+                lnHMF_2d = np.insert(lnHMF_2d[idx,:], 0, lnHMF_2d_at_cut, axis=0)
         lnobsArr = np.log(obsArr)
 
         ##### SZ array
@@ -379,20 +380,21 @@ class MassCalibration:
                 obsArrTemp*= correction
             # Truncate at richness cut
             elif obsnames[i]=='richness':
-                idx = (obsArrTemp>self.surveyCutRichness).nonzero()[0]
-                Delta_x0 = self.surveyCutRichness-obsArrTemp[idx[0]-1]
-                Delta_x = obsArrTemp[idx[0]]-obsArrTemp[idx[0]-1]
-                if i==0:
-                    with np.errstate(invalid='ignore'):
-                        Delta_y = lnHMF_3d[idx[0],:,:]-lnHMF_3d[idx[0]-1,:,:]
-                        lnHMF_3d_at_cut = lnHMF_3d[idx[0]-1,:,:] + Delta_y*Delta_x0/Delta_x
-                    lnHMF_3d = np.insert(lnHMF_3d[idx,:,:], 0, lnHMF_3d_at_cut, axis=0)
-                elif i==1:
-                    with np.errstate(invalid='ignore'):
-                        Delta_y = lnHMF_3d[:,idx[0],:]-lnHMF_3d[:,idx[0]-1,:]
-                        lnHMF_3d_at_cut = lnHMF_3d[:,idx[0]-1,:] + Delta_y*Delta_x0/Delta_x
-                    lnHMF_3d = np.insert(lnHMF_3d[:,idx,:], 0, lnHMF_3d_at_cut, axis=1)
-                obsArrTemp = np.insert(obsArrTemp[idx], 0, self.surveyCutRichness)
+                if self.surveyCutRichness>0.:
+                    idx = (obsArrTemp>self.surveyCutRichness).nonzero()[0]
+                    Delta_x0 = self.surveyCutRichness-obsArrTemp[idx[0]-1]
+                    Delta_x = obsArrTemp[idx[0]]-obsArrTemp[idx[0]-1]
+                    if i==0:
+                        with np.errstate(invalid='ignore'):
+                            Delta_y = lnHMF_3d[idx[0],:,:]-lnHMF_3d[idx[0]-1,:,:]
+                            lnHMF_3d_at_cut = lnHMF_3d[idx[0]-1,:,:] + Delta_y*Delta_x0/Delta_x
+                        lnHMF_3d = np.insert(lnHMF_3d[idx,:,:], 0, lnHMF_3d_at_cut, axis=0)
+                    elif i==1:
+                        with np.errstate(invalid='ignore'):
+                            Delta_y = lnHMF_3d[:,idx[0],:]-lnHMF_3d[:,idx[0]-1,:]
+                            lnHMF_3d_at_cut = lnHMF_3d[:,idx[0]-1,:] + Delta_y*Delta_x0/Delta_x
+                        lnHMF_3d = np.insert(lnHMF_3d[:,idx,:], 0, lnHMF_3d_at_cut, axis=1)
+                    obsArrTemp = np.insert(obsArrTemp[idx], 0, self.surveyCutRichness)
             obsArr.append( obsArrTemp )
             lnobsArr.append( np.log(obsArrTemp) )
 
