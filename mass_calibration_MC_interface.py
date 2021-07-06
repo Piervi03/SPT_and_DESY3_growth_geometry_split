@@ -15,6 +15,7 @@ def setup(options):
     surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
     surveyCutRichness = options.get_double(option_section, 'surveyCutRichness')
     NPROC = options.get_int(option_section, 'NPROC')
+    method = options.get_string(option_section, 'method')
     # SPT survey
     SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
     # Double counted clusters
@@ -24,7 +25,7 @@ def setup(options):
     # WL param file
     WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
 
-    masscalibration = mass_calibration.MassCalibration(todo, mcType,
+    masscalibration = mass_calibration.MassCalibration(todo, method, mcType,
                                                        surveyCutSZ, surveyCutRedshift, surveyCutRichness,
                                                        SPT_survey_fields, SPT_doublecounts, SPTcatalogfile,
                                                        WLsimcalibfile,
@@ -62,7 +63,7 @@ def execute(block, masscalibration):
     for p in ['Asz', 'Bsz', 'Csz', 'Dsz', 'Bsz2', 'Csz2', 'Esz', 'SPECS_calib', 'SZmPivot', 'zeta_min',
               'Ax', 'Bx', 'Cx', 'Ex', 'dlnMg_dlnr', 'XraymPivot',
               'DES_b_dev', 'DES_b_m', 'DES_s_dev', 'DES_s_M', 'DES_m_piv',
-              'HSTscatterLSS', 'MegacamScatterLSS', 
+              'HSTscatterLSS', 'MegacamScatterLSS',
               'Arichness', 'Brichness', 'Crichness', 'Drichness', 'richmPivot',
               'rhoSZrichness', 'rhoWLrichness', 'rhoSZWL',
               'Adisp', 'Bdisp', 'Cdisp',]:
