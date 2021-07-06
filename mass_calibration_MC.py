@@ -284,6 +284,7 @@ class MassCalibration:
         N_obs = len(obsnames)
         z_cluster = self.catalog['REDSHIFT'][dataID]
         covmat = self.get_covmat_obs(obsnames)
+        dlnM_dlnobs = np.array([scaling_relations.dlnM_dlnobs(obs, self.scaling) for obs in obsnames])
 
         # Mass given follow-up observables
         lnM_obs, obs_lnweights = N_obs*[None], N_obs*[None]
@@ -309,9 +310,9 @@ class MassCalibration:
             else:
                 print('to do')
                 return 0
+            obs_lnweights[o]+= np.log(dlnM_dlnobs[pos[obs]])
 
         # Covariance matrix in ln-mass
-        dlnM_dlnobs = np.array([scaling_relations.dlnM_dlnobs(obs, self.scaling) for obs in obsnames])
         Jacobian = dlnM_dlnobs[:,None]*dlnM_dlnobs[None,:]
         covmat_lnM = covmat * Jacobian
 
