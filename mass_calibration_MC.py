@@ -30,13 +30,15 @@ def unwrap_self_f(arg):
 ################################################################################
 class MassCalibration:
 
-    def __init__(self, todo, mcType, surveyCutSZ, surveyCutRedshift, surveyCutRichness,
+    def __init__(self, todo, method, mcType,
+                 surveyCutSZ, surveyCutRedshift, surveyCutRichness,
                  SPT_survey_fields, SPT_doublecounts, SPTcatalogfile,
                  WLsimcalibfile,
                  NPROC):
 
         self.NPROC = NPROC
         self.todo = todo
+        self.method = method
         self.mcType = mcType
         self.surveyCutSZ = surveyCutSZ
         self.surveyCutRedshift = surveyCutRedshift
@@ -130,7 +132,7 @@ class MassCalibration:
             obsnames.append('Mgas')
         if self.todo['richness'] and self.catalog['richness'][i]!=0.:
             nobs+= 1
-            obsnames.append('richness')        
+            obsnames.append('richness')
         if nobs==0:
             return 1.
 
@@ -143,7 +145,10 @@ class MassCalibration:
         probability = np.inf
         n = 0
         while np.isinf(probability):
-            probability = self.get_P_obs_xi(obsnames, i)
+            if self.method=='multiobsdraw':
+                probability = self.get_P_obs_xi_multiobsdraw(obsnames, i)
+            elif self.method=='zetadraw':
+                probability = self.get_P_obs_xi_zetadraw(obsnames, i)
             n+= 1
             if n==10:
                 break
@@ -265,6 +270,15 @@ class MassCalibration:
         return Pxi
 
 
+    def draw_lnm_given_lnzeta(self, lnM_zeta, SZscatter_lnM):
+        """Return draws of ln(mass) given ln(zeta)."""
+        r_min = norm.cdf(self.lnM_arr[0], loc=lnM_zeta, scale=SZscatter_lnM)
+        r_max = norm.cdf(self.lnM_arr[-1], loc=lnM_zeta, scale=SZscatter_lnM)
+        r = r_min + (r_max-r_min)*self.rng.random(len(lnM_zeta))
+        lnM = erfinv(2*r-1)*SZscatter_lnM*np.sqrt(2) + lnM_zeta
+        return lnM
+
+
     def get_covmat_obs(self, obsnames):
         """Returns covariance matrix for the requested `obsnames`."""
         N_obs = len(obsnames)
@@ -278,7 +292,7 @@ class MassCalibration:
 
 
     ############################################################################
-    def get_P_obs_xi(self, obsnames, dataID):
+    def get_P_obs_xi_multiobsdraw(self, obsnames, dataID):
         """Returns P(obs|xi,z,p)"""
         # Basic setup
         N_obs = len(obsnames)
@@ -376,6 +390,107 @@ class MassCalibration:
 
         # Final likelihood
         lnweights = np.sum(obs_lnweights, axis=0)+mass_draw_lnweights+chi2_lnweights+mass_lnweights
+        mean_lnweights = np.mean(lnweights)
+        diff_lnweights = lnweights - mean_lnweights
+        with np.errstate(all='ignore'):
+            Pobsxi = np.exp(mean_lnweights) * np.mean(np.exp(diff_lnweights))
+        like = Pobsxi/Pxi
+        return like
+
+
+    ############################################################################
+    def get_P_obs_xi_zetadraw(self, obsnames, dataID):
+        """Returns P(obs|xi,z,p)"""
+        # Basic setup
+        N_obs = len(obsnames)
+        z_cluster = self.catalog['REDSHIFT'][dataID]
+        obsnames_nozeta = obsnames.copy()
+        obsnames_nozeta.remove('zeta')
+        dlnM_dlnobs = np.array([scaling_relations.dlnM_dlnobs(obs, self.scaling) for obs in obsnames])
+
+        # Mass given follow-up observables
+        lnM_obs, obs_lnweights = N_obs*[None], N_obs*[None]
+        pos = {}
+        for o,obs in enumerate(obsnames):
+            pos[obs] = o
+            if obs in ['WLDES', 'WLHST', 'WLMegacam']:
+                lnMwl, obs_lnweights[o] = self.get_Mwl_draws(dataID)
+                lnM_obs[o] = np.log(scaling_relations.obs2mass('WLDES', np.exp(lnMwl), z_cluster, self.scaling, self.cosmology, self.catalog['SPT_ID'][dataID]))
+            elif obs=='richness':
+                lnM_obs[o] = np.log(scaling_relations.obs2mass('richness', self.catalog['richness'][dataID], z_cluster, self.scaling, self.cosmology))*np.ones(Ndraw)
+                obs_lnweights[o] = np.zeros(Ndraw)
+            elif obs=='zeta':
+                zeta, obs_lnweights[o] = self.get_zeta_draws(self.catalog['XI'][dataID])
+                obs_lnweights[o]+= np.log(scaling_relations.zeta2xi(zeta)/zeta**2)
+                zeta/= self.thisSPTfield_gamma
+                lnM_obs[o] = np.log(scaling_relations.obs2mass('zeta', zeta, z_cluster, self.scaling, self.cosmology))
+            else:
+                print('to do')
+                return 0
+            obs_lnweights[o]+= np.log(dlnM_dlnobs[pos[obs]])
+
+        # Draw mass given zeta
+        SZscatter_lnM = self.scaling['Dsz'] * dlnM_dlnobs[pos['zeta']]
+        lnM = self.draw_lnm_given_lnzeta(lnM_obs[pos['zeta']], SZscatter_lnM)
+
+        # Sometimes there are failures when mean obs is very unlikely
+        if np.all(np.isinf(lnM)):
+            return 0.
+        idx = np.isfinite(lnM)
+        if not np.all(idx):
+            lnM = lnM[idx]
+            for i in range(N_obs):
+                lnM_obs[i] = lnM_obs[i][idx]
+                obs_lnweights[i] = obs_lnweights[i][idx]
+
+        # Mass function
+        mass_lnweights = self.get_mass_function_lnweights(z_cluster, lnM)
+
+        # Normalization P(xi)
+        lnweights = obs_lnweights[pos['zeta']] + mass_lnweights
+        mean_lnweights = np.mean(lnweights)
+        diff_lnweights = lnweights - mean_lnweights
+        with np.errstate(all='ignore'):
+            Pxi = np.exp(mean_lnweights) * np.mean(np.exp(diff_lnweights))
+        if Pxi==0:
+            return 0.
+
+        # Covariance matrix in ln-mass [draw, N_obs, N_obs]
+        covmat = self.get_covmat_obs(obsnames)
+        Jacobian = dlnM_dlnobs[:,None]*dlnM_dlnobs[None,:]
+        covmat_lnM = covmat * Jacobian * np.ones((len(lnM),N_obs,N_obs))
+        if 'WLDES' in obsnames:
+            DES_scatter = scaling_relations.WLscatter('main', np.exp(lnM), self.catalog['REDSHIFT'][dataID], self.scaling)
+            covmat_lnM[:,pos['WLDES'],:]*= DES_scatter[:,None]
+            covmat_lnM[:,:,pos['WLDES']]*= DES_scatter[:,None]
+        elif 'WLHST' in obsnames:
+            scatter = self.scaling['DWL_HST'][self.catalog['SPT_ID'][dataID]]
+            covmat_lnM[:,pos['WLHST'],:]*= scatter
+            covmat_lnM[:,:,pos['WLHST']]*= scatter
+
+        # Conditional probability of follow-up observables
+        covmat_lnM_zeta = covmat_lnM[:,pos['zeta'],pos['zeta']]
+        covmat_lnM_mix = np.delete(covmat_lnM[:,pos['zeta'],:], pos['zeta'], axis=1)
+
+        lnobs_given_lnzeta_mean = (lnM[:,None] - covmat_lnM_mix / covmat_lnM_zeta[:,None] * (lnM_obs[pos['zeta']] - lnM)[:,None]).T
+        inv = np.linalg.inv(covmat_lnM)
+        lnobs_given_lnzeta_cov_inv = np.delete(np.delete(inv, pos['zeta'], axis=1), pos['zeta'], axis=2)
+
+        if N_obs==2:
+            chi2 = (lnM_obs[pos[obsnames_nozeta[0]]]-lnobs_given_lnzeta_mean)[0]**2 * lnobs_given_lnzeta_cov_inv[:,0,0]
+        elif N_obs==3:
+            chi2 = multivariate_normal.bivariate_chi2_multivec(lnM_obs[pos[obsnames_nozeta[0]]]-lnobs_given_lnzeta_mean[0],
+                                                               lnM_obs[pos[obsnames_nozeta[1]]]-lnobs_given_lnzeta_mean[1],
+                                                               lnobs_given_lnzeta_cov_inv)
+        elif N_obs==4:
+            chi2 = multivariate_normal.trivariate_chi2_multivec(lnM_obs[pos[obsnames_nozeta[0]]]-lnobs_given_lnzeta_mean[0],
+                                                                lnM_obs[pos[obsnames_nozeta[1]]]-lnobs_given_lnzeta_mean[1],
+                                                                lnM_obs[pos[obsnames_nozeta[2]]]-lnobs_given_lnzeta_mean[2],
+                                                                lnobs_given_lnzeta_cov_inv)
+        P_obs_lnweights = -.5 * chi2 - .5 * np.log((2*np.pi)**(N_obs-1) / np.linalg.det(lnobs_given_lnzeta_cov_inv))
+
+        # Final likelihood
+        lnweights = np.sum(obs_lnweights, axis=0) + mass_lnweights + P_obs_lnweights
         mean_lnweights = np.mean(lnweights)
         diff_lnweights = lnweights - mean_lnweights
         with np.errstate(all='ignore'):
