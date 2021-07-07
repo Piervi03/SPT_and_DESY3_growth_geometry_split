@@ -28,6 +28,7 @@ def execute(block, scaling_setter):
             block.put_double_array_nd('mor_parameters', p, scaling[p])
         for name in scaling_setter.WLcalib['HSTsim'].keys():
             block.put_double('mor_parameters', 'bWL_HST_%s'%name, scaling['bWL_HST'][name])
+            block.put_double('mor_parameters', 'DWL_HST_%s'%name, scaling['DWL_HST'][name])
             block.put_double_array_nd('mor_parameters', 'cov_HST_SZ_%s'%name, scaling['cov_HST_SZ_%s'%name])
             block.put_double_array_nd('mor_parameters', 'cov_HST_X_SZ_%s'%name, scaling['cov_HST_X_SZ_%s'%name])
             block.put_double_array_nd('mor_parameters', 'cov_HST_richness_SZ_%s'%name, scaling['cov_HST_richness_SZ_%s'%name])
