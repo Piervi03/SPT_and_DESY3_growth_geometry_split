@@ -31,7 +31,7 @@ class MultiObsConvolution:
         # Cut in richness
         self.lambda_cut = lambda_cut
 
-        self.other_pairnames = ['SZ', 'SZ_lambdacut', 'DES_SZ_lambdacut']
+        self.other_pairnames = ['SZ', 'SZ_lambdacut_shallow', 'SZ_lambdacut_deep', 'DES_SZ_lambdacut']
         self.pairnames_2d = ['Yx_SZ', 'Mgas_SZ', 'Megacam_SZ', 'richness_SZ']
         self.pairnames_2d_DES = ['DES_SZ',]
         self.pairnames_3d = ['Megacam_Yx_SZ', 'Megacam_Mgas_SZ']
@@ -39,7 +39,8 @@ class MultiObsConvolution:
         all_pairnames = self.other_pairnames+self.pairnames_2d+self.pairnames_2d_DES+self.pairnames_3d+self.pairnames_3d_DES
 
         self.obsnames_dict = {'SZ': 'zeta',
-                              'SZ_lambdacut': 'zeta',
+                              'SZ_lambdacut_shallow': 'zeta',
+                              'SZ_lambdacut_deep': 'zeta',
                               'DES_SZ_lambdacut': ['WLDES', 'zeta'],
                               'Yx_SZ': 'Yx',
                               'Mgas_SZ': 'Mgas',
@@ -82,7 +83,7 @@ class MultiObsConvolution:
             z_arr = np.linspace(self.pairs_zmin[pair_idx], self.pairs_zmax[pair_idx], self.pairs_Nz[pair_idx])
             if (pair_name in ['SZ', 'DES_SZ_lambdacut']) | (pair_name in self.pairnames_2d_DES) | (pair_name in self.pairnames_3d_DES):
                 this_covmat_ = 0
-            elif pair_name=='SZ_lambdacut':
+            elif pair_name in ['SZ_lambdacut_shallow', 'SZ_lambdacut_deep']:
                 this_covmat_ = self.covmat['cov_richness_SZ']
             else:
                 this_covmat_ = self.covmat['cov_%s'%pair_name]
@@ -124,8 +125,10 @@ class MultiObsConvolution:
         # Which HMF convolution?
         if pairname=='SZ':
             return self.get_P_zeta_z(z)
-        elif pairname=='SZ_lambdacut':
-            return self.get_P_zeta_lambdacut_z(covmat, z)
+        elif pairname=='SZ_lambdacut_shallow':
+            return self.get_P_zeta_lambdacut_z(covmat, z, 'shallow')
+        elif pairname=='SZ_lambdacut_deep':
+            return self.get_P_zeta_lambdacut_z(covmat, z, 'deep')
         elif pairname in self.pairnames_2d:
             return self.get_P_2obs_z(obsname, covmat, z)
         elif pairname in self.pairnames_2d_DES:
@@ -164,7 +167,7 @@ class MultiObsConvolution:
         return lnHMF_1d
 
 
-    def get_P_zeta_lambdacut_z(self, covmat, z):
+    def get_P_zeta_lambdacut_z(self, covmat, z, SZsurvey):
         """Return dN/dlnzeta accounting for richness confirmation."""
         dN_dlnM, = np.exp(self.HMF_interp(np.log(z), np.log(self.HMF['M_arr'])))
         # Convert observable covmat into covmat in mass
@@ -173,17 +176,15 @@ class MultiObsConvolution:
         Jacobian = np.array([[dlnM_dlnobs**2, dlnM_dlnobs*dlnM_dlnzeta],
                              [dlnM_dlnobs*dlnM_dlnzeta, dlnM_dlnzeta**2]])
         covmat_lnM = covmat * Jacobian
-        lnlambda_arr = np.log(scaling_relations.mass2obs('richness', self.HMF['M_arr'], z, self.scaling))
-        kernels = [None]*len(self.HMF['M_arr'])
-        Nbins_zeta = np.empty((len(self.HMF['M_arr']), 2), dtype=int)
-        for i in range(len(self.HMF['M_arr'])):
-            # Number of bins and arrays for each observable
-            Nbins_zeta[i], lnzeta_arr = self.get_Nbins_array(msqrt(covmat_lnM[1,1]))
-            # Conditional P(lambda|zeta,m)
-            lnlambda_mean = lnlambda_arr[i] - covmat_lnM[0,1]/covmat_lnM[1,1]*lnzeta_arr
-            lnlambda_std = covmat_lnM[0,0] - covmat_lnM[0,1]**2/covmat_lnM[1,1]
-            P_lambda_gtr_cut = norm.cdf(lnlambda_mean, np.log(self.lambda_cut), lnlambda_std)
-            kernels[i] = P_lambda_gtr_cut * norm.pdf(lnzeta_arr, 0, msqrt(covmat_lnM[1,1]))
+        # Number of bins and arrays for each observable
+        Nbins_zeta, lnzeta_arr = self.get_Nbins_array(msqrt(covmat_lnM[1,1]))
+        Nbins_zeta = np.ones((len(self.HMF['M_arr']), 2), dtype=int) * Nbins_zeta[None,:]
+        lnmass_lambda_mean = np.log(self.HMF['M_arr'])[:,None] + covmat_lnM[0,1]/covmat_lnM[1,1]*lnzeta_arr[None,:]
+        lnlambda_mean = np.log(scaling_relations.mass2obs('richness', np.exp(lnmass_lambda_mean), z, self.scaling))
+        lnmass_lambda_std = np.sqrt(covmat_lnM[0,0] - covmat_lnM[0,1]**2/covmat_lnM[1,1])
+        lnlambda_std = lnmass_lambda_std/dlnM_dlnobs
+        P_lambda_gtr_cut = norm.cdf(lnlambda_mean, np.log(self.lambda_cut[SZsurvey](z)), lnlambda_std)
+        kernels = P_lambda_gtr_cut * norm.pdf(lnzeta_arr, 0, msqrt(covmat_lnM[1,1]))
         # Convolution
         HMF_1d = convolution.convolve_HMF_1obs_varkernel(dN_dlnM, self.Delta_lnM, kernels, Nbins_zeta)
         # Compress
@@ -279,7 +280,6 @@ class MultiObsConvolution:
                              [dlnM_dlnobs[0]*dlnM_dlnzeta,   dlnM_dlnobs[1]*dlnM_dlnzeta,   dlnM_dlnzeta**2]])
         covmat_lnM = covmat * Jacobian
         # Scatter kernels [lnWL, lnobs, lnzeta]
-        lnlambda_arr = np.log(scaling_relations.mass2obs('richness', self.HMF['M_arr'], z, self.scaling))
         kernels = [None]*len(self.HMF['M_arr'])
         Nbins_DES = np.empty((len(self.HMF['M_arr']), 2), dtype=int)
         Nbins_zeta = np.empty((len(self.HMF['M_arr']), 2), dtype=int)
@@ -291,9 +291,11 @@ class MultiObsConvolution:
             inv_cov = np.linalg.inv(covmat_lnM[i,[0,2],:][:,[0,2]])
             pos = np.empty((len(lnDES_arr), len(lnzeta_arr), 2))
             pos[:,:,0], pos[:,:,1] = np.meshgrid(lnDES_arr, lnzeta_arr, indexing='ij', sparse=True)
-            lnlambda_mean = lnlambda_arr[i] - (covmat_lnM[i,1,0]*np.sum(inv_cov[0,:]*pos, axis=2) + covmat_lnM[i,1,2]*np.sum(inv_cov[1,:]*pos, axis=2))
-            lnlambda_std = covmat_lnM[i,1,1] - np.dot(covmat_lnM[i,1,[0,2]], np.dot(inv_cov, covmat_lnM[i,[0,2],1]))
-            P_lambda_gtr_cut = norm.cdf(lnlambda_mean, np.log(self.lambda_cut), lnlambda_std)
+            lnmass_lambda_mean = np.log(self.HMF['M_arr'][i]) + (covmat_lnM[i,1,0]*np.sum(inv_cov[0,:]*pos, axis=2) + covmat_lnM[i,1,2]*np.sum(inv_cov[1,:]*pos, axis=2))
+            lnlambda_mean = np.log(scaling_relations.mass2obs('richness', np.exp(lnmass_lambda_mean), z, self.scaling))
+            lnmass_lambda_std = np.sqrt(covmat_lnM[i,1,1] - np.dot(covmat_lnM[i,1,[0,2]], np.dot(inv_cov, covmat_lnM[i,[0,2],1])))
+            lnlambda_std = lnmass_lambda_std/dlnM_dlnobs[1]
+            P_lambda_gtr_cut = norm.cdf(lnlambda_mean, np.log(self.lambda_cut(z)), lnlambda_std)
             # Multivariate Gaussian kernel
             kernel_2d = cy_multivariate_normal.bivariate_normal(lnDES_arr, lnzeta_arr, cov=covmat_lnM[i,[0,2],:][:,[0,2]])
             kernels[i] = P_lambda_gtr_cut * kernel_2d
