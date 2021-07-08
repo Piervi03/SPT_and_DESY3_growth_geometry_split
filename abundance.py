@@ -14,12 +14,11 @@ def unwrap_self_f(arg):
 class NumberCount:
 
     def __init__(self, catalog, SPT_survey,
-                 surveyCutSZ, surveyCutLambda, surveyCutRedshift,
+                 surveyCutSZ, surveyCutRedshift,
                  NPROC):
         self.catalog = catalog
         self.SPT_survey = SPT_survey
         self.surveyCutSZ = surveyCutSZ
-        self.surveyCutLambda = surveyCutLambda
         self.surveyCutRedshift = surveyCutRedshift
         self.NPROC = NPROC
 
@@ -47,7 +46,9 @@ class NumberCount:
         self.ln_zeta_xi_arr = np.log(scaling_relations.xi2zeta(self.xi_bins))
         self.dlnzeta_dxi_arr = scaling_relations.dlnzeta_dxi(self.xi_bins)
 
-        self.dN_dlnzeta_unitSolidAng = scaling_relations.dlnM_dlnobs('zeta', self.scaling) * np.exp(self.HMF['dNdlnM'])
+        self.dN_dlnzeta_unitSolidAng = {}
+        for tmp in ['shallow', 'deep']:
+            self.dN_dlnzeta_unitSolidAng[tmp] = scaling_relations.dlnM_dlnobs('zeta', self.scaling) * np.exp(self.HMF['SZ_lambdacut_%s_dNdlnM'%tmp])
 
         # zeta[z,M]
         self.zeta_m = scaling_relations.mass2obs('zeta', self.HMF['M_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling, self.cosmology)
@@ -73,7 +74,11 @@ class NumberCount:
     def lnlike_field(self, fieldidx):
         """Returns (ln-likelihood, Ntotal) for a given SPT field (index)."""
         # dN/dln(zeta)
-        dN_dlnzeta = self.dN_dlnzeta_unitSolidAng * self.SPT_survey['AREA'][fieldidx] * (np.pi/180)**2
+        if self.SPT_survey['FIELD'][fieldidx]=='SPTPOL_500d':
+            tmp = 'deep'
+        else:
+            tmp = 'shallow'
+        dN_dlnzeta = self.dN_dlnzeta_unitSolidAng[tmp] * self.SPT_survey['AREA'][fieldidx] * (np.pi/180)**2
         with np.errstate(divide='ignore'):
             lndN_dlnzeta = np.log(dN_dlnzeta)
 
@@ -110,7 +115,6 @@ class NumberCount:
         ##### confirmed clusters
         thisfield_conf = np.where((self.catalog['FIELD']==self.SPT_survey['FIELD'][fieldidx])
             & (self.catalog['XI']>=self.surveyCutSZ[0]) & (self.catalog['XI']<=self.surveyCutSZ[1])
-            & (self.catalog['richness']>=self.surveyCutLambda[0]) & (self.catalog['richness']<=self.surveyCutLambda[1])
             & (self.catalog['REDSHIFT']>=self.surveyCutRedshift[0]) & (self.catalog['REDSHIFT']<=self.surveyCutRedshift[1]))[0]
         for i in thisfield_conf:
             # spec-z: Evaluate dN/dxi/dz at exact location

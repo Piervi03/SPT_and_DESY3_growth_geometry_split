@@ -10,7 +10,6 @@ def setup(options):
     ##### Global variables
     NPROC = options.get_int(option_section, 'NPROC')
     surveyCutSZ = options.get_double_array_1d(option_section, 'surveyCutSZ')
-    surveyCutLambda = options.get_double_array_1d(option_section, 'surveyCutLambda')
     surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
     # SPT survey
     SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
@@ -20,7 +19,7 @@ def setup(options):
     catalog = Table.read(SPTcatalogfile)
     ##### Initialize abundance
     number_count = abundance.NumberCount(catalog, SPT_survey,
-                                         surveyCutSZ, surveyCutLambda, surveyCutRedshift,
+                                         surveyCutSZ, surveyCutRedshift,
                                          NPROC)
 
     return number_count
@@ -37,9 +36,13 @@ def execute(block, number_count):
     for p in ['Asz', 'Bsz', 'Csz', 'Dsz', 'Esz', 'SPECS_calib', 'SZmPivot', 'zeta_min']:
         scaling[p] = block.get_double('mor_parameters', p)
     # Convolved halo mass function
-    HMF = {'M_arr': block.get_double_array_1d('dN_dmultiobs', 'M_arr'),
-           'z_arr': block.get_double_array_1d('dN_dmultiobs', 'SZ_lambdacut_z'),
-           'dNdlnM': block.get_double_array_nd('dN_dmultiobs', 'SZ_lambdacut')}
+    HMF = {'M_arr': block.get_double_array_1d('dN_dmultiobs', 'M_arr'),}
+    z = {}
+    for tmp in ['SZ_lambdacut_shallow', 'SZ_lambdacut_deep']:
+        z['%s_z'%tmp] = block.get_double_array_1d('dN_dmultiobs', '%s_z'%tmp)
+        HMF['%s_dNdlnM'%tmp] = block.get_double_array_nd('dN_dmultiobs', tmp)
+    if np.all(z['SZ_lambdacut_shallow_z']==z['SZ_lambdacut_deep_z']):
+        HMF['z_arr'] = z['SZ_lambdacut_shallow_z']
     HMF['len_z'] = len(HMF['z_arr'])
     # Compute the likelihood
     lnlike = float(number_count.lnlike(HMF, cosmology, scaling))
