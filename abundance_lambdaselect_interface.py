@@ -9,7 +9,7 @@ import abundance
 def setup(options):
     ##### Global variables
     NPROC = options.get_int(option_section, 'NPROC')
-    surveyCutSZ = options.get_double_array_1d(option_section, 'surveyCutSZ')
+    surveyCutSZmax = options.get_double(option_section, 'surveyCutSZmax')
     surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
     # SPT survey
     SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
@@ -19,7 +19,7 @@ def setup(options):
     catalog = Table.read(SPTcatalogfile)
     ##### Initialize abundance
     number_count = abundance.NumberCount(catalog, SPT_survey,
-                                         surveyCutSZ, surveyCutRedshift,
+                                         surveyCutSZmax, surveyCutRedshift,
                                          NPROC)
 
     return number_count

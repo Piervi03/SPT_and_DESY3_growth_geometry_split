@@ -14,18 +14,19 @@ def unwrap_self_f(arg):
 class NumberCount:
 
     def __init__(self, catalog, SPT_survey,
-                 surveyCutSZ, surveyCutRedshift,
+                 surveyCutSZmax, surveyCutRedshift,
                  NPROC):
         self.catalog = catalog
         self.SPT_survey = SPT_survey
-        self.surveyCutSZ = surveyCutSZ
+        self.surveyCutSZmax = surveyCutSZmax
         self.surveyCutRedshift = surveyCutRedshift
         self.NPROC = NPROC
 
         ##### Observable arrays
         # Arrays over which we'll integrate (survey cuts applied)
-        Nxi = int(np.log10(self.surveyCutSZ[1]/self.surveyCutSZ[0])/.005 + 1)
-        self.xi_arr = np.logspace(np.log10(self.surveyCutSZ[0]), np.log10(self.surveyCutSZ[1]), Nxi)
+        xi_min = np.amin(self.SPT_survey['XI_MIN'])
+        Nxi = int(np.log10(self.surveyCutSZmax/xi_min)/.005 + 1)
+        self.xi_arr = np.logspace(np.log10(xi_min), np.log10(self.surveyCutSZmax), Nxi)
         dz = .01
         Nz = int((self.surveyCutRedshift[1]-self.surveyCutRedshift[0])/dz + 1)
         self.z_arr = np.linspace(self.surveyCutRedshift[0], self.surveyCutRedshift[1], Nz)
@@ -40,8 +41,8 @@ class NumberCount:
 
         # Lin spaced array in xi for convo with unit scatter (+3 sigma margin)
         xi_min = scaling_relations.zeta2xi(self.scaling['zeta_min'])
-        Nxi = int((self.surveyCutSZ[1]+3 - xi_min)/.1 + 1)
-        self.xi_bins = np.linspace(xi_min, self.surveyCutSZ[1]+3, Nxi)
+        Nxi = int((self.surveyCutSZmax+3 - xi_min)/.1 + 1)
+        self.xi_bins = np.linspace(xi_min, self.surveyCutSZmax+3, Nxi)
         self.dxi = self.xi_bins[1] - self.xi_bins[0]
         self.ln_zeta_xi_arr = np.log(scaling_relations.xi2zeta(self.xi_bins))
         self.dlnzeta_dxi_arr = scaling_relations.dlnzeta_dxi(self.xi_bins)
@@ -104,6 +105,8 @@ class NumberCount:
         lndNdxi = RectBivariateSpline(np.log(self.HMF['z_arr']), np.log(self.xi_bins), lndN_dxi)
 
         # Ntotal (trapz except that we sum in log-space)
+        Nxi = int(np.log10(self.surveyCutSZmax/self.SPT_survey['XI_MIN'][fieldidx])/.005 + 1)
+        self.xi_arr = np.logspace(np.log10(self.SPT_survey['XI_MIN'][fieldidx]), np.log10(self.surveyCutSZmax), Nxi)
         integrand = np.exp(.5*(lndNdxi(np.log(self.z_arr), np.log(self.xi_arr[1:])) + lndNdxi(np.log(self.z_arr), np.log(self.xi_arr[:-1]))))\
              * (self.xi_arr[1:]-self.xi_arr[:-1])
         dNdz = np.sum(integrand, axis=1)
@@ -114,7 +117,6 @@ class NumberCount:
 
         ##### confirmed clusters
         thisfield_conf = np.where((self.catalog['FIELD']==self.SPT_survey['FIELD'][fieldidx])
-            & (self.catalog['XI']>=self.surveyCutSZ[0]) & (self.catalog['XI']<=self.surveyCutSZ[1])
             & (self.catalog['REDSHIFT']>=self.surveyCutRedshift[0]) & (self.catalog['REDSHIFT']<=self.surveyCutRedshift[1]))[0]
         for i in thisfield_conf:
             # spec-z: Evaluate dN/dxi/dz at exact location
@@ -132,7 +134,6 @@ class NumberCount:
 
         ##### unconfirmed candidates
         thisfield_unconf = np.where((self.catalog['FIELD']==self.SPT_survey['FIELD'][fieldidx])
-            & (self.catalog['XI']>=self.surveyCutSZ[0]) & (self.catalog['XI']<=self.surveyCutSZ[1])
             & (self.catalog['REDSHIFT']==0.) & (self.catalog['REDSHIFT_LIMIT']<=self.surveyCutRedshift[1]))[0]
         for i in thisfield_unconf:
             # If it's a false detection, it's drawn from dN_false/dxi
