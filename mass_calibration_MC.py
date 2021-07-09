@@ -143,7 +143,7 @@ class MassCalibration:
         #####
         probability = np.inf
         n = 0
-        while np.isinf(probability):
+        while np.isinf(probability) | np.isnan(probability):
             if self.method=='multiobsdraw':
                 probability = self.get_P_obs_xi_multiobsdraw(obsnames, i)
             elif self.method=='zetadraw':
@@ -240,7 +240,7 @@ class MassCalibration:
         return mass_lnweights
 
 
-    def get_P_xi(self, z, lnM_zeta, zeta_lnweights, covmat_lnM, pos, zeta=None):
+    def get_P_xi(self, z, lnM_zeta, zeta_lnweights, covmat_lnM, pos, zeta=None, dataID=None):
         """Return P(xi) = \int dM P(xi|M) P(M). `covmat_lnM` must be ordered
         richness-SZ."""
         SZscatter_lnM = np.sqrt(covmat_lnM[pos['zeta'],pos['zeta']])
@@ -251,13 +251,17 @@ class MassCalibration:
         idx = np.isfinite(lnM)
         if not np.any(idx):
             return 0.
-        if self.surveyCutRichness>0.:
-            #lnlambda = np.log(scaling_relations.mass2obs('richness', np.exp(lnM[idx]), z, self.scaling, self.cosmology))
+        if self.todo['lambda_min']:
             cov = np.array([[covmat_lnM[pos['richness'],pos['richness']], covmat_lnM[pos['zeta'],pos['richness']]],
                             [covmat_lnM[pos['zeta'],pos['richness']], covmat_lnM[pos['zeta'],pos['zeta']]]])
-            lnM_lambda_mean = lnM[idx] - covmat_lnM[0,1]/covmat_lnM[1,1]*lnM_zeta[idx]
-            lnlambda_std = covmat_lnM[0,0] - covmat_lnM[0,1]**2/covmat_lnM[1,1]
-            xi_lambdacut_lnweights = np.log(norm.cdf(lnlambda_mean, np.log(self.surveyCutRichness), lnlambda_std))
+            lnM_lambda_mean = lnM[idx] + covmat_lnM[0,1]/covmat_lnM[1,1]*(lnM_zeta-lnM)[idx]
+            lnM_lambda_std = np.sqrt(covmat_lnM[0,0] - covmat_lnM[0,1]**2/covmat_lnM[1,1])
+            if self.catalog['FIELD'][dataID]=='SPTPOL_500d':
+                lambda_min = self.surveyCutRichness['deep'](z)
+            else:
+                lambda_min = self.surveyCutRichness['shallow'](z)
+            lnM_lambda_min = np.log(scaling_relations.obs2mass('richness', lambda_min, z, self.scaling))
+            xi_lambdacut_lnweights = np.log(norm.cdf(lnM_lambda_mean, lnM_lambda_min, lnM_lambda_std))
         else:
             xi_lambdacut_lnweights = 0.
         mass_lnweights = self.get_mass_function_lnweights(z, lnM[idx])
@@ -333,7 +337,7 @@ class MassCalibration:
         # Normalization P(xi)
         Pxi = self.get_P_xi(z_cluster, lnM_obs[pos['zeta']], obs_lnweights[pos['zeta']],
                             covmat_lnM, pos,
-                            zeta)
+                            zeta, dataID)
         if Pxi==0:
             return 0.
 
@@ -495,4 +499,6 @@ class MassCalibration:
         with np.errstate(all='ignore'):
             Pobsxi = np.exp(mean_lnweights) * np.mean(np.exp(diff_lnweights))
         like = Pobsxi/Pxi
+        if (like<=0.) | np.isinf(like) | np.isnan(like):
+            print(self.catalog['SPT_ID'][dataID], 'like', like)
         return like
