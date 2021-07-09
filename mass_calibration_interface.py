@@ -11,7 +11,6 @@ def setup(options):
     for opt in ['doWL', 'doYx', 'doMgas', 'doveldisp', 'dorichness']:
         todo[opt[2:]] = options.get_bool(option_section, opt)
     mcType = options.get_string(option_section, 'mcType')
-    surveyCutSZ = options.get_double_array_1d(option_section, 'surveyCutSZ')
     surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
     surveyCutLambda_file = options.get_string(option_section, 'MCMF_lambda_min')
     tmp = np.loadtxt(surveyCutLambda_file, unpack=True)
@@ -30,7 +29,7 @@ def setup(options):
     WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
 
     masscalibration = mass_calibration.MassCalibration(todo, mcType,
-                                                       surveyCutSZ, surveyCutRedshift, surveyCutLambda,
+                                                       surveyCutRedshift, surveyCutLambda,
                                                        SPT_survey_fields, SPT_doublecounts, SPTcatalogfile,
                                                        observable_pairs,
                                                        WLsimcalibfile,

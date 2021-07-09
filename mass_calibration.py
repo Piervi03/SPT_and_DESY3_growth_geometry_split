@@ -23,7 +23,8 @@ def unwrap_self_f(arg):
 ################################################################################
 class MassCalibration:
 
-    def __init__(self, todo, mcType, surveyCutSZ, surveyCutRedshift, surveyCutRichness,
+    def __init__(self, todo, mcType,
+                 surveyCutRedshift, surveyCutRichness,
                  SPT_survey_fields, SPT_doublecounts, SPTcatalogfile,
                  observable_pairs,
                  WLsimcalibfile,
@@ -32,7 +33,6 @@ class MassCalibration:
         self.NPROC = NPROC
         self.todo = todo
         self.mcType = mcType
-        self.surveyCutSZ = surveyCutSZ
         self.surveyCutRedshift = surveyCutRedshift
         self.surveyCutRichness = surveyCutRichness
         self.observable_pairs = observable_pairs
@@ -106,7 +106,7 @@ class MassCalibration:
         ##### Do we actually want this guy? (some clusters in SPT-SZ are at field boundaries)
         if (name,self.catalog['FIELD'][i]) in self.SPTdoubleCount:
             return 1.
-        if not self.surveyCutSZ[0]<self.catalog['XI'][i]<self.surveyCutSZ[1] or not self.surveyCutRedshift[0]<self.catalog['REDSHIFT'][i]<self.surveyCutRedshift[1]:
+        if not self.SPT_survey['XI_MIN'][self.SPT_survey['FIELD']==self.catalog['FIELD'][i]]<self.catalog['XI'][i] or not self.surveyCutRedshift[0]<self.catalog['REDSHIFT'][i]<self.surveyCutRedshift[1]:
             return 1
 
         ##### Check if follow-up is available

@@ -11,7 +11,6 @@ def setup(options):
     for opt in ['doWL', 'doYx', 'doMgas', 'doveldisp', 'dorichness']:
         todo[opt[2:]] = options.get_bool(option_section, opt)
     mcType = options.get_string(option_section, 'mcType')
-    surveyCutSZ = options.get_double_array_1d(option_section, 'surveyCutSZ')
     surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
     surveyCutRichness = options.get_double(option_section, 'surveyCutRichness')
     NPROC = options.get_int(option_section, 'NPROC')
@@ -26,7 +25,7 @@ def setup(options):
     WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
 
     masscalibration = mass_calibration.MassCalibration(todo, method, mcType,
-                                                       surveyCutSZ, surveyCutRedshift, surveyCutRichness,
+                                                       surveyCutRedshift, surveyCutRichness,
                                                        SPT_survey_fields, SPT_doublecounts, SPTcatalogfile,
                                                        WLsimcalibfile,
                                                        NPROC)
