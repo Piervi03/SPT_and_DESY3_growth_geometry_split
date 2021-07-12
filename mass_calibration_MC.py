@@ -240,7 +240,7 @@ class MassCalibration:
         return mass_lnweights
 
 
-    def get_P_xi(self, z, lnM_zeta, zeta_lnweights, covmat_lnM, pos, zeta=None, dataID=None):
+    def get_P_xi(self, z, lnM_zeta, zeta_lnweights, covmat_lnM, pos, dataID=None):
         """Return P(xi) = \int dM P(xi|M) P(M). `covmat_lnM` must be ordered
         richness-SZ."""
         SZscatter_lnM = np.sqrt(covmat_lnM[pos['zeta'],pos['zeta']])
@@ -339,7 +339,7 @@ class MassCalibration:
         # Normalization P(xi)
         Pxi = self.get_P_xi(z_cluster, lnM_obs[pos['zeta']], obs_lnweights[pos['zeta']],
                             covmat_lnM, pos,
-                            zeta, dataID)
+                            dataID)
         if Pxi==0:
             return 0.
 
@@ -492,7 +492,7 @@ class MassCalibration:
         covmat_lnM_zeta = covmat_lnM[:,pos['zeta'],pos['zeta']]
         covmat_lnM_mix = np.delete(covmat_lnM[:,pos['zeta'],:], pos['zeta'], axis=1)
 
-        lnobs_given_lnzeta_mean = (lnM[:,None] - covmat_lnM_mix / covmat_lnM_zeta[:,None] * (lnM_obs[pos['zeta']] - lnM)[:,None]).T
+        lnobs_given_lnzeta_mean = (lnM[:,None] + covmat_lnM_mix / covmat_lnM_zeta[:,None] * (lnM_obs[pos['zeta']] - lnM)[:,None]).T
         inv = np.linalg.inv(covmat_lnM)
         lnobs_given_lnzeta_cov_inv = np.delete(np.delete(inv, pos['zeta'], axis=1), pos['zeta'], axis=2)
 
