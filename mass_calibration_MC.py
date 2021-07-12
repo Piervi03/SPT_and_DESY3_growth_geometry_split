@@ -252,10 +252,8 @@ class MassCalibration:
         if not np.any(idx):
             return 0.
         if self.todo['lambda_min']:
-            cov = np.array([[covmat_lnM[pos['richness'],pos['richness']], covmat_lnM[pos['zeta'],pos['richness']]],
-                            [covmat_lnM[pos['zeta'],pos['richness']], covmat_lnM[pos['zeta'],pos['zeta']]]])
-            lnM_lambda_mean = lnM[idx] + covmat_lnM[0,1]/covmat_lnM[1,1]*(lnM_zeta-lnM)[idx]
-            lnM_lambda_std = np.sqrt(covmat_lnM[0,0] - covmat_lnM[0,1]**2/covmat_lnM[1,1])
+            lnM_lambda_mean = lnM[idx] + covmat_lnM[pos['zeta'],pos['richness']]/covmat_lnM[pos['zeta'],pos['zeta']] * (lnM_zeta-lnM)[idx]
+            lnM_lambda_std = np.sqrt(covmat_lnM[pos['richness'],pos['richness']] - covmat_lnM[pos['zeta'],pos['richness']]**2/covmat_lnM[pos['zeta'],pos['zeta']])
             if self.catalog['FIELD'][dataID]=='SPTPOL_500d':
                 lambda_min = self.surveyCutRichness['deep'](z)
             else:
