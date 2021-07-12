@@ -8,7 +8,7 @@ from astropy.table import Table
 
 import scipy.special as ss
 from scipy import integrate, signal
-from scipy.interpolate import InterpolatedUnivariateSpline, RectBivariateSpline
+from scipy.interpolate import interp1d, InterpolatedUnivariateSpline, RectBivariateSpline
 from scipy.stats import norm, lognorm, multivariate_normal
 
 import cosmo, Mconversion_concentration, scaling_relations
@@ -23,7 +23,8 @@ def unwrap_self_f(arg):
 ################################################################################
 class MassCalibration:
 
-    def __init__(self, todo, mcType, surveyCutSZ, surveyCutRedshift, surveyCutRichness,
+    def __init__(self, todo, mcType,
+                 surveyCutRedshift, surveyCutRichness,
                  SPT_survey_fields, SPT_doublecounts, SPTcatalogfile,
                  observable_pairs,
                  WLsimcalibfile,
@@ -32,7 +33,6 @@ class MassCalibration:
         self.NPROC = NPROC
         self.todo = todo
         self.mcType = mcType
-        self.surveyCutSZ = surveyCutSZ
         self.surveyCutRedshift = surveyCutRedshift
         self.surveyCutRichness = surveyCutRichness
         self.observable_pairs = observable_pairs
@@ -106,7 +106,7 @@ class MassCalibration:
         ##### Do we actually want this guy? (some clusters in SPT-SZ are at field boundaries)
         if (name,self.catalog['FIELD'][i]) in self.SPTdoubleCount:
             return 1.
-        if not self.surveyCutSZ[0]<self.catalog['XI'][i]<self.surveyCutSZ[1] or not self.surveyCutRedshift[0]<self.catalog['REDSHIFT'][i]<self.surveyCutRedshift[1]:
+        if not self.SPT_survey['XI_MIN'][self.SPT_survey['FIELD']==self.catalog['FIELD'][i]]<self.catalog['XI'][i] or not self.surveyCutRedshift[0]<self.catalog['REDSHIFT'][i]<self.surveyCutRedshift[1]:
             return 1
 
         ##### Check if follow-up is available
@@ -164,7 +164,7 @@ class MassCalibration:
             return 0
             # raise ValueError("P(obs|xi) =", probability, name)
 
-        # print(name, obsnames, probability, time.time()-t0)
+        # print(name, obsnames, probability)#, time.time()-t0)
         return probability
 
 
@@ -275,10 +275,14 @@ class MassCalibration:
             obsArr*= correction
         # Truncate at richness cut
         elif obsname=='richness':
-            if self.surveyCutRichness>0.:
-                lnHMF_2d_at_cut = [np.interp(self.surveyCutRichness, obsArr, lnHMF_2d[:,i]) for i in range(lnHMF_2d.shape[1])]
-                idx = obsArr>self.surveyCutRichness
-                obsArr = np.insert(obsArr[idx], 0, self.surveyCutRichness)
+            if self.todo['lambda_min']:
+                if self.catalog['FIELD'][dataID]=='SPTPOL_500d':
+                    lambda_min = self.surveyCutRichness['deep'](self.catalog['REDSHIFT'][dataID])
+                else:
+                    lambda_min = self.surveyCutRichness['shallow'](self.catalog['REDSHIFT'][dataID])
+                lnHMF_2d_at_cut = [np.interp(lambda_min, obsArr, lnHMF_2d[:,i]) for i in range(lnHMF_2d.shape[1])]
+                idx = obsArr>lambda_min
+                obsArr = np.insert(obsArr[idx], 0, lambda_min)
                 lnHMF_2d = np.insert(lnHMF_2d[idx,:], 0, lnHMF_2d_at_cut, axis=0)
         lnobsArr = np.log(obsArr)
 
@@ -298,7 +302,9 @@ class MassCalibration:
         if obsname=='richness':
             with np.errstate(divide='ignore'):
                 lndP_dobs = np.log(dP_dobs)
-            likeli = np.exp(np.interp(self.catalog['richness'][dataID], obsArr, lndP_dobs))
+            finite_idx = np.isfinite(lndP_dobs)
+            lndP_dobs_interp = interp1d(obsArr[finite_idx], lndP_dobs[finite_idx], kind='linear', fill_value='extrapolate')
+            likeli = np.exp(lndP_dobs_interp(self.catalog['richness'][dataID]))
 
         elif obsname in ('Yx', 'Mgas'):
             if obsname=='Yx':
@@ -338,8 +344,8 @@ class MassCalibration:
             likeli = np.trapz(np.exp(WL_interp(lnobsArr))*dP_dobs, obsArr)
 
         if (likeli<=0)|(np.isnan(likeli))|(np.isinf(likeli)):
-            print(self.catalog['SPT_ID'][dataID], obsname, likeli)
-            #np.savetxt(self.catalog['SPT_ID'][dataID],np.transpose((obsArr, dP_dobs)))
+            print(self.catalog['SPT_ID'][dataID], obsname, likeli, np.amin(obsArr), np.amax(obsArr),)
+            # np.savetxt(self.catalog['SPT_ID'][dataID],np.transpose((obsArr, lndP_dobs)))
             return 0.
 
         return likeli
@@ -380,9 +386,13 @@ class MassCalibration:
                 obsArrTemp*= correction
             # Truncate at richness cut
             elif obsnames[i]=='richness':
-                if self.surveyCutRichness>0.:
-                    idx = (obsArrTemp>self.surveyCutRichness).nonzero()[0]
-                    Delta_x0 = self.surveyCutRichness-obsArrTemp[idx[0]-1]
+                if self.todo['lambda_min']:
+                    if self.catalog['FIELD'][dataID]=='SPTPOL_500d':
+                        lambda_min = self.surveyCutRichness['deep'](self.catalog['REDSHIFT'][dataID])
+                    else:
+                        lambda_min = self.surveyCutRichness['shallow'](self.catalog['REDSHIFT'][dataID])
+                    idx = (obsArrTemp>lambda_min).nonzero()[0]
+                    Delta_x0 = lambda_min-obsArrTemp[idx[0]-1]
                     Delta_x = obsArrTemp[idx[0]]-obsArrTemp[idx[0]-1]
                     if i==0:
                         with np.errstate(invalid='ignore'):
@@ -394,7 +404,7 @@ class MassCalibration:
                             Delta_y = lnHMF_3d[:,idx[0],:]-lnHMF_3d[:,idx[0]-1,:]
                             lnHMF_3d_at_cut = lnHMF_3d[:,idx[0]-1,:] + Delta_y*Delta_x0/Delta_x
                         lnHMF_3d = np.insert(lnHMF_3d[:,idx,:], 0, lnHMF_3d_at_cut, axis=1)
-                    obsArrTemp = np.insert(obsArrTemp[idx], 0, self.surveyCutRichness)
+                    obsArrTemp = np.insert(obsArrTemp[idx], 0, lambda_min)
             obsArr.append( obsArrTemp )
             lnobsArr.append( np.log(obsArrTemp) )
 
@@ -429,13 +439,29 @@ class MassCalibration:
             with np.errstate(all='ignore'):
                 Delta_lny = np.log(dP_dobs01[:,idx_lo+1]/dP_dobs01[:,idx_lo])
                 lndP_dobs0 = np.log(dP_dobs01[:,idx_lo]) + Delta_l*Delta_lny
-            lndP_dobs0[np.isnan(lndP_dobs0)] = -np.inf
-            dP_dobs0 = np.exp(lndP_dobs0)
+            finite_idx = np.isfinite(lndP_dobs0)
+            if np.all(finite_idx==False):
+                with np.errstate(divide='ignore'):
+                    lndP_dobs01 = np.log(dP_dobs01)
+                dP_dobs0 = np.zeros(len(lnobsArr[0]))
+                for i in range(len(lnobsArr[0])):
+                    if np.any(np.isfinite(lndP_dobs01[i,:])):
+                        finite_idx = np.isfinite(lndP_dobs01[i,:])
+                        interp = interp1d(lnobsArr[1][finite_idx], lndP_dobs01[i,finite_idx], kind='linear', fill_value='extrapolate')
+                        dP_dobs0[i] = np.exp(interp(np.log(self.catalog['richness'][dataID])))
+            else:
+                lndP_dobs0_interp = interp1d(lnobsArr[0][finite_idx], lndP_dobs0[finite_idx], kind='linear', fill_value='extrapolate')
+                dP_dobs0 = np.exp(lndP_dobs0_interp(lnobsArr[0]))
             likeli = np.trapz(dP_dobs0*Pwl, obsArr[0])
 
         else:
             Px = norm.pdf(obsmeas[1], obsArr[1], obserr[1])
             Pobs = Pwl[:,None] * Px[None,:]
             likeli = np.trapz(np.trapz(dP_dobs01*Pobs, obsArr[1], axis=1), obsArr[0])
+
+        if (likeli==0.)|np.isnan(likeli)|np.isinf(likeli):
+            print(self.catalog['SPT_ID'][dataID], obsnames, likeli)
+            # np.savetxt(self.catalog['SPT_ID'][dataID], dP_dobs01)
+            # np.savetxt(self.catalog['SPT_ID'][dataID]+'1d', (obsArr[0], dP_dobs0, Pwl))
 
         return likeli

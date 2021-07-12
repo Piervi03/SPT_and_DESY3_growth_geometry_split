@@ -1,5 +1,6 @@
 from __future__ import division
 import numpy as np
+from scipy.interpolate import interp1d
 from astropy.table import Table
 from cosmosis.datablock import option_section
 import mass_calibration, lensing
@@ -10,9 +11,11 @@ def setup(options):
     for opt in ['doWL', 'doYx', 'doMgas', 'doveldisp', 'dorichness']:
         todo[opt[2:]] = options.get_bool(option_section, opt)
     mcType = options.get_string(option_section, 'mcType')
-    surveyCutSZ = options.get_double_array_1d(option_section, 'surveyCutSZ')
     surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
-    surveyCutRichness = options.get_double(option_section, 'surveyCutRichness')
+    surveyCutLambda_file = options.get_string(option_section, 'MCMF_lambda_min')
+    tmp = np.loadtxt(surveyCutLambda_file, unpack=True)
+    surveyCutLambda = {'shallow': interp1d(tmp[0], tmp[1], kind='linear'),
+                       'deep': interp1d(tmp[0], tmp[2], kind='linear')}
     NPROC = options.get_int(option_section, 'NPROC')
     # SPT survey
     SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
@@ -26,7 +29,7 @@ def setup(options):
     WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
 
     masscalibration = mass_calibration.MassCalibration(todo, mcType,
-                                                       surveyCutSZ, surveyCutRedshift, surveyCutRichness,
+                                                       surveyCutRedshift, surveyCutLambda,
                                                        SPT_survey_fields, SPT_doublecounts, SPTcatalogfile,
                                                        observable_pairs,
                                                        WLsimcalibfile,

@@ -1,5 +1,6 @@
 from __future__ import division
 import numpy as np
+from scipy.interpolate import interp1d
 from cosmosis.datablock import option_section
 import HMF_convo
 
@@ -16,12 +17,16 @@ def setup(options):
         assert len(pairs_zmin)==len(observable_pairs), "Bad length of pairs_zmin"
         assert len(pairs_zmax)==len(observable_pairs), "Bad length of pairs_zmax"
         assert len(pairs_Nz)==len(observable_pairs), "Bad length of pairs_Nz"
-    lambda_cut = options.get_double(option_section, 'lambda_cut')
     NPROC = options.get_int(option_section, 'NPROC')
+
+    surveyCutLambda_file = options.get_string(option_section, 'MCMF_lambda_min')
+    tmp = np.loadtxt(surveyCutLambda_file, unpack=True)
+    surveyCutLambda = {'shallow': interp1d(tmp[0], tmp[1], kind='linear'),
+                       'deep': interp1d(tmp[0], tmp[2], kind='linear')}
 
     multi_obs_convolution = HMF_convo.MultiObsConvolution(observable_pairs,
                                                           pairs_zmin, pairs_zmax, pairs_Nz,
-                                                          lambda_cut,
+                                                          surveyCutLambda,
                                                           NPROC)
 
     return multi_obs_convolution
