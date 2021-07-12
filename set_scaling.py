@@ -32,7 +32,7 @@ class SetScaling:
 
         # HST
         zDistShearErr = msqrt(self.WLcalib['HSTzDistErr']**2 + self.WLcalib['HSTshearErr']**2)
-        scaling['bWL_HST'] = {}
+        scaling['bWL_HST'], scaling['DWL_HST'] = {}, {}
         for name in self.WLcalib['HSTsim'].keys():
             # bias = bSim + bMassModel + (bN(z)+bShearCal)
             mass_model_err = msqrt(self.WLcalib['HSTsim'][name]['bias'][1]**2 + self.WLcalib['HSTmcErr']**2 + self.WLcalib['HSTsim'][name]['center_err']**2)
@@ -41,6 +41,7 @@ class SetScaling:
                 + scaling['HSTbias'] * zDistShearErr
             # lognormal scatter
             DWL_HST = self.WLcalib['HSTsim'][name]['bias'][2] + scaling['WLscatter']*self.WLcalib['HSTsim'][name]['bias'][3]
+            scaling['DWL_HST'][name] = DWL_HST
             # SZ WL covariance matrix
             cov = [[DWL_HST**2, scaling['rhoSZWL']*scaling['Dsz']*DWL_HST],
                    [scaling['rhoSZWL']*scaling['Dsz']*DWL_HST, scaling['Dsz']**2]]

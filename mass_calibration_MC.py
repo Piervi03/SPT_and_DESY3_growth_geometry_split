@@ -19,7 +19,7 @@ Ndraw = 8192
 
 scatter_dict = {'zeta': 'Dsz', 'richness': 'Drichness',
                 'Mgas': 'Dx', 'Yx': 'Dx',
-                'WLMegacam': 'DWL_Megacam', 'WLDES': 'one'}
+                'WLMegacam': 'DWL_Megacam', 'WLDES': 'one', 'WLHST': 'one'}
 rho_dict = {'zeta': 'SZ', 'richness': 'richness', 'Mgas': 'X', 'Yx': 'X',
             'WLDES': 'WL', 'WLHST': 'WL', 'WLMegacam': 'WL'}
 
@@ -308,13 +308,17 @@ class MassCalibration:
             pos[obs] = o
             if obs in ['WLDES', 'WLHST', 'WLMegacam']:
                 lnMwl, obs_lnweights[o] = self.get_Mwl_draws(dataID)
-                lnM_obs[o] = np.log(scaling_relations.obs2mass('WLDES', np.exp(lnMwl), z_cluster, self.scaling))
+                lnM_obs[o] = np.log(scaling_relations.obs2mass('WLDES', np.exp(lnMwl), z_cluster, self.scaling, self.cosmology, self.catalog['SPT_ID'][dataID]))
                 if obs=='WLDES':
                     # Covariance matrix with scatter based on central SZ mass
                     m_fid = scaling_relations.obs2mass('zeta', scaling_relations.xi2zeta(self.catalog['XI'][dataID]), z_cluster, self.scaling, self.cosmology)
                     DES_scatter = scaling_relations.WLscatter('main', m_fid, z_cluster, self.scaling)
                     covmat[o,:]*= DES_scatter
                     covmat[:,o]*= DES_scatter
+                elif obs=='WLHST':
+                    scatter = self.scaling['DWL_HST'][self.catalog['SPT_ID'][dataID]]
+                    covmat[o,:]*= scatter
+                    covmat[:,o]*= scatter
             elif obs=='richness':
                 lnM_obs[o] = np.log(scaling_relations.obs2mass('richness', self.catalog['richness'][dataID], z_cluster, self.scaling, self.cosmology))*np.ones(Ndraw)
                 obs_lnweights[o] = np.zeros(Ndraw)

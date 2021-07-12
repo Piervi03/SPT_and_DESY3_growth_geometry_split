@@ -77,9 +77,10 @@ def execute(block, masscalibration):
     for p in ['cov_X_SZ', 'cov_Megacam_SZ', 'cov_richness_SZ', 'cov_Megacam_X_SZ', ]:
         scaling[p] = block.get_double_array_nd('mor_parameters', p)
 
-    scaling['bWL_HST'] = {}
+    scaling['bWL_HST'], scaling['DWL_HST'] = {}, {}
     for name in masscalibration.WLcalib['HSTsim'].keys():
         scaling['bWL_HST'][name] = block.get_double('mor_parameters', 'bWL_HST_%s'%name)
+        scaling['DWL_HST'][name] = block.get_double('mor_parameters', 'DWL_HST_%s'%name)
         for c in ['cov_HST_SZ_%s'%name, 'cov_HST_X_SZ_%s'%name, 'cov_HST_richness_SZ_%s'%name]:
             scaling[c] = block.get_double_array_nd('mor_parameters', c)
     for p in ['DESwl_z', 'DESwl_scatter_mean', 'DESwl_scatter_std']:
