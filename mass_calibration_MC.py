@@ -449,8 +449,23 @@ class MassCalibration:
         # Mass function
         mass_lnweights = self.get_mass_function_lnweights(z_cluster, lnM)
 
+        # Weights of optical cleaning
+        if self.todo['lambda_min']:
+            covmat = self.get_covmat_obs(['zeta', 'richness'])
+            covmat_lnM = covmat * dlnM_dlnobs[[pos['zeta'], pos['richness']]][:,None]*dlnM_dlnobs[[pos['zeta'], pos['richness']]][None,:]
+            lnM_lambda_mean = lnM + covmat_lnM[0,1]/covmat_lnM[0,0]*(lnM_obs[pos['zeta']]-lnM)
+            lnM_lambda_std = np.sqrt(covmat_lnM[1,1] - covmat_lnM[0,1]**2/covmat_lnM[0,0])
+            if self.catalog['FIELD'][dataID]=='SPTPOL_500d':
+                lambda_min = self.surveyCutRichness['deep'](z_cluster)
+            else:
+                lambda_min = self.surveyCutRichness['shallow'](z_cluster)
+            lnM_lambda_min = np.log(scaling_relations.obs2mass('richness', lambda_min, z_cluster, self.scaling))
+            xi_lambdacut_lnweights = np.log(norm.cdf(lnM_lambda_mean, lnM_lambda_min, lnM_lambda_std))
+        else:
+            xi_lambdacut_lnweights = 0.
+
         # Normalization P(xi)
-        lnweights = obs_lnweights[pos['zeta']] + mass_lnweights
+        lnweights = obs_lnweights[pos['zeta']] + mass_lnweights + xi_lambdacut_lnweights
         mean_lnweights = np.mean(lnweights)
         diff_lnweights = lnweights - mean_lnweights
         with np.errstate(all='ignore'):
