@@ -1,6 +1,6 @@
 import numpy as np
 
-SPT_survey = '/home/bocquet/SPT_cluster_data/SPT_SZ_ECS_500d_100d_survey_210319.txt'
+SPT_survey = '/home/bocquet/SPT_cluster_data/SPT_SZ_ECS_500d_survey_210529_xigtr4p25.txt'
 
 random_seed = 0
 
@@ -14,7 +14,7 @@ cosmology['Omega_b'] = cosmology['Ombh2']/cosmology['h']**2
 cosmology['Ommh2'] = cosmology['Omega_m']*cosmology['h']**2
 cosmology['Omega_l'] = 1-cosmology['Omega_m']
 
-scaling = {'Asz': .96, 'Bsz': 1.5, 'Csz': .5, 'Dsz': .2, 'zeta_min': 2.,
+scaling = {'Asz': .96, 'Bsz': 1.5, 'Csz': .5, 'Dsz': .2, 'zeta_min': 1.,
            'Bsz2':0, 'Csz2':0, 'DszM':0, 'Esz':0,
            'WLbias': 0., 'WLscatter': 0.,
            'HSTbias': 0., 'HSTscatterLSS':5.6e13,
@@ -47,7 +47,6 @@ scaling['DESwl_scatter_std'] = np.std(tmp[:,4:7], axis=0)
 # SPT survey cuts
 surveyCutSZ = (4.5, 200.)
 surveyCutRedshift = (0.25, 2.)
-surveyCutRichness = 0.
 # Type of M-c scaling relation, 'Duffy08' or 'DK15' or 'Cihld18_obs' or float
 mcType = 'Child18_obs'
 # How to model X-ray profiles? 'PL' or 'beta'

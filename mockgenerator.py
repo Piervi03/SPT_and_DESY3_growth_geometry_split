@@ -102,9 +102,8 @@ def main():
                         # Observed richness
                         richness_obs = obs[k,3]#rng.lognormal(np.log(obs[k,3]), obs[k,3]**-.5)
                         #richness_obs = rng.normal(richness_int, configMod.richness_err)
-                        if richness_obs>configMod.surveyCutRichness:
-                            mock.append((M, z, xi, Mg, obs[k,0], richness_obs))
-                            fieldnames.append(field)
+                        mock.append((M, z, xi, Mg, obs[k,0], richness_obs))
+                        fieldnames.append(field)
 
         # False detections
         # dNdxiFalse = SPT_survey['BETA'][fieldidx] * SPT_survey['AREA'][fieldidx]/2500. * SPT_survey['ALPHA'][fieldidx] * np.exp(-SPT_survey['BETA'][fieldidx]*(xiArrBin-5.)) * dxi

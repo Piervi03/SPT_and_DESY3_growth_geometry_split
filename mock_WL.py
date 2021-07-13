@@ -25,7 +25,7 @@ def main():
 
     with h5py.File('mock_WL_%s.hdf5'%time.strftime("%y%m%d-%H%M%S"), 'w') as f:
         for i,name in enumerate(cat['SPT_ID']):
-            if (cat['REDSHIFT'][i]>0)&(cat['REDSHIFT'][i]<WLconfigMod.WL_z_max)&(cat['FIELD'][i] not in ['ra11hdec-25', 'ra13hdec-25']):
+            if (cat['REDSHIFT'][i]>0)&(cat['REDSHIFT'][i]<WLconfigMod.WL_z_max)&(cat['FIELD'][i] not in ['ra11hdec-25', 'ra13hdec-25', 'ra23hdec-25', 'ra23hdec-35']):
                 r_Mpch, r_arcmin, g_2d, g_2d_err, source_dist, g_2d_cen, g_2d_mis, g_2d_noerr, beta = mock_WL(cat[i])
 
                 g = f.create_group(name)
