@@ -264,10 +264,10 @@ class MassCalibration:
             xi_lambdacut_lnweights = 0.
         mass_lnweights = self.get_mass_function_lnweights(z, lnM[idx])
         lnweights = zeta_lnweights[idx]+mass_lnweights+xi_lambdacut_lnweights
-        mean_lnweights = np.mean(lnweights)
-        diff_lnweights = lnweights - mean_lnweights
+        shift_lnweights = np.amax(lnweights)-700
+        diff_lnweights = lnweights - shift_lnweights
         with np.errstate(all='ignore'):
-            Pxi = np.exp(mean_lnweights) * np.mean(np.exp(diff_lnweights))
+            Pxi = np.exp(shift_lnweights) * np.mean(np.exp(diff_lnweights))
         return Pxi
 
 
@@ -395,10 +395,10 @@ class MassCalibration:
 
         # Final likelihood
         lnweights = np.sum(obs_lnweights, axis=0)+mass_draw_lnweights+chi2_lnweights+mass_lnweights
-        mean_lnweights = np.mean(lnweights)
-        diff_lnweights = lnweights - mean_lnweights
+        shift_lnweights = np.amax(lnweights)-700
+        diff_lnweights = lnweights - shift_lnweights
         with np.errstate(all='ignore'):
-            Pobsxi = np.exp(mean_lnweights) * np.mean(np.exp(diff_lnweights))
+            Pobsxi = np.exp(shift_lnweights) * np.mean(np.exp(diff_lnweights))
         like = Pobsxi/Pxi
         return like
 
@@ -468,10 +468,10 @@ class MassCalibration:
 
         # Normalization P(xi)
         lnweights = obs_lnweights[pos['zeta']] + mass_lnweights + xi_lambdacut_lnweights
-        mean_lnweights = np.mean(lnweights)
-        diff_lnweights = lnweights - mean_lnweights
+        shift_lnweights = np.amax(lnweights)-700
+        diff_lnweights = lnweights - shift_lnweights
         with np.errstate(all='ignore'):
-            Pxi = np.exp(mean_lnweights) * np.mean(np.exp(diff_lnweights))
+            Pxi = np.exp(shift_lnweights) * np.mean(np.exp(diff_lnweights))
         if Pxi==0:
             return 0.
 
@@ -511,10 +511,10 @@ class MassCalibration:
 
         # Final likelihood
         lnweights = np.sum(obs_lnweights, axis=0) + mass_lnweights + P_obs_lnweights
-        mean_lnweights = np.mean(lnweights)
-        diff_lnweights = lnweights - mean_lnweights
+        shift_lnweights = np.amax(lnweights)-700
+        diff_lnweights = lnweights - shift_lnweights
         with np.errstate(all='ignore'):
-            Pobsxi = np.exp(mean_lnweights) * np.mean(np.exp(diff_lnweights))
+            Pobsxi = np.exp(shift_lnweights) * np.mean(np.exp(diff_lnweights))
         like = Pobsxi/Pxi
         if (like<=0.) | np.isinf(like) | np.isnan(like):
             print(self.catalog['SPT_ID'][dataID], 'like', like)
