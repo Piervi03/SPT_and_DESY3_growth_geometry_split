@@ -363,7 +363,7 @@ class MassCalibration:
             det_obs = np.linalg.det(covmat_lnM)
             # Exact covariance matrix based on mass
             covmat = self.get_covmat_obs(obsnames)*np.ones((len(lnM),N_obs,N_obs))
-            DES_scatter = scaling_relations.WLscatter('main', np.exp(lnM), self.catalog['REDSHIFT'][dataID], self.scaling)
+            DES_scatter = scaling_relations.WLscatter('main', np.exp(lnM), z_cluster, self.scaling)
             covmat[:,pos['WLDES'],:]*= DES_scatter[:,None]
             covmat[:,:,pos['WLDES']]*= DES_scatter[:,None]
             covmat_lnM = covmat * Jacobian
@@ -480,7 +480,7 @@ class MassCalibration:
         Jacobian = dlnM_dlnobs[:,None]*dlnM_dlnobs[None,:]
         covmat_lnM = covmat * Jacobian * np.ones((len(lnM),N_obs,N_obs))
         if 'WLDES' in obsnames:
-            DES_scatter = scaling_relations.WLscatter('main', np.exp(lnM), self.catalog['REDSHIFT'][dataID], self.scaling)
+            DES_scatter = scaling_relations.WLscatter('main', np.exp(lnM), z_cluster, self.scaling)
             covmat_lnM[:,pos['WLDES'],:]*= DES_scatter[:,None]
             covmat_lnM[:,:,pos['WLDES']]*= DES_scatter[:,None]
         elif 'WLHST' in obsnames:
