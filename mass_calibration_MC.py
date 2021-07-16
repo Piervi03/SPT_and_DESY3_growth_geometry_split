@@ -292,6 +292,29 @@ class MassCalibration:
         return covmat
 
 
+    def mass_given_obs(self, obsnames, dataID):
+        """Returns mass draws given measurements."""
+        N_obs = len(obsnames)
+        lnM_obs, obs_lnweights = N_obs*[None], N_obs*[None]
+        pos = {}
+        for o,obs in enumerate(obsnames):
+            pos[obs] = o
+            if obs in ['WLDES', 'WLHST', 'WLMegacam']:
+                lnMwl, obs_lnweights[o] = self.get_Mwl_draws(dataID)
+                lnM_obs[o] = np.log(scaling_relations.obs2mass('WLDES', np.exp(lnMwl), self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, self.catalog['SPT_ID'][dataID]))
+            elif obs=='richness':
+                lnM_obs[o] = np.log(scaling_relations.obs2mass('richness', self.catalog['richness'][dataID], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology))*np.ones(Ndraw)
+                obs_lnweights[o] = np.zeros(Ndraw)
+            elif obs=='zeta':
+                zeta, obs_lnweights[o] = self.get_zeta_draws(self.catalog['XI'][dataID])
+                obs_lnweights[o]+= np.log(scaling_relations.zeta2xi(zeta)/zeta**2)
+                zeta/= self.thisSPTfield_gamma
+                lnM_obs[o] = np.log(scaling_relations.obs2mass('zeta', zeta, self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology))
+            else:
+                print('to do')
+        return lnM_obs, obs_lnweights, pos
+
+
     ############################################################################
     def get_P_obs_xi_multiobsdraw(self, obsnames, dataID):
         """Returns P(obs|xi,z,p)"""
@@ -302,35 +325,23 @@ class MassCalibration:
         dlnM_dlnobs = np.array([scaling_relations.dlnM_dlnobs(obs, self.scaling) for obs in obsnames])
 
         # Mass given follow-up observables
-        lnM_obs, obs_lnweights = N_obs*[None], N_obs*[None]
-        pos = {}
+        lnM_obs, obs_lnweights, pos = self.mass_given_obs(obsnames, dataID)
+        # Account for change of variables
         for o,obs in enumerate(obsnames):
-            pos[obs] = o
-            if obs in ['WLDES', 'WLHST', 'WLMegacam']:
-                lnMwl, obs_lnweights[o] = self.get_Mwl_draws(dataID)
-                lnM_obs[o] = np.log(scaling_relations.obs2mass('WLDES', np.exp(lnMwl), z_cluster, self.scaling, self.cosmology, self.catalog['SPT_ID'][dataID]))
-                if obs=='WLDES':
-                    # Covariance matrix with scatter based on central SZ mass
-                    m_fid = scaling_relations.obs2mass('zeta', scaling_relations.xi2zeta(self.catalog['XI'][dataID]), z_cluster, self.scaling, self.cosmology)
-                    DES_scatter = scaling_relations.WLscatter('main', m_fid, z_cluster, self.scaling)
-                    covmat[o,:]*= DES_scatter
-                    covmat[:,o]*= DES_scatter
-                elif obs=='WLHST':
-                    scatter = self.scaling['DWL_HST'][self.catalog['SPT_ID'][dataID]]
-                    covmat[o,:]*= scatter
-                    covmat[:,o]*= scatter
-            elif obs=='richness':
-                lnM_obs[o] = np.log(scaling_relations.obs2mass('richness', self.catalog['richness'][dataID], z_cluster, self.scaling, self.cosmology))*np.ones(Ndraw)
-                obs_lnweights[o] = np.zeros(Ndraw)
-            elif obs=='zeta':
-                zeta, obs_lnweights[o] = self.get_zeta_draws(self.catalog['XI'][dataID])
-                obs_lnweights[o]+= np.log(scaling_relations.zeta2xi(zeta)/zeta**2)
-                zeta/= self.thisSPTfield_gamma
-                lnM_obs[o] = np.log(scaling_relations.obs2mass('zeta', zeta, z_cluster, self.scaling, self.cosmology))
-            else:
-                print('to do')
-                return 0
             obs_lnweights[o]+= np.log(dlnM_dlnobs[pos[obs]])
+
+        # Finish populating covariance matrix for WL data
+        for o,obs in enumerate(obsnames):
+            if obs=='WLDES':
+                # Covariance matrix with scatter based on central SZ mass
+                m_fid = scaling_relations.obs2mass('zeta', scaling_relations.xi2zeta(self.catalog['XI'][dataID]), z_cluster, self.scaling, self.cosmology)
+                DES_scatter = scaling_relations.WLscatter('main', m_fid, z_cluster, self.scaling)
+                covmat[o,:]*= DES_scatter
+                covmat[:,o]*= DES_scatter
+            elif obs=='WLHST':
+                scatter = self.scaling['DWL_HST'][self.catalog['SPT_ID'][dataID]]
+                covmat[o,:]*= scatter
+                covmat[:,o]*= scatter
 
         # Covariance matrix in ln-mass
         Jacobian = dlnM_dlnobs[:,None]*dlnM_dlnobs[None,:]
@@ -414,24 +425,9 @@ class MassCalibration:
         dlnM_dlnobs = np.array([scaling_relations.dlnM_dlnobs(obs, self.scaling) for obs in obsnames])
 
         # Mass given follow-up observables
-        lnM_obs, obs_lnweights = N_obs*[None], N_obs*[None]
-        pos = {}
+        lnM_obs, obs_lnweights, pos = self.mass_given_obs(obsnames, dataID)
+        # Account for change of variables
         for o,obs in enumerate(obsnames):
-            pos[obs] = o
-            if obs in ['WLDES', 'WLHST', 'WLMegacam']:
-                lnMwl, obs_lnweights[o] = self.get_Mwl_draws(dataID)
-                lnM_obs[o] = np.log(scaling_relations.obs2mass('WLDES', np.exp(lnMwl), z_cluster, self.scaling, self.cosmology, self.catalog['SPT_ID'][dataID]))
-            elif obs=='richness':
-                lnM_obs[o] = np.log(scaling_relations.obs2mass('richness', self.catalog['richness'][dataID], z_cluster, self.scaling, self.cosmology))*np.ones(Ndraw)
-                obs_lnweights[o] = np.zeros(Ndraw)
-            elif obs=='zeta':
-                zeta, obs_lnweights[o] = self.get_zeta_draws(self.catalog['XI'][dataID])
-                obs_lnweights[o]+= np.log(scaling_relations.zeta2xi(zeta)/zeta**2)
-                zeta/= self.thisSPTfield_gamma
-                lnM_obs[o] = np.log(scaling_relations.obs2mass('zeta', zeta, z_cluster, self.scaling, self.cosmology))
-            else:
-                print('to do')
-                return 0
             obs_lnweights[o]+= np.log(dlnM_dlnobs[pos[obs]])
 
         # Draw mass given zeta
