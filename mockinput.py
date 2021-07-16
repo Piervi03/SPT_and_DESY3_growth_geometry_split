@@ -45,7 +45,6 @@ scaling['DESwl_scatter_mean'] = np.mean(tmp[:,4:7], axis=0)
 scaling['DESwl_scatter_std'] = np.std(tmp[:,4:7], axis=0)
 
 # SPT survey cuts
-surveyCutSZ = (4.5, 200.)
 surveyCutRedshift = (0.25, 2.)
 # Type of M-c scaling relation, 'Duffy08' or 'DK15' or 'Cihld18_obs' or float
 mcType = 'Child18_obs'

@@ -6,7 +6,6 @@ import time
 import importlib
 from scipy.interpolate import RectBivariateSpline
 from astropy.table import Table
-from scipy.stats import expon
 # import xarray as xr
 
 import compute_HMF_MiraTitan, cosmo, Mconversion_concentration, scaling_relations
@@ -93,7 +92,7 @@ def main():
                 for k in keep:
                     # draw xi|zeta
                     xi = rng.normal(scaling_relations.zeta2xi(obs[k,2]), scale=1.)
-                    if xi>=configMod.surveyCutSZ[0]:
+                    if xi>=SPT_survey['XI_MIN'][fieldidx]:
                         # Apply observational error to Mgas
                         Mg = rng.lognormal(np.log(obs[k,1]), sigma=configMod.Xerr)
                         # Convert WL mass to 200c
@@ -186,7 +185,7 @@ def main():
     M500_noh = rng.lognormal(np.log(mock[:,0]/cosmology['h']), scaling['Dsz']/scaling['Bsz'])
 
     # Theta_core (random)
-    theta_core_Mpc = expon.rvs(scale=1/3.76, size=len(mock))
+    theta_core_Mpc = rng.exponential(scale=1/3.76, size=len(mock))
     theta_core_arcmin = theta_core_Mpc*cosmology['h'] / [cosmo.dA(z, cosmology) for z in mock[:,1]] * 180/np.pi * 60
     theta_core = np.round(theta_core_arcmin*4)/4
     theta_core[theta_core>3] = 3.
