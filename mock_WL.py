@@ -16,30 +16,74 @@ import cosmo, Mconversion_concentration, miscentering
 # python mock_WL.py WLconfig mockconfig catalog.fits
 
 def main():
+    datetime = time.strftime("%y%m%d-%H%M%S")
     WLconfigMod = importlib.import_module(sys.argv[1][:-3])
     mockconfigMod = importlib.import_module(sys.argv[2][:-3])
     cosmology = mockconfigMod.cosmology
-    MCrel = Mconversion_concentration.ConcentrationConversion(mockconfigMod.mcType, cosmology, setup_interp=True)
-    mock_WL = MockUpWL(cosmology, MCrel)
     cat = Table.read(sys.argv[3])
 
-    with h5py.File('mock_WL_%s.hdf5'%time.strftime("%y%m%d-%H%M%S"), 'w') as f:
+    # DES weak lensing
+    mock_WL = MockUpDESWL(cosmology, sys.argv[1][:-3])
+    with h5py.File('mock_WL_DES_%s.hdf5'%datetime, 'w') as f:
         for i,name in enumerate(cat['SPT_ID']):
-            if (cat['REDSHIFT'][i]>0)&(cat['REDSHIFT'][i]<WLconfigMod.WL_z_max)&(cat['FIELD'][i] not in ['ra11hdec-25', 'ra13hdec-25', 'ra23hdec-25', 'ra23hdec-35']):
-                r_Mpch, r_arcmin, g_2d, g_2d_err, source_dist, g_2d_cen, g_2d_mis, g_2d_noerr, beta = mock_WL(cat[i])
-
+            if (cat['REDSHIFT'][i]>0)&(cat['REDSHIFT'][i]<WLconfigMod.DES['WL_z_max'])&(cat['FIELD'][i] not in ['ra11hdec-25', 'ra13hdec-25', 'ra23hdec-25', 'ra23hdec-35']):
+                r_Mpch, r_arcmin, g_t, g_t_err, source_dist, g_t_cen, g_t_mis, g_t_noerr, beta = mock_WL(cat[i])
                 g = f.create_group(name)
-
                 d = g.create_dataset('z_cluster', data=cat['REDSHIFT'][i])
                 d = g.create_dataset('r_arcmin', data=r_arcmin)
                 d = g.create_dataset('r_Mpch', data=r_Mpch)
-                d = g.create_dataset('shear', data=g_2d)
-                d = g.create_dataset('shear_err', data=g_2d_err)
-                d = g.create_dataset('shear_cen', data=g_2d_cen)
-                d = g.create_dataset('shear_mis', data=g_2d_mis)
-                d = g.create_dataset('shear_noerr', data=g_2d_noerr)
+                d = g.create_dataset('shear', data=g_t)
+                d = g.create_dataset('shear_err', data=g_t_err)
+                d = g.create_dataset('shear_cen', data=g_t_cen)
+                d = g.create_dataset('shear_mis', data=g_t_mis)
+                d = g.create_dataset('shear_noerr', data=g_t_noerr)
                 d = g.create_dataset('source_Nz', data=source_dist)
                 d = g.create_dataset('beta', data=beta)
+
+    # HST weak lensing
+    mock_WL = MockUpHSTWL(cosmology, sys.argv[1][:-3])
+    corr = np.ones((2,11))
+    corr[0,:] = np.linspace(0, .25, 11)
+    with h5py.File('mock_WL_HST_%s.hdf5'%datetime, 'w') as f:
+        for i,name in enumerate(cat['SPT_ID']):
+            if cat['Mwl_HST_200'][i]>0:
+                r_Mpch, r_deg, g_t, g_t_err, source_dist = mock_WL(cat[i])
+                g = f.create_group(name)
+                g.attrs['center'] = 'SZ'
+                d = g.create_dataset('z_cluster', data=cat['REDSHIFT'][i])
+                d = g.create_dataset('shear_profile', data=[r_deg, g_t, g_t_err])
+                d = g.create_dataset('redshifts', data=source_dist[0])
+                d = g.create_dataset('magbinid', data=np.zeros(len(r_deg), dtype=int))
+                gg = g.create_group('magbindata')
+                ggg = gg.create_group('0')
+                ddd = ggg.create_dataset('magnificationcorr', data=corr)
+                ddd = ggg.create_dataset('pzs', data=source_dist[1])
+
+    # Create setup file
+    with open ('WLsimcalib_%s.py'%datetime, 'w') as f:
+        f.write("import numpy as np\n\n")
+        f.write("WLcalibration = {\n    # HST\n    'HSTsim': {\n")
+        for i,name in enumerate(cat['SPT_ID']):
+            if cat['Mwl_HST_200'][i]>0:
+                f.write("        '%s': {'z': %.3f, 'bias': [%.3f, %.3f, %.3f, %.3f], 'obs_scatter': %.3e, 'center_err': %.3f},\n"%(
+                name, cat['REDSHIFT'][i], 1, .02, mockconfigMod.scaling['DWL_HST'], .05, 6e13, .075))
+        f.write("    },\n")
+        f.write("    'HSTmcErr': .04,\n")
+        f.write("    'HSTshearErr': .023,\n")
+        f.write("    'HSTzDistErr': .047,\n")
+        f.write("\n    # DES\n")
+        f.write("    'miscenter_opt': {\n")
+        for k in WLconfigMod.DES['miscenter_opt'].keys():
+            f.write("        '%s': %s,\n"%(k, str(WLconfigMod.DES['miscenter_opt'][k])))
+        f.write("    },\n")
+        f.write("    'boost': {\n")
+        for k in WLconfigMod.DES['boost'].keys():
+            f.write("        '%s': %s,\n"%(k, str(WLconfigMod.DES['boost'][k])))
+        f.write("    },\n")
+        f.write("    # Megacam\n    'MegacamSim': (.938, .028, .214, .04),\n    'MegacamMcErr': .015,\n    'MegacamCenterErr': .03,\n    'MegacamShearErr': .032,\n    'MegacamzDistErr': .012,\n    'MegacamContamCorr': .009,\n    'Megacam_LSS': (6.3e13, 7e12),\n")
+        f.write("}\n")
+
+
 
 
 ##### Compute the inverse sec of the complex number z.
@@ -73,28 +117,28 @@ def get_Sigma(x, r_s, rho_c_z, delta_c):
 
 ################################################################################
 
-class MockUpWL:
+class MockUpDESWL:
 
-    def __init__(self, cosmology, MCrel):
+    def __init__(self, cosmology, WLconfigname):
         self.cosmology = cosmology
-        self.MCrel = MCrel
-        self.config_mod = importlib.import_module('WL_input')
+        self.config_mod = importlib.import_module(WLconfigname)
         self.Delta_crit = self.config_mod.Delta_crit
+        self.MCrel = Mconversion_concentration.ConcentrationConversion(self.config_mod.DES['mcType'], cosmology, setup_interp=True)
         self.rng = np.random.default_rng(self.config_mod.random_seed)
-        self.miscenterer = miscentering.MisCentering(self.config_mod.miscenter_opt)
+        self.miscenterer = miscentering.MisCentering(self.config_mod.DES['miscenter_opt'])
         # DES Y3 source P(z)
-        fits = fitsio.FITS(self.config_mod.source_Pz_file)
+        fits = fitsio.FITS(self.config_mod.DES['source_Pz_file'])
         self.source_z = {'z': fits['nz_source']['Z_MID'][:]}
         for i in range(2,5):
             self.source_z['BIN%d'%i] = fits['nz_source']['BIN%d'%i][:]
         self.source_z['allbins'] = np.array([self.source_z['BIN%d'%i] for i in range(2,5)])
         # DES Y3 source weights
-        self.source_weights = np.loadtxt(self.config_mod.source_weights_file, unpack=True)
+        self.source_weights = np.loadtxt(self.config_mod.DES['source_weights_file'], unpack=True)
         self.source_weights_mean = np.average(self.source_weights[0]*np.ones(self.source_weights[1:].shape), weights=self.source_weights[1:], axis=1)
         self.source_weights_cum = np.cumsum(self.source_weights[1:], axis=1)
         self.source_weights_cum/= self.source_weights_cum[:,-1][:,None]
         # DES Y3 tomo bin weights
-        weights = np.load(self.config_mod.tomo_bin_weight_file)
+        weights = np.load(self.config_mod.DES['tomo_bin_weight_file'])
         self.w_interp = interp1d(weights[0], weights[1:])
 
 
@@ -159,13 +203,13 @@ class MockUpWL:
         for i in range(len(area_bin_arcmin)):
             # Each tomo bin gets N/3 sources with weights w_dist_b
             for b in range(3):
-                this_N = self.rng.poisson(area_bin_arcmin[i] * self.config_mod.source_p_arcmin2 /3)
+                this_N = self.rng.poisson(area_bin_arcmin[i] * self.config_mod.DES['source_p_arcmin2'] /3)
                 N_r[i]+= this_N
                 w_dist_b[b] = self.draw_source_weight(b+2, this_N)
             sum_w = self.w_interp(z_cl)[1:] * [np.sum(w_dist_b[b]) for b in range(3)]
             z_dist_r[i] = np.sum(self.source_z['allbins']*sum_w[:,None], axis=0)/np.sum(sum_w)
         z_dist = np.average(self.source_z['allbins'], weights=self.w_interp(z_cl)[1:]*self.source_weights_mean, axis=0)
-        return z_dist_r, z_dist, N_r 
+        return z_dist_r, z_dist, N_r
 
 
     def get_beta(self, z_cl, z_dist):
@@ -177,12 +221,12 @@ class MockUpWL:
         return beta_avg
 
 
-    def apply_cl_mem_contamination(self, z, g_2d):
-        r_s_fcl = (self.cat['richness']/70)**(1/3) / 10**self.config_mod.boost['logc']
+    def apply_cl_mem_contamination(self, z, g_t):
+        r_s_fcl = (self.cat['richness']/70)**(1/3) / 10**self.config_mod.DES['boost']['logc']
         Sigma_fcl = get_Sigma(self.r_arr/r_s_fcl, r_s_fcl, self.rho_c_z, 1)/get_Sigma(1/r_s_fcl, r_s_fcl, self.rho_c_z, 1)
-        A_z = np.exp(self.config_mod.boost['A_inf'] + np.sum(self.config_mod.boost['A'] * np.exp(-.5*(z-self.config_mod.boost['z_arr'])**2/self.config_mod.boost['corr_len']**2)))
-        A = (self.cat['richness']/70)**self.config_mod.boost['Blambda'] * A_z * Sigma_fcl
-        reduced_shear_cont = 1/(1+A) * g_2d
+        A_z = np.exp(self.config_mod.DES['boost']['A_inf'] + np.sum(self.config_mod.DES['boost']['A'] * np.exp(-.5*(z-self.config_mod.DES['boost']['z_arr'])**2/self.config_mod.DES['boost']['corr_len']**2)))
+        A = (self.cat['richness']/70)**self.config_mod.DES['boost']['Blambda'] * A_z * Sigma_fcl
+        reduced_shear_cont = 1/(1+A) * g_t
 
         return reduced_shear_cont
 
@@ -191,7 +235,7 @@ class MockUpWL:
         """Wrapper function: Call all workers and return everything."""
         self.cat = cat
         z_cl = cat['REDSHIFT']
-        self.M_Delta = cat['Mwl_200']
+        self.M_Delta = cat['Mwl_DES_200']
 
         self.rho_c_z = cosmo.RHOCRIT * cosmo.Ez(z_cl, self.cosmology)**2
         self.Dl = cosmo.dA(z_cl, self.cosmology)
@@ -213,16 +257,106 @@ class MockUpWL:
         beta_avg = self.get_beta(z_cl, source_dist_r)
         # beta_avg0 = self.get_beta(z_cl, source_dist[None,:])
         # print(beta_avg, beta_avg0)
-        g_2d_mis, g_2d_cen = self.get_miscentered_gt(z_cl, beta_avg)
-        g_2d_cont = self.apply_cl_mem_contamination(z_cl, g_2d_mis)
+        g_t_mis, g_t_cen = self.get_miscentered_gt(z_cl, beta_avg)
+        g_t_cont = self.apply_cl_mem_contamination(z_cl, g_t_mis)
 
         # Error on shear is shape_noise / sqrt(N(r))
-        good_idx = (np.isfinite(g_2d_cont)&(N_r>4)).nonzero()[0]
-        g_2d = g_2d_cont[good_idx]
-        g_2d_err = self.config_mod.shape_noise / np.sqrt(N_r[good_idx])
-        g_2d+= g_2d_err*self.rng.standard_normal(len(g_2d))
+        good_idx = (np.isfinite(g_t_cont)&(N_r>4)).nonzero()[0]
+        g_t = g_t_cont[good_idx]
+        g_t_err = self.config_mod.DES['shape_noise'] / np.sqrt(N_r[good_idx])
+        g_t+= g_t_err*self.rng.standard_normal(len(g_t))
 
-        return self.r_arr[good_idx], self.r_arcmin[good_idx], g_2d, g_2d_err, source_dist, g_2d_cen[good_idx], g_2d_mis[good_idx], g_2d_cont[good_idx], beta_avg[good_idx]
+        return self.r_arr[good_idx], self.r_arcmin[good_idx], g_t, g_t_err, source_dist, g_t_cen[good_idx], g_t_mis[good_idx], g_t_cont[good_idx], beta_avg[good_idx]
+
+################################################################################
+
+class MockUpHSTWL:
+
+    def __init__(self, cosmology, WLconfigname):
+        self.cosmology = cosmology
+        self.config_mod = importlib.import_module(WLconfigname)
+        self.Delta_crit = self.config_mod.Delta_crit
+        self.MCrel = Mconversion_concentration.ConcentrationConversion(self.config_mod.HST['mcType'], cosmology, setup_interp=True)
+        self.rng = np.random.default_rng(self.config_mod.random_seed)
+        self.pz = np.loadtxt(self.config_mod.HST['source_Pz_file'], unpack=True)
+
+
+    def get_N_source_gals(self):
+        """Return stochastic realization of source galaxy redshifts."""
+        area_bin_arcmin = np.pi * (self.r_arcmin_edges[1:]**2 - self.r_arcmin_edges[:-1]**2)
+        N = self.rng.poisson(area_bin_arcmin * self.config_mod.HST['source_p_arcmin2'])
+        return N
+
+
+    def get_beta(self, z_cl):
+        """Return `<beta>` and `<beta**2>` given a redshift distribution."""
+        beta = np.array([cosmo.dA_two_z(z_cl, z, self.cosmology)/cosmo.dA(z, self.cosmology) for z in self.pz[0]])
+        beta[self.pz[0]<=z_cl] = 0
+        beta2 = beta**2
+        beta_avg = np.average(beta, weights=self.pz[1])
+        beta2_avg = np.average(beta2, weights=self.pz[1])
+        return beta_avg, beta2_avg
+
+
+    def get_gt(self, z, beta_avg, beta2_avg):
+        """Return the predicted radial shear profile for a given mass, redshift,
+        and betas."""
+        ##### M200 and scale radius, wrt critical density, everything in h units
+        c = self.MCrel.calC200(self.M_Delta, z)
+        delta_c = self.Delta_crit/3 * c**3 / (np.log(1+c) - c/(1+c))
+        rs = self.r_Delta/c
+
+        ##### Now let's do WL!
+        x = self.r_arr / rs
+
+        # Sigma_crit, with c^2/4piG [h Msun/Mpc^2]
+        Sigma_c = 1.6624541593797974e+18/self.Dl/beta_avg
+
+        # NFW halo [mass][radius]
+        Sigma_NFW = get_Sigma(x, rs, self.rho_c_z, delta_c)
+        Delta_Sigma_NFW = get_Delta_Sigma(x, rs, self.rho_c_z, delta_c)
+
+        # Beta correction [Radius][Mass]
+        betaratio = beta2_avg/beta_avg**2
+        betaCorr = 1 + Sigma_NFW/Sigma_c*(betaratio-1)
+        g_t = betaCorr * Delta_Sigma_NFW/Sigma_c / (1-Sigma_NFW/Sigma_c)
+
+        return g_t
+
+    def __call__(self, cat):
+        """Wrapper function: Call all workers and return everything."""
+        self.cat = cat
+        z_cl = cat['REDSHIFT']
+        self.M_Delta = cat['Mwl_HST_200']
+
+        self.rho_c_z = cosmo.RHOCRIT * cosmo.Ez(z_cl, self.cosmology)**2
+        self.Dl = cosmo.dA(z_cl, self.cosmology)
+
+        self.r_Delta = (3*self.M_Delta/4/np.pi/self.Delta_crit/self.rho_c_z)**(1/3)
+
+        # Radii
+        r_min = .5
+        r_max = 1.1
+        all_edges = np.logspace(-1, 1, 21)*self.cosmology['h']
+        good_idx = ((r_min<=all_edges)&(all_edges<=r_max)).nonzero()[0]
+        these_edges = all_edges[good_idx]
+        these_edges = np.append(np.insert(these_edges, 0, r_min), r_max)
+        self.r_arr = 2/3 * (these_edges[1:]**3-these_edges[:-1]**3)/(these_edges[1:]**2-these_edges[:-1]**2)
+        self.r_arcmin = self.r_arr / self.Dl * 60*180/np.pi
+        self.r_deg = self.r_arcmin / 60
+        self.r_arcmin_edges = these_edges / self.Dl * 60*180/np.pi
+
+        N_r = self.get_N_source_gals()
+        beta_avg, beta2_avg = self.get_beta(z_cl)
+        g_t = self.get_gt(z_cl, beta_avg, beta2_avg)
+
+        # Error on shear is shape_noise / sqrt(N(r))
+        good_idx = (N_r>4).nonzero()[0]
+        g_t = g_t[good_idx]
+        g_t_err = self.config_mod.HST['shape_noise'] / np.sqrt(N_r[good_idx])
+        g_t+= g_t_err*self.rng.standard_normal(len(g_t))
+
+        return self.r_arr[good_idx], self.r_deg[good_idx], g_t, g_t_err, self.pz
 
 
 
