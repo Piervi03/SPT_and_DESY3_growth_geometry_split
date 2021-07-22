@@ -25,20 +25,25 @@ def main():
     # DES weak lensing
     mock_WL = MockUpDESWL(cosmology, sys.argv[1][:-3])
     with h5py.File('mock_WL_DES_%s.hdf5'%datetime, 'w') as f:
+        g = f.create_group('config')
+        fits = fitsio.FITS(WLconfigMod.DES['source_Pz_file'])
+        d = g.create_dataset('SOM_Z_MID', data=fits['nz_source']['Z_MID'][:])
+        d = g.create_dataset('SOM_BINs', data=[fits['nz_source']['BIN%d'%i][:] for i in range(1,5)])
+        g = f.create_group('clusters')
         for i,name in enumerate(cat['SPT_ID']):
             if (cat['REDSHIFT'][i]>0)&(cat['REDSHIFT'][i]<WLconfigMod.DES['WL_z_max'])&(cat['FIELD'][i] not in ['ra11hdec-25', 'ra13hdec-25', 'ra23hdec-25', 'ra23hdec-35']):
                 r_Mpch, r_arcmin, g_t, g_t_err, source_dist, g_t_cen, g_t_mis, g_t_noerr, beta = mock_WL(cat[i])
-                g = f.create_group(name)
-                d = g.create_dataset('z_cluster', data=cat['REDSHIFT'][i])
-                d = g.create_dataset('r_arcmin', data=r_arcmin)
-                d = g.create_dataset('r_Mpch', data=r_Mpch)
-                d = g.create_dataset('shear', data=g_t)
-                d = g.create_dataset('shear_err', data=g_t_err)
-                d = g.create_dataset('shear_cen', data=g_t_cen)
-                d = g.create_dataset('shear_mis', data=g_t_mis)
-                d = g.create_dataset('shear_noerr', data=g_t_noerr)
-                d = g.create_dataset('source_Nz', data=source_dist)
-                d = g.create_dataset('beta', data=beta)
+                gg = g.create_group(name)
+                d = gg.create_dataset('z_cluster', data=cat['REDSHIFT'][i])
+                d = gg.create_dataset('r_arcmin', data=r_arcmin)
+                d = gg.create_dataset('r_Mpch', data=r_Mpch)
+                d = gg.create_dataset('shear', data=g_t)
+                d = gg.create_dataset('shear_err', data=g_t_err)
+                d = gg.create_dataset('shear_cen', data=g_t_cen)
+                d = gg.create_dataset('shear_mis', data=g_t_mis)
+                d = gg.create_dataset('shear_noerr', data=g_t_noerr)
+                d = gg.create_dataset('source_Nz', data=source_dist)
+                d = gg.create_dataset('beta', data=beta)
 
     # HST weak lensing
     mock_WL = MockUpHSTWL(cosmology, sys.argv[1][:-3])

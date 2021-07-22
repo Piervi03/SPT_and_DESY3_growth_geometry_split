@@ -14,9 +14,6 @@ import cosmo, Mconversion_concentration, miscentering, scaling_relations
 
 ########################################
 
-# DES SOMPZ bins
-DES_SOMPZ_z = np.linspace(.005, 2.995, 300)
-
 # Mass [Msun/h]
 grid_lgM_min = 12.5
 grid_lgM_max = 15.5
@@ -44,6 +41,10 @@ class SPTlensing:
         self.mcType = mcType
 
         readdata(catalog, HSTfile, MegacamFile, DESfile)
+        if DESfile != 'None':
+            with h5py.File(DESfile, 'r') as f:
+                self.SOM_Z_MID = f['config/SOM_Z_MID'][:]
+                self.SOM_BINs = f['config/SOM_BINs'][:][1:,:]
 
 
     ########################################
@@ -290,11 +291,12 @@ class SPTlensing:
 
     def get_beta_DES(self, cosmology):
         """Return mean(beta) for DES clusters."""
-        beta = np.zeros(len(DES_SOMPZ_z))
-        bgIdx = (DES_SOMPZ_z>self.cat_cl['REDSHIFT']).nonzero()[0]
-        beta[bgIdx] = self.dA_twoz_interp(np.log(self.cat_cl['REDSHIFT']), np.log(DES_SOMPZ_z[bgIdx]))
-        beta[bgIdx]/= np.exp(self.lndA_interp(np.log(DES_SOMPZ_z[bgIdx])))
-        self.beta_avg = np.average(beta, weights=self.cat_cl['WLdata']['Nz'])
+        beta = np.zeros(len(self.SOM_Z_MID))
+        bgIdx = (self.SOM_Z_MID>self.cat_cl['REDSHIFT']).nonzero()[0]
+        beta[bgIdx] = self.dA_twoz_interp(np.log(self.cat_cl['REDSHIFT']), np.log(self.SOM_Z_MID[bgIdx]))
+        beta[bgIdx]/= np.exp(self.lndA_interp(np.log(self.SOM_Z_MID[bgIdx])))
+        weights = np.sum(self.cat_cl['WLdata']['tomo_weights'][:,None]*self.SOM_BINs, axis=0)
+        self.beta_avg = np.average(beta, weights=weights)
         return 0
 
 
@@ -387,10 +389,10 @@ def readdata(catalog, HSTfile, MegacamFile, DESfile):
     if DESfile != 'None':
         with h5py.File(DESfile, 'r') as f:
             for i,name in enumerate(catalog['SPT_ID']):
-                if name in f.keys():
+                if name in f['clusters'].keys():
                     catalog['WLdata'][i] = {'datatype':'DES',
-                                            'r_arcmin': f[name]['r_arcmin'][:],
-                                            'shear': f[name]['shear'][:],
-                                            'shear_err': f[name]['shear_err'][:],
-                                            'Nz': f[name]['source_Nz'][:],
+                                            'r_arcmin': f['clusters'][name]['r_arcmin'][:],
+                                            'shear': f['clusters'][name]['shear'][:],
+                                            'shear_err': f['clusters'][name]['shear_err'][:],
+                                            'tomo_weights': f['clusters'][name]['tomo_weights'][:][1:],
                                             }
