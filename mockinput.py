@@ -22,6 +22,8 @@ scaling = {'Asz': .96, 'Bsz': 1.5, 'Csz': .5, 'Dsz': .2, 'zeta_min': 1.,
            'DWL_Megacam': .3, 'bWL_Megacam': 1,
            'DESbias': 0., 'DESscatterLSS': 6.3e13,
 
+           'DWL_HST': .3,
+
            'DES_m_piv': 2e14,
            'DES_b_dev': 0, 'DES_b_m': .98, 'DES_s_dev': 0, 'DES_s_M': -.826,
 
@@ -45,9 +47,8 @@ scaling['DESwl_scatter_mean'] = np.mean(tmp[:,4:7], axis=0)
 scaling['DESwl_scatter_std'] = np.std(tmp[:,4:7], axis=0)
 
 # SPT survey cuts
+surveyCutSZ = (4.5, 200.)
 surveyCutRedshift = (0.25, 2.)
-# Type of M-c scaling relation, 'Duffy08' or 'DK15' or 'Cihld18_obs' or float
-mcType = 'Child18_obs'
 # How to model X-ray profiles? 'PL' or 'beta'
 profile_shape = 'PL'
 # Observable errors

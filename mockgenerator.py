@@ -6,7 +6,6 @@ import time
 import importlib
 from scipy.interpolate import RectBivariateSpline
 from astropy.table import Table
-# import xarray as xr
 
 import compute_HMF_MiraTitan, cosmo, Mconversion_concentration, scaling_relations
 
@@ -22,15 +21,6 @@ def main():
     cosmology = configMod.cosmology
     scaling = configMod.scaling
     rng = np.random.default_rng(configMod.random_seed)
-    # Initialize c(M) calculator
-    # MCrel = Mconversion_concentration.ConcentrationConversion(configMod.mcType, cosmology, setup_interp=True)
-
-
-    # Compute HMF
-    # HMF_xr = xr.open_dataset('HMF.nc')
-    # HMF = {'z': HMF_xr['z'],
-    #        'm': HMF_xr['m'],
-    #        'dNdlnM': HMF_xr.to_array()[0]}
 
     HMF = {'z': np.linspace(0, 2, 21),
            'm': np.logspace(13, 15.5, 251)}
@@ -48,15 +38,16 @@ def main():
     z_arr = np.linspace(configMod.surveyCutRedshift[0], configMod.surveyCutRedshift[1], int((configMod.surveyCutRedshift[1]-configMod.surveyCutRedshift[0])/dz) + 1)
     dz = z_arr[1]-z_arr[0]
 
-    # [WL, X-ray, SZ, richness]
-    covs = np.empty((len(z_arr), len(HMF['m']), 4, 4))
+    # [DES WL, X-ray, SZ, richness, HST WL]
+    covs = np.empty((len(z_arr), len(HMF['m']), 5, 5))
     for i, z in enumerate(z_arr):
         for j, M in enumerate(HMF['m']):
             scaling['DWL_DES'] = scaling_relations.WLscatter('main', M, z, scaling)
-            covs[i,j,:,:] = [[scaling['DWL_DES']**2, scaling['rhoWLX']*scaling['DWL_DES']*scaling['Dx'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_DES'], scaling['rhoWLrichness']*scaling['DWL_DES']*scaling['Drichness']],
-                             [scaling['rhoWLX']*scaling['DWL_DES']*scaling['Dx'], scaling['Dx']**2, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['rhoXrichness']*scaling['Dx']*scaling['Drichness']],
-                             [scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_DES'], scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2, scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness']],
-                             [scaling['rhoWLrichness']*scaling['DWL_DES']*scaling['Drichness'], scaling['rhoXrichness']*scaling['Dx']*scaling['Drichness'], scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness'], scaling['Drichness']**2]]
+            covs[i,j,:,:] = [[scaling['DWL_DES']**2, scaling['rhoWLX']*scaling['DWL_DES']*scaling['Dx'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_DES'], scaling['rhoWLrichness']*scaling['DWL_DES']*scaling['Drichness'], 0],
+                             [scaling['rhoWLX']*scaling['DWL_DES']*scaling['Dx'], scaling['Dx']**2, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['rhoXrichness']*scaling['Dx']*scaling['Drichness'], scaling['rhoWLX']*scaling['DWL_HST']*scaling['Dx']],
+                             [scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_DES'], scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2, scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_HST']],
+                             [scaling['rhoWLrichness']*scaling['DWL_DES']*scaling['Drichness'], scaling['rhoXrichness']*scaling['Dx']*scaling['Drichness'], scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness'], scaling['Drichness']**2, scaling['rhoWLrichness']*scaling['DWL_HST']*scaling['Drichness']],
+                             [0, scaling['rhoWLX']*scaling['DWL_HST']*scaling['Dx'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_HST'], scaling['rhoWLrichness']*scaling['DWL_HST']*scaling['Drichness'], scaling['DWL_HST']**2]]
 
 
     # Get the mock catalog
@@ -74,8 +65,9 @@ def main():
         # Poisson realization
         N = rng.poisson(massfunc)
 
-        obs_0 = np.array([scaling_relations.mass2obs(name, np.array(HMF['m'])[None,:], z_arr[:,None], scaling, cosmology)
-                          for name in ('WLDES', configMod.Xray_obs, 'zeta', 'richness')])
+        obs_0 = np.array([scaling_relations.mass2obs(name, HMF['m'][None,:], z_arr[:,None], scaling, cosmology)
+                          for name in ('WLDES', configMod.Xray_obs, 'zeta', 'richness',)])
+        obs_0 = np.concatenate((obs_0, HMF['m']*np.ones((len(z_arr), len(HMF['m'])))[None,:]))
 
         # Field depth
         obs_0[2,:]*= SPT_survey['GAMMA'][fieldidx]
@@ -92,16 +84,14 @@ def main():
                 for k in keep:
                     # draw xi|zeta
                     xi = rng.normal(scaling_relations.zeta2xi(obs[k,2]), scale=1.)
-                    if xi>=SPT_survey['XI_MIN'][fieldidx]:
+                    if xi>=configMod.surveyCutSZ[0]:
                         # Apply observational error to Mgas
                         Mg = rng.lognormal(np.log(obs[k,1]), sigma=configMod.Xerr)
-                        # Convert WL mass to 200c
-                        # M200h_WL = np.exp(MCrel.lnM_to_lnM200(z, np.log(obs[k,0]))[0,0])
 
                         # Observed richness
                         richness_obs = obs[k,3]#rng.lognormal(np.log(obs[k,3]), obs[k,3]**-.5)
                         #richness_obs = rng.normal(richness_int, configMod.richness_err)
-                        mock.append((M, z, xi, Mg, obs[k,0], richness_obs))
+                        mock.append((M, z, xi, Mg, obs[k,0], richness_obs, obs[k,4]))
                         fieldnames.append(field)
 
         # False detections
@@ -116,6 +106,13 @@ def main():
 
     mock = np.array(mock)
 
+    ##### HST weak lensing
+    HST_z_range = ((mock[:,1]>.6)&(mock[:,1]<1.1)).nonzero()[0]
+    HST_idx = np.argsort(mock[HST_z_range,2])[-30:]
+    # HST_idx = rng.choice(HST_z_range, 30, replace=False)
+    mask = np.ones(len(mock), np.bool)
+    mask[HST_idx] = 0
+    mock[mask,-1] = 0.
 
     ##### Select XVP
     nCluster = len(mock)
@@ -193,11 +190,14 @@ def main():
     ##### Save catalog file
     names_arr = ['SPT_ID', 'FIELD', 'XI', 'THETA_CORE', 'REDSHIFT', 'REDSHIFT_UNC', 'REDSHIFT_LIMIT',
                  'Mg_MM', 'lnMg_err_MM', 'lnYx_err_MM',
-                 'M_true', 'Tx_MM', 'M500', 'Mwl_200',
+                 'M_true', 'Tx_MM',
+                 'M500',
+                 'Mwl_DES_200', 'Mwl_HST_200',
                  'richness',]
     data_arr = [names, fieldnames, mock[:,2], theta_core, mock[:,1], np.zeros(nCluster), redshiftLim,
                 Mgas, Xerrarr, Xerrarr,
-                mock[:,0], 1e14*np.ones(nCluster), M500_noh, mock[:,4],
+                mock[:,0], 1e14*np.ones(nCluster), M500_noh,
+                mock[:,4], mock[:,6],
                 mock[:,5],]
     # Save to fits
     cat = Table(data_arr, names=names_arr)
