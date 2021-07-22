@@ -47,7 +47,6 @@ scaling['DESwl_scatter_mean'] = np.mean(tmp[:,4:7], axis=0)
 scaling['DESwl_scatter_std'] = np.std(tmp[:,4:7], axis=0)
 
 # SPT survey cuts
-surveyCutSZ = (4.5, 200.)
 surveyCutRedshift = (0.25, 2.)
 # How to model X-ray profiles? 'PL' or 'beta'
 profile_shape = 'PL'

@@ -84,7 +84,7 @@ def main():
                 for k in keep:
                     # draw xi|zeta
                     xi = rng.normal(scaling_relations.zeta2xi(obs[k,2]), scale=1.)
-                    if xi>=configMod.surveyCutSZ[0]:
+                    if xi>=SPT_survey['XI_MIN'][fieldidx]:
                         # Apply observational error to Mgas
                         Mg = rng.lognormal(np.log(obs[k,1]), sigma=configMod.Xerr)
 
