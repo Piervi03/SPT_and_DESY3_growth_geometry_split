@@ -186,7 +186,7 @@ class SPTlensing:
 
         M200c = np.exp(self.MCrel.lnM_to_lnM200(self.cat_cl['REDSHIFT'], self.lnM_arr))[0]
         r200c = (3*M200c/4/np.pi/200/rho_c_z)**(1/3)
-        c200c = MCrel.calC200(M200c, self.cat_cl['REDSHIFT'])
+        c200c = self.MCrel.calC200(M200c, self.cat_cl['REDSHIFT'])
         delta_c = 200/3 * c200c**3 / (np.log(1+c200c) - c200c/(1+c200c))
         r_s = r200c/c200c
         return rho_c_z, Dl, delta_c, r_s
