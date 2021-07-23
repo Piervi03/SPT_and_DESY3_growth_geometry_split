@@ -360,6 +360,27 @@ def readdata(catalog, HSTfile, MegacamFile, DESfile):
     # Empty WL data field
     catalog['WLdata'] = [None for i in range(len(catalog['SPT_ID']))]
 
+    ##### Check for DES data
+    if DESfile != 'None':
+        with h5py.File(DESfile, 'r') as f:
+            for i,name in enumerate(catalog['SPT_ID']):
+                if name in f['clusters'].keys():
+                    catalog['WLdata'][i] = {'datatype':'DES',
+                                            'r_arcmin': f['clusters'][name]['r_arcmin'][:],
+                                            'shear': f['clusters'][name]['shear'][:],
+                                            'shear_err': f['clusters'][name]['shear_err'][:],
+                                            'tomo_weights': f['clusters'][name]['tomo_weights'][:][1:],
+                                            }
+
+    ##### Megacam data
+    if MegacamFile != 'None':
+        with h5py.File(MegacamFile, 'r') as f:
+            for i,name in enumerate(catalog['SPT_ID']):
+                if name in f.keys():
+                    catalog['WLdata'][i] = {'datatype':'Megacam',
+                        'r_deg':f[name]['shear_profile'][0], 'shear':f[name]['shear_profile'][1], 'shearerr':f[name]['shear_profile'][2],
+                        'redshifts':f[name]['Nz'][0], 'Nz':f[name]['Nz'][1], 'Ntot':np.sum(f[name]['Nz'][1]),}
+
     ##### Check for HST data
     if HSTfile != 'None':
         with h5py.File(HSTfile, 'r') as f:
@@ -376,23 +397,3 @@ def readdata(catalog, HSTfile, MegacamFile, DESfile):
                         catalog['WLdata'][i]['Ntot'][dict_key] = np.sum(catalog['WLdata'][i]['pzs'][dict_key])
                         catalog['WLdata'][i]['magcorr'][dict_key] = f[name]['magbindata'][key]['magnificationcorr'][:]
 
-    ##### Megacam data
-    if MegacamFile != 'None':
-        with h5py.File(MegacamFile, 'r') as f:
-            for i,name in enumerate(catalog['SPT_ID']):
-                if name in f.keys():
-                    catalog['WLdata'][i] = {'datatype':'Megacam',
-                        'r_deg':f[name]['shear_profile'][0], 'shear':f[name]['shear_profile'][1], 'shearerr':f[name]['shear_profile'][2],
-                        'redshifts':f[name]['Nz'][0], 'Nz':f[name]['Nz'][1], 'Ntot':np.sum(f[name]['Nz'][1]),}
-
-    ##### Check for DES data
-    if DESfile != 'None':
-        with h5py.File(DESfile, 'r') as f:
-            for i,name in enumerate(catalog['SPT_ID']):
-                if name in f['clusters'].keys():
-                    catalog['WLdata'][i] = {'datatype':'DES',
-                                            'r_arcmin': f['clusters'][name]['r_arcmin'][:],
-                                            'shear': f['clusters'][name]['shear'][:],
-                                            'shear_err': f['clusters'][name]['shear_err'][:],
-                                            'tomo_weights': f['clusters'][name]['tomo_weights'][:][1:],
-                                            }
