@@ -32,7 +32,7 @@ def main():
         g = f.create_group('clusters')
         for i,name in enumerate(cat['SPT_ID']):
             if (cat['REDSHIFT'][i]>0)&(cat['REDSHIFT'][i]<WLconfigMod.DES['WL_z_max'])&(cat['FIELD'][i] not in ['ra11hdec-25', 'ra13hdec-25', 'ra23hdec-25', 'ra23hdec-35']):
-                r_Mpch, r_arcmin, g_t, g_t_err, source_dist, g_t_cen, g_t_mis, g_t_noerr, beta = mock_WL(cat[i])
+                r_Mpch, r_arcmin, g_t, g_t_err, source_dist, g_t_cen, g_t_mis, g_t_noerr, beta, tomo_weights = mock_WL(cat[i])
                 gg = g.create_group(name)
                 d = gg.create_dataset('z_cluster', data=cat['REDSHIFT'][i])
                 d = gg.create_dataset('r_arcmin', data=r_arcmin)
@@ -44,6 +44,7 @@ def main():
                 d = gg.create_dataset('shear_noerr', data=g_t_noerr)
                 d = gg.create_dataset('source_Nz', data=source_dist)
                 d = gg.create_dataset('beta', data=beta)
+                d = gg.create_dataset('tomo_weights', data=tomo_weights)
 
     # HST weak lensing
     mock_WL = MockUpHSTWL(cosmology, sys.argv[1][:-3])
@@ -211,9 +212,9 @@ class MockUpDESWL:
                 this_N = self.rng.poisson(area_bin_arcmin[i] * self.config_mod.DES['source_p_arcmin2'] /3)
                 N_r[i]+= this_N
                 w_dist_b[b] = self.draw_source_weight(b+2, this_N)
-            sum_w = self.w_interp(z_cl)[1:] * [np.sum(w_dist_b[b]) for b in range(3)]
+            sum_w = self.tomo_weights[1:] * [np.sum(w_dist_b[b]) for b in range(3)]
             z_dist_r[i] = np.sum(self.source_z['allbins']*sum_w[:,None], axis=0)/np.sum(sum_w)
-        z_dist = np.average(self.source_z['allbins'], weights=self.w_interp(z_cl)[1:]*self.source_weights_mean, axis=0)
+        z_dist = np.average(self.source_z['allbins'], weights=self.tomo_weights[1:]*self.source_weights_mean, axis=0)
         return z_dist_r, z_dist, N_r
 
 
@@ -242,6 +243,7 @@ class MockUpDESWL:
         z_cl = cat['REDSHIFT']
         self.M_Delta = cat['Mwl_DES_200']
 
+        self.tomo_weights = self.w_interp(z_cl)
         self.rho_c_z = cosmo.RHOCRIT * cosmo.Ez(z_cl, self.cosmology)**2
         self.Dl = cosmo.dA(z_cl, self.cosmology)
 
@@ -271,7 +273,7 @@ class MockUpDESWL:
         g_t_err = self.config_mod.DES['shape_noise'] / np.sqrt(N_r[good_idx])
         g_t+= g_t_err*self.rng.standard_normal(len(g_t))
 
-        return self.r_arr[good_idx], self.r_arcmin[good_idx], g_t, g_t_err, source_dist, g_t_cen[good_idx], g_t_mis[good_idx], g_t_cont[good_idx], beta_avg[good_idx]
+        return self.r_arr[good_idx], self.r_arcmin[good_idx], g_t, g_t_err, source_dist, g_t_cen[good_idx], g_t_mis[good_idx], g_t_cont[good_idx], beta_avg[good_idx], self.tomo_weights
 
 ################################################################################
 
