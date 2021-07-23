@@ -111,7 +111,7 @@ def main():
     HST_idx = np.argsort(mock[HST_z_range,2])[-30:]
     # HST_idx = rng.choice(HST_z_range, 30, replace=False)
     mask = np.ones(len(mock), np.bool)
-    mask[HST_idx] = 0
+    mask[HST_z_range[HST_idx]] = 0
     mock[mask,-1] = 0.
 
     ##### Select XVP
