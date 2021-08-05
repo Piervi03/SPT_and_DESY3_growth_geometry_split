@@ -22,7 +22,7 @@ def execute(block, scaling_setter):
     # Set everything
     if scaling_setter.execute(scaling):
         # Put into block
-        for p in ['bWL_Megacam',]:
+        for p in ['bWL_Megacam', 'DWL_Megacam']:
             block.put_double('mor_parameters', p, scaling[p])
         for p in ['cov_X_SZ', 'cov_richness_SZ', 'cov_Megacam_SZ', 'cov_Megacam_X_SZ']:
             block.put_double_array_nd('mor_parameters', p, scaling[p])

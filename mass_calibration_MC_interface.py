@@ -68,6 +68,7 @@ def execute(block, masscalibration):
               'Ax', 'Bx', 'Cx', 'Ex', 'dlnMg_dlnr', 'XraymPivot',
               'DES_b_dev', 'DES_b_m', 'DES_s_dev', 'DES_s_M', 'DES_m_piv',
               'HSTscatterLSS', 'MegacamScatterLSS',
+              'bWL_Megacam', 'DWL_Megacam',
               'Arichness', 'Brichness', 'Crichness', 'Drichness', 'richmPivot',
               'rhoSZrichness', 'rhoWLrichness', 'rhoSZWL',
               'Adisp', 'Bdisp', 'Cdisp',]:
