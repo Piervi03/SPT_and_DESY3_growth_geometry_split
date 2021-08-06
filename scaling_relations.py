@@ -66,6 +66,8 @@ def obs2mass(name, obs, z, scaling, cosmology=None, cluster_ID=None):
     elif name=='richness':
         mass = scaling['richmPivot'] * (obs / scaling['Arichness'] / ((1+z)/1.6)**scaling['Crichness']) ** (1/scaling['Brichness'])
         return mass
+    elif name=='WLMegacam':
+        return obs/scaling['bWL_Megacam']
     elif name=='WLHST':
         return obs/scaling['bWL_HST'][cluster_ID]
     elif name=='WLDES':

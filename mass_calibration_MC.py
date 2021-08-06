@@ -301,7 +301,7 @@ class MassCalibration:
             pos[obs] = o
             if obs in ['WLDES', 'WLHST', 'WLMegacam']:
                 lnMwl, obs_lnweights[o] = self.get_Mwl_draws(dataID)
-                lnM_obs[o] = np.log(scaling_relations.obs2mass('WLDES', np.exp(lnMwl), self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, self.catalog['SPT_ID'][dataID]))
+                lnM_obs[o] = np.log(scaling_relations.obs2mass(obs, np.exp(lnMwl), self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, self.catalog['SPT_ID'][dataID]))
             elif obs=='richness':
                 lnM_obs[o] = np.log(scaling_relations.obs2mass('richness', self.catalog['richness'][dataID], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology))*np.ones(Ndraw)
                 obs_lnweights[o] = np.zeros(Ndraw)
