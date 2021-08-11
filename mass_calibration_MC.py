@@ -204,6 +204,14 @@ class MassCalibration:
         lnMwl = np.interp(r, WL_cum, self.WL.lnM_arr)
         # We drew from ln(P(Mwl)) but we want to sample P(Mwl)
         WL_lnweights = lnMwl
+        # LSS noise for HST
+        if self.catalog['WLdata'][dataID]['datatype']=='HST':
+            mean = np.exp(lnMwl)
+            std = self.WLcalib['HSTsim'][self.catalog['SPT_ID'][dataID]]['obs_scatter']
+            r_min = norm.cdf(self.WL.M_arr[0], loc=mean, scale=std)
+            r_max = norm.cdf(self.WL.M_arr[-1], loc=mean, scale=std)
+            r = r_min + (r_max-r_min)*self.rng.random(Ndraw)
+            lnMwl = np.log(erfinv(2*r-1)*std*np.sqrt(2) + mean)
         return lnMwl, WL_lnweights
 
 
