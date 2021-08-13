@@ -1,10 +1,10 @@
 from __future__ import division
 import numpy as np
 from math import sqrt as msqrt
-import imp
 from multiprocessing import Pool
 from scipy.interpolate import RectBivariateSpline
 from scipy.stats import multivariate_normal
+from astropy.table import Table
 
 import convolution, scaling_relations
 
@@ -16,10 +16,9 @@ def unwrap_self_f(arg):
 ################################################################################
 class MultiObsConvolution:
 
-    def __init__(self, WLsimcalibfile,
+    def __init__(self, HSTcalibfile,
                  observable_pairs, pairs_zmin, pairs_zmax, pairs_Nz):
-        WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
-        self.WLcalib = WLsimcalib.WLcalibration
+        self.HSTcalib = Table.read(HSTcalibfile, format='ascii.commented_header')
 
         self.pairnames_2d = ['HST_SZ',]
         self.pairnames_3d = ['HST_Yx_SZ', 'HST_Mgas_SZ']
@@ -54,11 +53,11 @@ class MultiObsConvolution:
         output_dict = {}
         for pair_name in self.observable_pairs:
             output_dict[pair_name] = {}
-            for name in self.WLcalib['HSTsim'].keys():
+            for n,name in enumerate(self.HSTcalib['SPT_ID']):
                 this_grid_ = self.get_P_multiobs_z_fixedkernel(pair_name,
                                                                self.obsnames_dict[pair_name],
                                                                self.covmat['cov_%s_%s'%(pair_name, name)],
-                                                               self.WLcalib['HSTsim'][name]['z'])
+                                                               self.HSTcalib['redshift'][n])
                 output_dict[pair_name][name] = this_grid_
 
         return output_dict

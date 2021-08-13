@@ -1,6 +1,7 @@
 from __future__ import division
 import numpy as np
 from math import sqrt as msqrt
+from astropy.table import Table
 import imp
 
 import scaling_relations
@@ -9,9 +10,10 @@ THRESHOLD = 1e-8
 
 class SetScaling:
 
-    def __init__(self, WLsimcalibfile):
+    def __init__(self, WLsimcalibfile, HSTcalibfile):
         WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
         self.WLcalib = WLsimcalib.WLcalibration
+        self.HSTcalib = Table.read(HSTcalibfile, format='ascii.commented_header')
 
     def execute(self, scaling):
         """Set total (or effective) bias and scatter for Megacam and DES using
@@ -31,16 +33,16 @@ class SetScaling:
         scaling['DWL_Megacam'] = self.WLcalib['MegacamSim'][2] + scaling['WLscatter']*self.WLcalib['MegacamSim'][3]
 
         # HST
-        zDistShearErr = msqrt(self.WLcalib['HSTzDistErr']**2 + self.WLcalib['HSTshearErr']**2)
+        zDistShearErr = np.sqrt(self.HSTcalib['shape_unc']**2 + self.HSTcalib['zdist_unc']**2)
         scaling['bWL_HST'], scaling['DWL_HST'] = {}, {}
-        for name in self.WLcalib['HSTsim'].keys():
+        for n,name in enumerate(self.HSTcalib['SPT_ID']):
             # bias = bSim + bMassModel + (bN(z)+bShearCal)
-            mass_model_err = msqrt(self.WLcalib['HSTsim'][name]['bias'][1]**2 + self.WLcalib['HSTmcErr']**2 + self.WLcalib['HSTsim'][name]['center_err']**2)
-            scaling['bWL_HST'][name] = self.WLcalib['HSTsim'][name]['bias'][0] \
+            mass_model_err = msqrt(self.HSTcalib['bias_unc'][n]**2 + self.HSTcalib['Mc_unc'][n]**2 + self.HSTcalib['miscent_unc'][n]**2)
+            scaling['bWL_HST'][name] = self.HSTcalib['bias'][n] \
                 + scaling['WLbias'] * mass_model_err \
-                + scaling['HSTbias'] * zDistShearErr
+                + scaling['HSTbias'] * zDistShearErr[n]
             # lognormal scatter
-            DWL_HST = self.WLcalib['HSTsim'][name]['bias'][2] + scaling['WLscatter']*self.WLcalib['HSTsim'][name]['bias'][3]
+            DWL_HST = self.HSTcalib['scatter'][n] + scaling['WLscatter']*self.HSTcalib['scatter_unc'][n]
             scaling['DWL_HST'][name] = DWL_HST
             # SZ WL covariance matrix
             cov = [[DWL_HST**2, scaling['rhoSZWL']*scaling['Dsz']*DWL_HST],

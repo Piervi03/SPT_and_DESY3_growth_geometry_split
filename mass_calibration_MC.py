@@ -33,7 +33,7 @@ class MassCalibration:
     def __init__(self, todo, method, mcType,
                  surveyCutRedshift, surveyCutRichness,
                  SPT_survey_fields, SPT_doublecounts, SPTcatalogfile,
-                 WLsimcalibfile,
+                 HSTcalibfile,
                  NPROC):
 
         self.NPROC = NPROC
@@ -48,8 +48,7 @@ class MassCalibration:
         SPTdata = imp.load_source('SPTdata', SPT_doublecounts)
         self.SPTdoubleCount = SPTdata.SPTdoubleCount
         self.catalog = Table.read(SPTcatalogfile)
-        WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
-        self.WLcalib = WLsimcalib.WLcalibration
+        self.HSTcalib = Table.read(HSTcalibfile, format='ascii.commented_header')
 
 
 
@@ -207,7 +206,8 @@ class MassCalibration:
         # LSS noise for HST
         if self.catalog['WLdata'][dataID]['datatype']=='HST':
             mean = np.exp(lnMwl)
-            std = self.WLcalib['HSTsim'][self.catalog['SPT_ID'][dataID]]['obs_scatter']
+            idx = (self.HSTcalib['SPT_ID']==self.catalog['SPT_ID'][dataID]).nonzero()[0]
+            std = np.sqrt(self.HSTcalib['LSS'][idx]**2 + self.HSTcalib['LOS'][idx]**2)
             r_min = norm.cdf(self.WL.M_arr[0], loc=mean, scale=std)
             r_max = norm.cdf(self.WL.M_arr[-1], loc=mean, scale=std)
             r = r_min + (r_max-r_min)*self.rng.random(Ndraw)

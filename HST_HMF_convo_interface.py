@@ -4,7 +4,7 @@ import HST_HMF_convo
 
 def setup(options):
     # WL simulation calibration data
-    WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
+    HSTcalibfile = options.get_string(option_section, 'HSTcalibfile')
 
     observable_pairs = options.get_string(option_section, 'observable_pairs').split()
     pairs_zmin = options.get_double_array_1d(option_section, 'pairs_zmin')
@@ -14,7 +14,7 @@ def setup(options):
     assert len(pairs_zmax)==len(observable_pairs), "Bad length of pairs_zmax"
     assert len(pairs_Nz)==len(observable_pairs), "Bad length of pairs_Nz"
 
-    multi_obs_convolution = HST_HMF_convo.MultiObsConvolution(WLsimcalibfile,
+    multi_obs_convolution = HST_HMF_convo.MultiObsConvolution(HSTcalibfile,
                                                               observable_pairs,
                                                               pairs_zmin, pairs_zmax, pairs_Nz)
 
@@ -28,7 +28,7 @@ def execute(block, multi_obs_convolution):
         multi_obs_convolution.scaling[p] = block.get_double('mor_parameters', p)
     # Covariance matrices
     multi_obs_convolution.covmat = {}
-    for name in multi_obs_convolution.WLcalib['HSTsim'].keys():
+    for name in multi_obs_convolution.HSTcalib['SPT_ID']:
         cov_name = 'cov_HST_SZ_%s'%name
         multi_obs_convolution.covmat[cov_name] = block.get_double_array_nd('mor_parameters', cov_name)
         cov_name = 'cov_HST_X_SZ_%s'%name
@@ -45,7 +45,7 @@ def execute(block, multi_obs_convolution):
 
     ##### Put back into block
     for pair_name in multi_obs_convolution.observable_pairs:
-        for name in multi_obs_convolution.WLcalib['HSTsim'].keys():
+        for name in multi_obs_convolution.HSTcalib['SPT_ID']:
             block.put_double_array_nd('dN_dmultiobs', '%s_%s'%(pair_name, name), HST_convo_dict[pair_name][name])
 
     return 0
