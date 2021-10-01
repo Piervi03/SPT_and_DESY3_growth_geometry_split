@@ -117,12 +117,14 @@ class SPTlensing:
     ########################################
 
 
-    def cluster_member_cont(self, r, cluster):
+    def cluster_member_cont(self, r, cluster, Rmis):
         """Return f_cl as function of `r`."""
-        r_s = (cluster['richness']/70)**(1/3) / 10**self.WLcalib['boost']['logc']
+        r_s = (cluster['richness']/60)**(1/3) / 10**self.WLcalib['boost']['logc']
         P_r = get_Sigma(r/r_s, r_s, 1, 1)/get_Sigma(1/r_s, r_s, 1, 1)
+        P_at_Rmis = get_Sigma(Rmis/r_s, r_s, 1, 1)/get_Sigma(1/r_s, r_s, 1, 1)
+        P_r[r<Rmis] = P_at_Rmis
         A_z = np.exp(self.WLcalib['boost']['A_inf'] + np.sum(self.WLcalib['boost']['A'] * np.exp(-.5*(cluster['REDSHIFT']-self.WLcalib['boost']['z_arr'])**2/self.WLcalib['boost']['corr_len']**2)))
-        A = (cluster['richness']/70)**self.WLcalib['boost']['Blambda'] * A_z * P_r
+        A = (cluster['richness']/60)**self.WLcalib['boost']['Blambda'] * A_z * P_r
         return A
 
 
@@ -165,7 +167,7 @@ class SPTlensing:
         reduced_shear = Delta_Sigma/Sigma_c / (1 - Sigma_mis/Sigma_c)
 
         # Cluster member contamination
-        A = self.cluster_member_cont(r_Mpch, self.cat_cl)
+        A = self.cluster_member_cont(r_Mpch, self.cat_cl, R_mis)
         reduced_shear_cont = 1/(1+A) * reduced_shear
 
         # Likelihood!

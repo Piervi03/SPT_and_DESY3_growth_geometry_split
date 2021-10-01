@@ -24,8 +24,8 @@ class MisCentering(object):
 
     def get_mean_Rmis_optical(self, cluster):
         """Mean miscentering [Mpc/h] for optical centers."""
-        alpha = 10**self.opt['alpha_opt_0'] * (cluster['richness']/70)**self.opt['alpha_opt_lambda']
-        R = np.sqrt(np.pi/2) * (alpha/(1+alpha) * 10**self.opt['sigma_opt_0'] + 1/(1+alpha) * 10**self.opt['sigma_opt_1'])
+        rho, sigma_0, sigma_1 = self.generic_miscenter(self.opt, cluster['richness'], cluster['REDSHIFT'])
+        R = np.sqrt(np.pi/2) * (rho*sigma_0 + (1-rho)*sigma_1)
         return R
 
     def get_mean_Rmis_SPT(self, cluster, cosmology):
@@ -33,9 +33,17 @@ class MisCentering(object):
         intrinsic SZ miscentering."""
         sigma_obs_arcmin = np.sqrt(1.3**2 + self.opt['kappa_SPT']**2 * cluster['THETA_CORE']**2)/cluster['XI']
         sigma_obs_Mpch = sigma_obs_arcmin / 60 * np.pi/180 * cosmo.dA(cluster['REDSHIFT'], cosmology)
-        sigma0 = np.sqrt((10**self.opt['SZ_comp0_0'])**2 + sigma_obs_Mpch**2)
-        sigma1 = np.sqrt((10**self.opt['SZ_comp1_0'])**2 + sigma_obs_Mpch**2)
-        alpha = 10**self.opt['alpha_SZ_0']
-        R = np.sqrt(np.pi/2) * (alpha/(1+alpha) * sigma0 + 1/(1+alpha) * sigma1)
+        rho, sigma_0, sigma_1 = self.generic_miscenter(self.opt, cluster['richness'], cluster['REDSHIFT'])
+        sigma_0 = np.sqrt(sigma_0**2 + sigma_obs_Mpch**2)
+        sigma_1 = np.sqrt(sigma_1**2 + sigma_obs_Mpch**2)
+        R = np.sqrt(np.pi/2) * (rho*sigma_0 + (1-rho)*sigma_1)
         return R
 
+    def generic_miscenter(self, params, lam, z):
+        """Return parameters of generic intrinsic miscentering in units [Mpc/h]."""
+        r500 = (lam/60)**(params['B_lambda']/3) * ((1+z)/1.5)**params['C_lambda']
+        alpha = params['alpha_0'] * ((1+z)/1.5)**params['alpha_z'] * (lam/60)**params['alpha_lam']
+        mis_phys_0 = r500 * params['comp0_0'] * ((1+z)/1.5)**params['comp0_z'] * (lam/60)**params['comp0_lam']
+        Delta_mis_phys = r500 * params['comp1_0'] * ((1+z)/1.5)**params['comp1_z'] * (lam/60)**params['comp1_lam']
+        mis_phys_1 = mis_phys_0 + Delta_mis_phys
+        return alpha, mis_phys_0, mis_phys_1
