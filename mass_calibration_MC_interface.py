@@ -66,28 +66,30 @@ def execute(block, masscalibration):
     scaling = {'YXPARAM': masscalibration.YXPARAM}
     for p in ['Asz', 'Bsz', 'Csz', 'Dsz', 'Bsz2', 'Csz2', 'Esz', 'SPECS_calib', 'SZmPivot', 'zeta_min',
               'Ax', 'Bx', 'Cx', 'Ex', 'dlnMg_dlnr', 'XraymPivot',
-              'DES_b_dev_0', 'DES_b_dev_1', 'DES_b_dev_2',
-              'DES_s_dev_0', 'DES_s_dev_1', 'DES_s_dev_2',
-              'DES_b_m', 'DES_s_M', 'DES_m_piv',
               'HSTscatterLSS', 'MegacamScatterLSS',
               'bWL_Megacam', 'DWL_Megacam',
               'Arichness', 'Brichness', 'Crichness', 'Drichness', 'richmPivot',
               'rhoSZrichness', 'rhoWLrichness', 'rhoSZWL',
               'Adisp', 'Bdisp', 'Cdisp',]:
         scaling[p] = block.get_double('mor_parameters', p)
-    for p in ['DESwl_z', 'DESwl_bias_mean', 'DESwl_bias_std']:
-        scaling[p] = block.get_double_array_1d('mor_parameters', p)
-    for p in ['cov_X_SZ', 'cov_Megacam_SZ', 'cov_richness_SZ', 'cov_Megacam_X_SZ', ]:
-        scaling[p] = block.get_double_array_nd('mor_parameters', p)
-
+    # DES
+    if block.has_value('mor_parameters', 'DESwl_z'):
+        for p in ['DES_b_dev_0', 'DES_b_dev_1', 'DES_b_dev_2',
+                  'DES_s_dev_0', 'DES_s_dev_1', 'DES_s_dev_2',
+                  'DES_b_m', 'DES_s_M', 'DES_m_piv']:
+            scaling[p] = block.get_double('mor_parameters', p)
+        for p in ['DESwl_z', 'DESwl_bias_mean', 'DESwl_bias_std', 'DESwl_scatter_mean', 'DESwl_scatter_std']:
+            scaling[p] = block.get_double_array_1d('mor_parameters', p)
+    # HST
     scaling['bWL_HST'], scaling['DWL_HST'] = {}, {}
     for name in masscalibration.WLcalib['HSTsim'].keys():
         scaling['bWL_HST'][name] = block.get_double('mor_parameters', 'bWL_HST_%s'%name)
         scaling['DWL_HST'][name] = block.get_double('mor_parameters', 'DWL_HST_%s'%name)
         for c in ['cov_HST_SZ_%s'%name, 'cov_HST_X_SZ_%s'%name, 'cov_HST_richness_SZ_%s'%name]:
             scaling[c] = block.get_double_array_nd('mor_parameters', c)
-    for p in ['DESwl_z', 'DESwl_scatter_mean', 'DESwl_scatter_std']:
-        scaling[p] = block.get_double_array_1d('mor_parameters', p)
+    # Covariance matrices
+    for p in ['cov_X_SZ', 'cov_Megacam_SZ', 'cov_richness_SZ', 'cov_Megacam_X_SZ', ]:
+        scaling[p] = block.get_double_array_nd('mor_parameters', p)
 
     # Halo mass function
     HMF = {
