@@ -13,15 +13,14 @@ def setup(options):
                     'cov': np.cov(tmp[:,:8], rowvar=False),}
     # Add systematic uncertainty due to hydro
     hydro_corr = {'b': .02, 'b_M': .018, 's': .25, 's_M': .59}
-    # corrcoef = np.corrcoef(tmp[:,:8], rowvar=False)
     DES_WL_prior['cov'][:3,:3]+= hydro_corr['b']**2 * np.eye(3)
     DES_WL_prior['cov'][3,3]+= hydro_corr['b_M']**2
     DES_WL_prior['cov'][4:7,4:7]+= hydro_corr['s']**2 * np.eye(3)
     DES_WL_prior['cov'][7,7]+= hydro_corr['s_M']**2
     
     # Individual components for ease of use
-    DES_WL_prior['DESwl_bias_mean'] = np.mean(tmp[:,:3], axis=0)
-    DES_WL_prior['DESwl_scatter_mean'] = np.mean(tmp[:,4:7], axis=0)
+    DES_WL_prior['DESwl_bias_mean'] = DES_WL_prior['mean'][:3]
+    DES_WL_prior['DESwl_scatter_mean'] = DES_WL_prior['mean'][4:7]
     DES_WL_prior['DESwl_bias_std'] = np.sqrt(np.diag(DES_WL_prior['cov'][:3,:3]))
     DES_WL_prior['DESwl_scatter_std'] = np.sqrt(np.diag(DES_WL_prior['cov'][4:7,4:7]))
 
@@ -30,8 +29,10 @@ def setup(options):
 
 def execute(block, DES_WL_prior):
     # Create full array of entries as in posterior file
-    b = DES_WL_prior['DESwl_bias_mean'] + block.get_double('mor_parameters', 'DES_b_dev')*DES_WL_prior['DESwl_bias_std']
-    s = DES_WL_prior['DESwl_scatter_mean'] + block.get_double('mor_parameters', 'DES_s_dev')*DES_WL_prior['DESwl_scatter_std']
+    dev = np.array([block.get_double('mor_parameters', 'DES_b_dev_%d'%i) for i in range(3)])
+    b = DES_WL_prior['DESwl_bias_mean'] + dev*DES_WL_prior['DESwl_bias_std']
+    dev = np.array([block.get_double('mor_parameters', 'DES_s_dev_%d'%i) for i in range(3)])
+    s = DES_WL_prior['DESwl_scatter_mean'] + dev*DES_WL_prior['DESwl_scatter_std']
     p = [b[0], b[1], b[2], block.get_double('mor_parameters', 'DES_b_m'), s[0], s[1], s[2], block.get_double('mor_parameters', 'DES_s_m')]
 
     # Likelihood

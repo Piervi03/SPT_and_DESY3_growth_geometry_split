@@ -189,7 +189,7 @@ class MockUpDESWL:
         g_t_mis = (Sigma_mis-Sigma_mis_mean)/Sigma_c / (1 - Sigma_mis/Sigma_c)
         g_t_cen = Delta_Sigma_NFW/Sigma_c / (1-Sigma_NFW/Sigma_c)
 
-        return g_t_mis, g_t_cen
+        return g_t_mis, g_t_cen, R_mis
 
 
     def draw_source_weight(self, BIN, N):
@@ -227,11 +227,13 @@ class MockUpDESWL:
         return beta_avg
 
 
-    def apply_cl_mem_contamination(self, z, g_t):
-        r_s_fcl = (self.cat['richness']/70)**(1/3) / 10**self.config_mod.DES['boost']['logc']
+    def apply_cl_mem_contamination(self, z, Rmis, g_t):
+        r_s_fcl = (self.cat['richness']/60)**(1/3) / 10**self.config_mod.DES['boost']['logc']
         Sigma_fcl = get_Sigma(self.r_arr/r_s_fcl, r_s_fcl, self.rho_c_z, 1)/get_Sigma(1/r_s_fcl, r_s_fcl, self.rho_c_z, 1)
+        Sigma_at_Rmis = get_Sigma(Rmis/r_s_fcl, r_s_fcl, self.rho_c_z, 1)/get_Sigma(1/r_s_fcl, r_s_fcl, self.rho_c_z, 1)
+        Sigma_fcl[self.r_arr<=Rmis] = Sigma_at_Rmis
         A_z = np.exp(self.config_mod.DES['boost']['A_inf'] + np.sum(self.config_mod.DES['boost']['A'] * np.exp(-.5*(z-self.config_mod.DES['boost']['z_arr'])**2/self.config_mod.DES['boost']['corr_len']**2)))
-        A = (self.cat['richness']/70)**self.config_mod.DES['boost']['Blambda'] * A_z * Sigma_fcl
+        A = (self.cat['richness']/60)**self.config_mod.DES['boost']['Blambda'] * A_z * Sigma_fcl
         reduced_shear_cont = 1/(1+A) * g_t
 
         return reduced_shear_cont
@@ -264,8 +266,8 @@ class MockUpDESWL:
         beta_avg = self.get_beta(z_cl, source_dist_r)
         # beta_avg0 = self.get_beta(z_cl, source_dist[None,:])
         # print(beta_avg, beta_avg0)
-        g_t_mis, g_t_cen = self.get_miscentered_gt(z_cl, beta_avg)
-        g_t_cont = self.apply_cl_mem_contamination(z_cl, g_t_mis)
+        g_t_mis, g_t_cen, R_mis = self.get_miscentered_gt(z_cl, beta_avg)
+        g_t_cont = self.apply_cl_mem_contamination(z_cl, R_mis, g_t_mis)
 
         # Error on shear is shape_noise / sqrt(N(r))
         good_idx = (np.isfinite(g_t_cont)&(N_r>4)).nonzero()[0]

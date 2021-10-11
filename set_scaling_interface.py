@@ -19,7 +19,9 @@ def execute(block, scaling_setter):
         scaling[p] = block.get_double('mor_parameters', p)
     # See if DES model is defined, else skip
     if block.has_value('mor_parameters', 'DESwl_z'):
-        for p in ['DES_s_dev', 'DES_s_M', 'DES_m_piv']:
+        for p in ['DES_b_dev_0', 'DES_b_dev_1', 'DES_b_dev_2',
+                  'DES_s_dev_0', 'DES_s_dev_1', 'DES_s_dev_2',
+                  'DES_b_m', 'DES_s_M', 'DES_m_piv']:
             scaling[p] = block.get_double('mor_parameters', p)
         for p in ['DESwl_z', 'DESwl_scatter_mean', 'DESwl_scatter_std']:
             scaling[p] = block.get_double_array_1d('mor_parameters', p)
