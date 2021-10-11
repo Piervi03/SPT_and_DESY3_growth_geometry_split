@@ -6,7 +6,8 @@ import set_scaling
 
 def setup(options):
     WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
-    scaling_setter = set_scaling.SetScaling(WLsimcalibfile)
+    HSTcalibfile = options.get_string(option_section, 'HSTcalibfile')
+    scaling_setter = set_scaling.SetScaling(WLsimcalibfile, HSTcalibfile)
     return scaling_setter
 
 def execute(block, scaling_setter):
@@ -31,7 +32,7 @@ def execute(block, scaling_setter):
             block.put_double('mor_parameters', p, scaling[p])
         for p in ['cov_X_SZ', 'cov_richness_SZ', 'cov_Megacam_SZ', 'cov_Megacam_X_SZ']:
             block.put_double_array_nd('mor_parameters', p, scaling[p])
-        for name in scaling_setter.WLcalib['HSTsim'].keys():
+        for name in scaling_setter.HSTcalib['SPT_ID']:
             block.put_double('mor_parameters', 'bWL_HST_%s'%name, scaling['bWL_HST'][name])
             block.put_double('mor_parameters', 'DWL_HST_%s'%name, scaling['DWL_HST'][name])
             block.put_double_array_nd('mor_parameters', 'cov_HST_SZ_%s'%name, scaling['cov_HST_SZ_%s'%name])

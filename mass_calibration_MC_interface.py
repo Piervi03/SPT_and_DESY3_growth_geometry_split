@@ -28,11 +28,13 @@ def setup(options):
     SPTcatalogfile = options.get_string(option_section, 'SPTcatalogfile')
     # WL param file
     WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
+    # HST file
+    HSTcalibfile = options.get_string(option_section, 'HSTcalibfile')
 
     masscalibration = mass_calibration.MassCalibration(todo, method, mcType,
                                                        surveyCutRedshift, surveyCutLambda,
                                                        SPT_survey_fields, SPT_doublecounts, SPTcatalogfile,
-                                                       WLsimcalibfile,
+                                                       HSTcalibfile,
                                                        NPROC)
     masscalibration.YXPARAM = options.get_string(option_section, 'YXPARAM')
 
@@ -82,7 +84,7 @@ def execute(block, masscalibration):
             scaling[p] = block.get_double_array_1d('mor_parameters', p)
     # HST
     scaling['bWL_HST'], scaling['DWL_HST'] = {}, {}
-    for name in masscalibration.WLcalib['HSTsim'].keys():
+    for name in masscalibration.HSTcalib['SPT_ID']:
         scaling['bWL_HST'][name] = block.get_double('mor_parameters', 'bWL_HST_%s'%name)
         scaling['DWL_HST'][name] = block.get_double('mor_parameters', 'DWL_HST_%s'%name)
         for c in ['cov_HST_SZ_%s'%name, 'cov_HST_X_SZ_%s'%name, 'cov_HST_richness_SZ_%s'%name]:
