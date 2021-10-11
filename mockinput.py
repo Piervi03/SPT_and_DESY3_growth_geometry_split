@@ -1,6 +1,6 @@
 import numpy as np
 
-SPT_survey = '/home/bocquet/SPT_cluster_data/SPT_SZ_ECS_500d_survey_210529_xigtr4p25.txt'
+SPT_survey = '/home/bocquet/SPT_cluster_data/SPT_SZ_ECS_500d_survey_210529_mix.txt'
 
 random_seed = 0
 
@@ -25,7 +25,8 @@ scaling = {'Asz': .96, 'Bsz': 1.5, 'Csz': .5, 'Dsz': .2, 'zeta_min': 1.,
            'DWL_HST': .3,
 
            'DES_m_piv': 2e14,
-           'DES_b_dev': 0, 'DES_b_m': .98, 'DES_s_dev': 0, 'DES_s_M': -.826,
+           'DES_b_dev_0': 0,  'DES_b_dev_1': 0., 'DES_b_dev_2': 0.,
+           'DES_s_dev_0': 0., 'DES_s_dev_1': 0., 'DES_s_dev_2': 0,
 
            'Adisp':939., 'Bdisp':2.91, 'Cdisp':.33, 'Ddisp0':.2, 'DdispN':3.,
            'Arichness': 70., 'Brichness': 1., 'Crichness': 0., 'Drichness': .2,
@@ -39,12 +40,14 @@ scaling = {'Asz': .96, 'Bsz': 1.5, 'Csz': .5, 'Dsz': .2, 'zeta_min': 1.,
            'richmPivot': 3e14,
             'YXPARAM': 'SPT_XVP',
            }
-tmp = np.loadtxt('/archive2/users/grandis/DES-Y3-SPT/SPTmis-centering/_18-25_metapost_')
+tmp = np.loadtxt('/archive2/users/grandis/DES-Y3-SPT/SZ-dnf/_18-25_metapost_')
 scaling['DESwl_z'] = [.252, .470, .783,]
 scaling['DESwl_bias_mean'] = np.mean(tmp[:,:3], axis=0)
 scaling['DESwl_bias_std'] = np.std(tmp[:,:3], axis=0)
 scaling['DESwl_scatter_mean'] = np.mean(tmp[:,4:7], axis=0)
 scaling['DESwl_scatter_std'] = np.std(tmp[:,4:7], axis=0)
+scaling['DES_b_m'] = np.mean(tmp[:,3])
+scaling['DES_s_M'] = np.mean(tmp[:,7])
 
 # SPT survey cuts
 surveyCutRedshift = (0.25, 2.)
