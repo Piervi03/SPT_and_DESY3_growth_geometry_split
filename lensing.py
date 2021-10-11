@@ -136,7 +136,7 @@ class SPTlensing:
         Sigma_c = 1.6624541593797974e+18/Dl/self.beta_avg
         rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.cat_cl['REDSHIFT'], self.cosmology)**2 # [h^2 Msun/Mpc^3]
         r200c = (3*self.M_arr/4/np.pi/200/rho_c_z)**(1/3)
-        c200c = self.MCrel_DES.calC200(self.M_arr, self.cat_cl['REDSHIFT'])
+        c200c = self.MCrel_DES.calC200(self.M_arr, self.cat_cl['REDSHIFT']) * np.ones(self.len_M_arr)
         delta_c = 200/3 * c200c**3 / (np.log(1+c200c) - c200c/(1+c200c))
         r_s = r200c/c200c
 
