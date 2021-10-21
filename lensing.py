@@ -57,7 +57,7 @@ class SPTlensing:
         if self.mcType != 'None':
             self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, self.cosmology,
                                                                            setup_interp=True, interp_massdef=500)
-        self.MCrel_DES = Mconversion_concentration.ConcentrationConversion('Child18_obs')
+        self.MCrel_DES = Mconversion_concentration.ConcentrationConversion(3.5)
 
         # Go through all clusters with WL data
         WL_idx = (catalog['WLdata'] != None).nonzero()[0]
@@ -117,17 +117,6 @@ class SPTlensing:
     ########################################
 
 
-    def cluster_member_cont(self, r, cluster, Rmis):
-        """Return f_cl as function of `r`."""
-        r_s = (cluster['richness']/60)**(1/3) / 10**self.WLcalib['boost']['logc']
-        P_r = get_Sigma(r/r_s, r_s, 1, 1)/get_Sigma(1/r_s, r_s, 1, 1)
-        P_at_Rmis = get_Sigma(Rmis/r_s, r_s, 1, 1)/get_Sigma(1/r_s, r_s, 1, 1)
-        P_r[r<Rmis] = P_at_Rmis
-        A_z = np.exp(self.WLcalib['boost']['A_inf'] + np.sum(self.WLcalib['boost']['A'] * np.exp(-.5*(cluster['REDSHIFT']-self.WLcalib['boost']['z_arr'])**2/self.WLcalib['boost']['corr_len']**2)))
-        A = (cluster['richness']/60)**self.WLcalib['boost']['Blambda'] * A_z * P_r
-        return A
-
-
     def lnlike_DES(self):
         """Return array lnP(DES data|Mwl)."""
 
@@ -167,7 +156,7 @@ class SPTlensing:
         reduced_shear = Delta_Sigma/Sigma_c / (1 - Sigma_mis/Sigma_c)
 
         # Cluster member contamination
-        A = self.cluster_member_cont(r_Mpch, self.cat_cl, R_mis)
+        A = boost_get_A(self.WLcalib['boost'], 'Gausssmooth', self.WLcalib['boost']['z_arr'], self.cat_cl['REDSHIFT'], self.cat_cl['richness'], r_Mpch, R_mis)
         reduced_shear_cont = 1/(1+A) * reduced_shear
 
         # Likelihood!
@@ -353,7 +342,26 @@ def get_Sigma(x, r_s, rho_c_z, delta_c):
     val2 = (arcsec(x) / (sm.sqrt(x**2 - 1))**3).real
     return fac * (val1-val2)
 
-
+def boost_get_A(params, method, z_arr, z, lam, r_Mpc_over_h, Rmis):
+    """Compute A(z, lambda, r) where fcl = A/(1+A)."""
+    # Radial dependence normalized to 1 at 1Mpc/h [r]
+    r_s = (lam/60)**(1/3) / 10**params['logc']
+    P_r = get_Sigma(r_Mpc_over_h/r_s, r_s, 1, 1)/get_Sigma(1/r_s, r_s, 1, 1)
+    # Simplified model for miscentered profile
+    P_at_Rmis = get_Sigma(Rmis/r_s, r_s, 1, 1)/get_Sigma(1/r_s, r_s, 1, 1)
+    P_r[r_Mpc_over_h<Rmis] = P_at_Rmis
+    # Redshift dependence
+    if method=='z_bins':
+        z_idx = np.digitize(z, z_arr)-1
+        A_z = np.exp(params['A_%d'%z_idx])
+    elif method=='Gausssmooth':
+        amps = [params['A_%d'%i] for i in range(len(z_arr))]
+        A_z = np.exp(params['A_inf'] + np.sum(amps * np.exp(-.5*(z-z_arr)**2/params['corr_len']**2)))
+    # Richness dependence
+    A_lambda = (lam/60)**params['Blambda']
+    # Put it all together [r]
+    A = A_z*A_lambda*P_r
+    return A
 
 ################################################################################
 def readdata(catalog, HSTfile, MegacamFile, DESfile):
