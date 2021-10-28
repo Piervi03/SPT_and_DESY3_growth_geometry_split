@@ -26,20 +26,41 @@ class SPTlensing:
 
     def __init__(self, catalog, WLsimcalibfile,
                  HSTfile, MegacamFile, DESfile,
+                 DESboostfile, DESmiscenterfile, DEScentertype,
                  mcType,
                  NPROC):
         WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
         self.WLcalib = WLsimcalib.WLcalibration
-        self.miscenterer = miscentering.MisCentering(self.WLcalib['miscenter_opt'])
-
+        # Read boost chain
+        with open(DESboostfile, 'r') as f:
+            tmp = f.readline().split()[1:]
+        dat = np.median(np.loadtxt(DESboostfile), axis=0)
+        self.boost_dict = {'z_arr': np.linspace(.2, .9, 10)}
+        for n,name in enumerate(tmp):
+            self.boost_dict[name] = dat[n]
+        # Initialize miscentering
+        with open(DESmiscenterfile, 'r') as f:
+            tmp = f.readline().split()[1:]
+        dat = np.median(np.loadtxt(DESmiscenterfile), axis=0)
+        miscenter_dict = {}
+        for n,name in enumerate(tmp):
+            miscenter_dict[name] = dat[n]
+        miscenter_dict['SPT'] = {'kind': DEScentertype, 'kappa_SPT': miscenter_dict['kappa_SPT']}
+        miscenter_dict['MCMF'] = {'kind': DEScentertype}
+        for glob,this in zip(['alpha_SZ_0', 'alpha_SZ_z', 'alpha_SZ_lam', 'SZ_comp0_0', 'SZ_comp0_z', 'SZ_comp0_lam', 'SZ_comp1_0', 'SZ_comp1_z', 'SZ_comp1_lam'],
+                             ['alpha_0', 'alpha_z', 'alpha_lam', 'comp0_0', 'comp0_z', 'comp0_lam', 'comp1_0', 'comp1_z', 'comp1_lam']):
+            miscenter_dict['SPT'][this] = miscenter_dict[glob]
+        for glob,this in zip(['alpha_opt_0', 'alpha_opt_z', 'alpha_opt_lam', 'opt_comp0_0', 'opt_comp0_z', 'opt_comp0_lam', 'opt_comp1_0', 'opt_comp1_z', 'opt_comp1_lam'],
+                             ['alpha_0', 'alpha_z', 'alpha_lam', 'comp0_0', 'comp0_z', 'comp0_lam', 'comp1_0', 'comp1_z', 'comp1_lam']):
+            miscenter_dict['MCMF'][this] = miscenter_dict[glob]
+        self.miscenterer = miscentering.MisCentering(miscenter_dict[DEScentertype])
+        # Set up more stuff
         self.len_M_arr = 32
         self.M_arr = np.logspace(grid_lgM_min, grid_lgM_max, self.len_M_arr)
         self.lnM_arr = np.log(self.M_arr)
-
         self.NPROC = NPROC
-
         self.mcType = mcType
-
+        # Read lensing data
         readdata(catalog, HSTfile, MegacamFile, DESfile)
         if DESfile != 'None':
             with h5py.File(DESfile, 'r') as f:
@@ -156,7 +177,7 @@ class SPTlensing:
         reduced_shear = Delta_Sigma/Sigma_c / (1 - Sigma_mis/Sigma_c)
 
         # Cluster member contamination
-        A = boost_get_A(self.WLcalib['boost'], 'Gausssmooth', self.WLcalib['boost']['z_arr'], self.cat_cl['REDSHIFT'], self.cat_cl['richness'], r_Mpch, R_mis)
+        A = boost_get_A(self.boost_dict, 'Gausssmooth', self.boost_dict['z_arr'], self.cat_cl['REDSHIFT'], self.cat_cl['richness'], r_Mpch, R_mis)
         reduced_shear_cont = 1/(1+A) * reduced_shear
 
         # Likelihood!
