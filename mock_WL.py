@@ -32,19 +32,12 @@ def main():
         g = f.create_group('clusters')
         for i,name in enumerate(cat['SPT_ID']):
             if (cat['REDSHIFT'][i]>0)&(cat['REDSHIFT'][i]<WLconfigMod.DES['WL_z_max'])&(cat['FIELD'][i] not in ['ra11hdec-25', 'ra13hdec-25', 'ra23hdec-25', 'ra23hdec-35']):
-                r_Mpch, r_arcmin, g_t, g_t_err, source_dist, g_t_cen, g_t_mis, g_t_noerr, beta, tomo_weights = mock_WL(cat[i])
+                res_dict = mock_WL(cat[i])
+
                 gg = g.create_group(name)
                 d = gg.create_dataset('z_cluster', data=cat['REDSHIFT'][i])
-                d = gg.create_dataset('r_arcmin', data=r_arcmin)
-                d = gg.create_dataset('r_Mpch', data=r_Mpch)
-                d = gg.create_dataset('shear', data=g_t)
-                d = gg.create_dataset('shear_err', data=g_t_err)
-                d = gg.create_dataset('shear_cen', data=g_t_cen)
-                d = gg.create_dataset('shear_mis', data=g_t_mis)
-                d = gg.create_dataset('shear_noerr', data=g_t_noerr)
-                d = gg.create_dataset('source_Nz', data=source_dist)
-                d = gg.create_dataset('beta', data=beta)
-                d = gg.create_dataset('tomo_weights', data=tomo_weights)
+                for k in res_dict.keys():
+                    d = gg.create_dataset(k, data=res_dict[k])
 
     # HST weak lensing
     mock_WL = MockUpHSTWL(cosmology, sys.argv[1][:-3])
@@ -264,7 +257,19 @@ class MockUpDESWL:
         g_t_err = self.config_mod.DES['shape_noise'] / np.sqrt(N_r[good_idx])
         g_t+= g_t_err*self.rng.standard_normal(len(g_t))
 
-        return self.r_arr[good_idx], self.r_arcmin[good_idx], g_t, g_t_err, source_dist, g_t_cen[good_idx], g_t_mis[good_idx], g_t_cont[good_idx], beta_avg[good_idx], self.tomo_weights
+        res_dict = {'r_Mpch': self.r_arr[good_idx],
+                    'r_arcmin': self.r_arcmin[good_idx],
+                    'shear_cen': g_t_cen[good_idx],
+                    'shear_mis': g_t_mis[good_idx],
+                    'shear_noerr': g_t_cont[good_idx],
+                    'shear': g_t,
+                    'shear_err': g_t_err,
+                    'source_dist': source_dist,
+                    'beta': beta_avg[good_idx],
+                    'tomo_weights': self.tomo_weights,
+                   }
+        return res_dict
+
 
 ################################################################################
 
