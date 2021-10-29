@@ -14,11 +14,11 @@ def generic_miscenter(params, lam, z):
 class MisCentering(object):
 
     def __init__(self, opt):
-        assert opt['kind'] in ['G21', 'optical', 'SPT'], "unexpected kind %s, kind must be G21, optical, SPT"%kind
+        assert opt['kind'] in ['G21', 'optical', 'MCMF', 'SPT'], "unexpected kind %s, kind must be G21, optical, MCMF, SPT"%kind
         self.opt = opt
 
     def get_mean_Rmis(self, cluster, cosmology=None):
-        if self.opt['kind']=='optical':
+        if self.opt['kind'] in ['optical', 'MCMF']:
             return self.get_mean_Rmis_optical(cluster)
         elif self.opt['kind']=='SPT':
             return self.get_mean_Rmis_SPT(cluster, cosmology)

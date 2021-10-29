@@ -44,9 +44,13 @@ def setup(options):
         HSTfile = options.get_string(option_section, 'HSTfile')
         MegacamFile = options.get_string(option_section, 'MegacamFile')
         DESfile = options.get_string(option_section, 'DESfile')
+        DESboostfile = options.get_string(option_section, 'DESboostfile')
+        DESmiscenterfile = options.get_string(option_section, 'DESmiscenterfile')
+        DEScentertype = options.get_string(option_section, 'DEScentertype')
         masscalibration.WL = lensing.SPTlensing(masscalibration.catalog,
                                                 WLsimcalibfile,
                                                 HSTfile, MegacamFile, DESfile,
+                                                DESboostfile, DESmiscenterfile, DEScentertype,
                                                 mcType,
                                                 NPROC)
 

@@ -10,7 +10,7 @@ import importlib
 from astropy.table import Table
 from scipy.interpolate import interp1d, InterpolatedUnivariateSpline
 
-import cosmo, Mconversion_concentration, miscentering
+import cosmo, lensing, Mconversion_concentration, miscentering
 
 # Syntax
 # python mock_WL.py WLconfig mockconfig catalog.fits
@@ -32,19 +32,12 @@ def main():
         g = f.create_group('clusters')
         for i,name in enumerate(cat['SPT_ID']):
             if (cat['REDSHIFT'][i]>0)&(cat['REDSHIFT'][i]<WLconfigMod.DES['WL_z_max'])&(cat['FIELD'][i] not in ['ra11hdec-25', 'ra13hdec-25', 'ra23hdec-25', 'ra23hdec-35']):
-                r_Mpch, r_arcmin, g_t, g_t_err, source_dist, g_t_cen, g_t_mis, g_t_noerr, beta, tomo_weights = mock_WL(cat[i])
+                res_dict = mock_WL(cat[i])
+
                 gg = g.create_group(name)
                 d = gg.create_dataset('z_cluster', data=cat['REDSHIFT'][i])
-                d = gg.create_dataset('r_arcmin', data=r_arcmin)
-                d = gg.create_dataset('r_Mpch', data=r_Mpch)
-                d = gg.create_dataset('shear', data=g_t)
-                d = gg.create_dataset('shear_err', data=g_t_err)
-                d = gg.create_dataset('shear_cen', data=g_t_cen)
-                d = gg.create_dataset('shear_mis', data=g_t_mis)
-                d = gg.create_dataset('shear_noerr', data=g_t_noerr)
-                d = gg.create_dataset('source_Nz', data=source_dist)
-                d = gg.create_dataset('beta', data=beta)
-                d = gg.create_dataset('tomo_weights', data=tomo_weights)
+                for k in res_dict.keys():
+                    d = gg.create_dataset(k, data=res_dict[k])
 
     # HST weak lensing
     mock_WL = MockUpHSTWL(cosmology, sys.argv[1][:-3])
@@ -68,56 +61,26 @@ def main():
     # Create setup file
     with open ('WLsimcalib_%s.py'%datetime, 'w') as f:
         f.write("import numpy as np\n\n")
-        f.write("WLcalibration = {\n    # HST\n    'HSTsim': {\n")
-        for i,name in enumerate(cat['SPT_ID']):
-            if cat['Mwl_HST_200'][i]>0:
-                f.write("        '%s': {'z': %.3f, 'bias': [%.3f, %.3f, %.3f, %.3f], 'obs_scatter': %.3e, 'center_err': %.3f},\n"%(
-                name, cat['REDSHIFT'][i], 1, .02, mockconfigMod.scaling['DWL_HST'], .05, 6e13, .075))
-        f.write("    },\n")
-        f.write("    'HSTmcErr': .04,\n")
-        f.write("    'HSTshearErr': .023,\n")
-        f.write("    'HSTzDistErr': .047,\n")
-        f.write("\n    # DES\n")
-        f.write("    'miscenter_opt': {\n")
-        for k in WLconfigMod.DES['miscenter_opt'].keys():
-            f.write("        '%s': %s,\n"%(k, str(WLconfigMod.DES['miscenter_opt'][k])))
-        f.write("    },\n")
-        f.write("    'boost': {\n")
-        for k in WLconfigMod.DES['boost'].keys():
-            f.write("        '%s': %s,\n"%(k, str(WLconfigMod.DES['boost'][k])))
-        f.write("    },\n")
+        #f.write("WLcalibration = {\n    # HST\n    'HSTsim': {\n")
+        #for i,name in enumerate(cat['SPT_ID']):
+        #    if cat['Mwl_HST_200'][i]>0:
+        #        f.write("        '%s': {'z': %.3f, 'bias': [%.3f, %.3f, %.3f, %.3f], 'obs_scatter': %.3e, 'center_err': %.3f},\n"%(
+        #        name, cat['REDSHIFT'][i], 1, .02, mockconfigMod.scaling['DWL_HST'], .05, 6e13, .075))
+        #f.write("    },\n")
+        #f.write("    'HSTmcErr': .04,\n")
+        #f.write("    'HSTshearErr': .023,\n")
+        #f.write("    'HSTzDistErr': .047,\n")
+        #f.write("\n    # DES\n")
+        #f.write("    'miscenter_opt': {\n")
+        #for k in WLconfigMod.DES['miscenter_opt'].keys():
+        #    f.write("        '%s': %s,\n"%(k, str(WLconfigMod.DES['miscenter_opt'][k])))
+        #f.write("    },\n")
+        #f.write("    'boost': {\n")
+        #for k in WLconfigMod.DES['boost'].keys():
+        #    f.write("        '%s': %s,\n"%(k, str(WLconfigMod.DES['boost'][k])))
+        #f.write("    },\n")
         f.write("    # Megacam\n    'MegacamSim': (.938, .028, .214, .04),\n    'MegacamMcErr': .015,\n    'MegacamCenterErr': .03,\n    'MegacamShearErr': .032,\n    'MegacamzDistErr': .012,\n    'MegacamContamCorr': .009,\n    'Megacam_LSS': (6.3e13, 7e12),\n")
         f.write("}\n")
-
-
-
-
-##### Compute the inverse sec of the complex number z.
-# by Joerg Dietrich
-def arcsec(z):
-    val1 = 1j / z
-    val2 = sm.sqrt(1 - 1/z**2)
-    val = 1j * np.log(val2 + val1)
-    return .5 * np.pi + val
-
-##### Delta Sigma
-# by Joerg Dietrich
-def get_Delta_Sigma(x, r_s, rho_c_z, delta_c):
-    fac = 2 * r_s * rho_c_z * delta_c
-    val1 = 1 / (1 - x**2)
-    num = ((3 * x**2) - 2) * arcsec(x)
-    div = x**2 * (sm.sqrt(x**2 - 1))**3
-    val2 = (num / div).real
-    val3 = 2 * np.log(x / 2) / x**2
-    return fac * (val1+val2+val3)
-
-##### Sigma_NFW
-# by Joerg Dietrich
-def get_Sigma(x, r_s, rho_c_z, delta_c):
-    fac = 2 * r_s * rho_c_z * delta_c
-    val1 = 1 / (x**2 - 1)
-    val2 = (arcsec(x) / (sm.sqrt(x**2 - 1))**3).real
-    return fac * (val1-val2)
 
 
 
@@ -131,7 +94,29 @@ class MockUpDESWL:
         self.Delta_crit = self.config_mod.Delta_crit
         self.MCrel = Mconversion_concentration.ConcentrationConversion(self.config_mod.DES['mcType'], cosmology, setup_interp=True)
         self.rng = np.random.default_rng(self.config_mod.random_seed)
-        self.miscenterer = miscentering.MisCentering(self.config_mod.DES['miscenter_opt'])
+        # Read boost chain
+        with open(self.config_mod.DES['DESboostfile'], 'r') as f:
+            tmp = f.readline().split()[1:]
+        dat = np.median(np.loadtxt(self.config_mod.DES['DESboostfile']), axis=0)
+        self.boost_dict = {'z_arr': np.linspace(.2, .9, 10)}
+        for n,name in enumerate(tmp):
+            self.boost_dict[name] = dat[n]
+        # Initialize miscentering
+        with open(self.config_mod.DES['DESmiscenterfile'], 'r') as f:
+            tmp = f.readline().split()[1:]
+        dat = np.median(np.loadtxt(self.config_mod.DES['DESmiscenterfile']), axis=0)
+        miscenter_dict = {}
+        for n,name in enumerate(tmp):
+            miscenter_dict[name] = dat[n]
+        miscenter_dict['SPT'] = {'kind': self.config_mod.DES['DEScentertype'], 'kappa_SPT': miscenter_dict['kappa_SPT']}
+        miscenter_dict['MCMF'] = {'kind': self.config_mod.DES['DEScentertype']}
+        for glob,this in zip(['alpha_SZ_0', 'alpha_SZ_z', 'alpha_SZ_lam', 'SZ_comp0_0', 'SZ_comp0_z', 'SZ_comp0_lam', 'SZ_comp1_0', 'SZ_comp1_z', 'SZ_comp1_lam'],
+                             ['alpha_0', 'alpha_z', 'alpha_lam', 'comp0_0', 'comp0_z', 'comp0_lam', 'comp1_0', 'comp1_z', 'comp1_lam']):
+            miscenter_dict['SPT'][this] = miscenter_dict[glob]
+        for glob,this in zip(['alpha_opt_0', 'alpha_opt_z', 'alpha_opt_lam', 'opt_comp0_0', 'opt_comp0_z', 'opt_comp0_lam', 'opt_comp1_0', 'opt_comp1_z', 'opt_comp1_lam'],
+                             ['alpha_0', 'alpha_z', 'alpha_lam', 'comp0_0', 'comp0_z', 'comp0_lam', 'comp1_0', 'comp1_z', 'comp1_lam']):
+            miscenter_dict['MCMF'][this] = miscenter_dict[glob]
+        self.miscenterer = miscentering.MisCentering(miscenter_dict[self.config_mod.DES['DEScentertype']])
         # DES Y3 source P(z)
         fits = fitsio.FITS(self.config_mod.DES['source_Pz_file'])
         self.source_z = {'z': fits['nz_source']['Z_MID'][:]}
@@ -148,46 +133,25 @@ class MockUpDESWL:
         self.w_interp = interp1d(weights[0], weights[1:])
 
 
-    def get_miscentered_gt(self, z, beta_avg):
+    def get_gt(self, z, beta_avg):
         """Return the predicted radial shear profile for a given mass, redshift,
         and betas."""
         ##### M200 and scale radius, wrt critical density, everything in h units
         c = self.MCrel.calC200(self.M_Delta, z)
         delta_c = self.Delta_crit/3 * c**3 / (np.log(1+c) - c/(1+c))
         rs = self.r_Delta/c
-
-        ##### Now let's do WL!
         x = self.r_arr / rs
-
         # Sigma_crit, with c^2/4piG [h Msun/Mpc^2]
         Sigma_c = 1.6624541593797974e+18/self.Dl/beta_avg
-
-        # Miscentered Sigma(r)
+        # Centered shear profile for reference
+        Sigma_NFW = lensing.get_Sigma(x, rs, self.rho_c_z, delta_c)
+        DeltaSigma_NFW = lensing.get_DeltaSigma(x, rs, self.rho_c_z, delta_c)
+        g_t_cen = DeltaSigma_NFW/Sigma_c / (1-Sigma_NFW/Sigma_c)
+        # Miscentered profile
         R_mis = self.miscenterer.get_mean_Rmis(self.cat, self.cosmology)
-
-        Sigma_NFW = get_Sigma(x, rs, self.rho_c_z, delta_c)
-        Delta_Sigma_NFW = get_Delta_Sigma(x, rs, self.rho_c_z, delta_c)
-        Sigma_NFW_mean = Sigma_NFW - Delta_Sigma_NFW
-
-        # NFW surface mass densities at Rmis [mass]
-        x_Rmis = R_mis/rs
-        Sigma_NFW_at_Rmis = get_Sigma(x_Rmis, rs, self.rho_c_z, delta_c)
-        Delta_Sigma_NFW_at_Rmis = get_Delta_Sigma(x_Rmis, rs, self.rho_c_z, delta_c)
-        Sigma_NFW_mean_at_Rmis = Sigma_NFW_at_Rmis - Delta_Sigma_NFW_at_Rmis
-
-        # Miscentered quantities
-        # Sigma = Sigma(R_mis) for r<R_mis
-        Sigma_mis = Sigma_NFW.copy()
-        if not R_mis<self.r_arr[0]:
-            Sigma_mis[self.r_arr<R_mis] = Sigma_NFW_at_Rmis
-
-        Sigma_mis_mean = np.empty(Sigma_NFW.shape)
-        Sigma_mis_mean[self.r_arr<R_mis] = Sigma_NFW_at_Rmis
-        Sigma_mis_mean[self.r_arr>R_mis] = Sigma_NFW_mean[self.r_arr>R_mis] + (R_mis/self.r_arr[self.r_arr>R_mis])**2 * (Sigma_NFW_at_Rmis-Sigma_NFW_mean_at_Rmis)
-
-        # Reduced shear profile [mass][radius]
-        g_t_mis = (Sigma_mis-Sigma_mis_mean)/Sigma_c / (1 - Sigma_mis/Sigma_c)
-        g_t_cen = Delta_Sigma_NFW/Sigma_c / (1-Sigma_NFW/Sigma_c)
+        Sigma_mis = lensing.get_Sigma_mis(self.r_arr, rs, self.rho_c_z, delta_c, R_mis)
+        DeltaSigma_mis = lensing.get_DeltaSigma_mis(self.r_arr, rs, self.rho_c_z, delta_c, R_mis)
+        g_t_mis = DeltaSigma_mis/Sigma_c / (1-Sigma_mis/Sigma_c)
 
         return g_t_mis, g_t_cen, R_mis
 
@@ -228,12 +192,9 @@ class MockUpDESWL:
 
 
     def apply_cl_mem_contamination(self, z, Rmis, g_t):
-        r_s_fcl = (self.cat['richness']/60)**(1/3) / 10**self.config_mod.DES['boost']['logc']
-        Sigma_fcl = get_Sigma(self.r_arr/r_s_fcl, r_s_fcl, self.rho_c_z, 1)/get_Sigma(1/r_s_fcl, r_s_fcl, self.rho_c_z, 1)
-        Sigma_at_Rmis = get_Sigma(Rmis/r_s_fcl, r_s_fcl, self.rho_c_z, 1)/get_Sigma(1/r_s_fcl, r_s_fcl, self.rho_c_z, 1)
-        Sigma_fcl[self.r_arr<=Rmis] = Sigma_at_Rmis
-        A_z = np.exp(self.config_mod.DES['boost']['A_inf'] + np.sum(self.config_mod.DES['boost']['A'] * np.exp(-.5*(z-self.config_mod.DES['boost']['z_arr'])**2/self.config_mod.DES['boost']['corr_len']**2)))
-        A = (self.cat['richness']/60)**self.config_mod.DES['boost']['Blambda'] * A_z * Sigma_fcl
+
+
+        A = lensing.boost_get_A(self.boost_dict, 'Gausssmooth', self.boost_dict['z_arr'], z, self.cat['richness'], self.r_arr, Rmis)
         reduced_shear_cont = 1/(1+A) * g_t
 
         return reduced_shear_cont
@@ -266,7 +227,7 @@ class MockUpDESWL:
         beta_avg = self.get_beta(z_cl, source_dist_r)
         # beta_avg0 = self.get_beta(z_cl, source_dist[None,:])
         # print(beta_avg, beta_avg0)
-        g_t_mis, g_t_cen, R_mis = self.get_miscentered_gt(z_cl, beta_avg)
+        g_t_mis, g_t_cen, R_mis = self.get_gt(z_cl, beta_avg)
         g_t_cont = self.apply_cl_mem_contamination(z_cl, R_mis, g_t_mis)
 
         # Error on shear is shape_noise / sqrt(N(r))
@@ -275,7 +236,19 @@ class MockUpDESWL:
         g_t_err = self.config_mod.DES['shape_noise'] / np.sqrt(N_r[good_idx])
         g_t+= g_t_err*self.rng.standard_normal(len(g_t))
 
-        return self.r_arr[good_idx], self.r_arcmin[good_idx], g_t, g_t_err, source_dist, g_t_cen[good_idx], g_t_mis[good_idx], g_t_cont[good_idx], beta_avg[good_idx], self.tomo_weights
+        res_dict = {'r_Mpch': self.r_arr[good_idx],
+                    'r_arcmin': self.r_arcmin[good_idx],
+                    'shear_cen': g_t_cen[good_idx],
+                    'shear_mis': g_t_mis[good_idx],
+                    'shear_noerr': g_t_cont[good_idx],
+                    'shear': g_t,
+                    'shear_err': g_t_err,
+                    'source_dist': source_dist,
+                    'beta': beta_avg[good_idx],
+                    'tomo_weights': self.tomo_weights,
+                   }
+        return res_dict
+
 
 ################################################################################
 
@@ -322,13 +295,13 @@ class MockUpHSTWL:
         Sigma_c = 1.6624541593797974e+18/self.Dl/beta_avg
 
         # NFW halo [mass][radius]
-        Sigma_NFW = get_Sigma(x, rs, self.rho_c_z, delta_c)
-        Delta_Sigma_NFW = get_Delta_Sigma(x, rs, self.rho_c_z, delta_c)
+        Sigma_NFW = lensing.get_Sigma(x, rs, self.rho_c_z, delta_c)
+        DeltaSigma_NFW = lensing.get_DeltaSigma(x, rs, self.rho_c_z, delta_c)
 
         # Beta correction [Radius][Mass]
         betaratio = beta2_avg/beta_avg**2
         betaCorr = 1 + Sigma_NFW/Sigma_c*(betaratio-1)
-        g_t = betaCorr * Delta_Sigma_NFW/Sigma_c / (1-Sigma_NFW/Sigma_c)
+        g_t = betaCorr * DeltaSigma_NFW/Sigma_c / (1-Sigma_NFW/Sigma_c)
 
         return g_t
 

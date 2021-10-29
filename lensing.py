@@ -26,20 +26,41 @@ class SPTlensing:
 
     def __init__(self, catalog, WLsimcalibfile,
                  HSTfile, MegacamFile, DESfile,
+                 DESboostfile, DESmiscenterfile, DEScentertype,
                  mcType,
                  NPROC):
         WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
         self.WLcalib = WLsimcalib.WLcalibration
-        self.miscenterer = miscentering.MisCentering(self.WLcalib['miscenter_opt'])
-
+        # Read boost chain
+        with open(DESboostfile, 'r') as f:
+            tmp = f.readline().split()[1:]
+        dat = np.median(np.loadtxt(DESboostfile), axis=0)
+        self.boost_dict = {'z_arr': np.linspace(.2, .9, 10)}
+        for n,name in enumerate(tmp):
+            self.boost_dict[name] = dat[n]
+        # Initialize miscentering
+        with open(DESmiscenterfile, 'r') as f:
+            tmp = f.readline().split()[1:]
+        dat = np.median(np.loadtxt(DESmiscenterfile), axis=0)
+        miscenter_dict = {}
+        for n,name in enumerate(tmp):
+            miscenter_dict[name] = dat[n]
+        miscenter_dict['SPT'] = {'kind': DEScentertype, 'kappa_SPT': miscenter_dict['kappa_SPT']}
+        miscenter_dict['MCMF'] = {'kind': DEScentertype}
+        for glob,this in zip(['alpha_SZ_0', 'alpha_SZ_z', 'alpha_SZ_lam', 'SZ_comp0_0', 'SZ_comp0_z', 'SZ_comp0_lam', 'SZ_comp1_0', 'SZ_comp1_z', 'SZ_comp1_lam'],
+                             ['alpha_0', 'alpha_z', 'alpha_lam', 'comp0_0', 'comp0_z', 'comp0_lam', 'comp1_0', 'comp1_z', 'comp1_lam']):
+            miscenter_dict['SPT'][this] = miscenter_dict[glob]
+        for glob,this in zip(['alpha_opt_0', 'alpha_opt_z', 'alpha_opt_lam', 'opt_comp0_0', 'opt_comp0_z', 'opt_comp0_lam', 'opt_comp1_0', 'opt_comp1_z', 'opt_comp1_lam'],
+                             ['alpha_0', 'alpha_z', 'alpha_lam', 'comp0_0', 'comp0_z', 'comp0_lam', 'comp1_0', 'comp1_z', 'comp1_lam']):
+            miscenter_dict['MCMF'][this] = miscenter_dict[glob]
+        self.miscenterer = miscentering.MisCentering(miscenter_dict[DEScentertype])
+        # Set up more stuff
         self.len_M_arr = 32
         self.M_arr = np.logspace(grid_lgM_min, grid_lgM_max, self.len_M_arr)
         self.lnM_arr = np.log(self.M_arr)
-
         self.NPROC = NPROC
-
         self.mcType = mcType
-
+        # Read lensing data
         readdata(catalog, HSTfile, MegacamFile, DESfile)
         if DESfile != 'None':
             with h5py.File(DESfile, 'r') as f:
@@ -134,29 +155,14 @@ class SPTlensing:
 
         # NFW surface mass densities [mass][radius]
         r_Mpch = self.cat_cl['WLdata']['r_arcmin'] * Dl * np.pi/60/180
-        x = r_Mpch[None,:] / r_s[:,None]
-        Sigma_NFW = get_Sigma(x, r_s[:,None], rho_c_z, delta_c[:,None])
-        Delta_Sigma_NFW = get_Delta_Sigma(x, r_s[:,None], rho_c_z, delta_c[:,None])
-        Sigma_NFW_mean = Sigma_NFW - Delta_Sigma_NFW
-
-        # NFW surface mass densities at Rmis [mass]
-        x_Rmis = R_mis/r_s
-        Sigma_NFW_at_Rmis = get_Sigma(x_Rmis, r_s, rho_c_z, delta_c)
-        Delta_Sigma_NFW_at_Rmis = get_Delta_Sigma(x_Rmis, r_s, rho_c_z, delta_c)
-
-        # Miscentered quantities
-        # Sigma = Sigma(R_mis) for r<R_mis
-        Sigma_mis = Sigma_NFW.copy()
-        if R_mis>r_Mpch[0]:
-            Sigma_mis[:,r_Mpch<R_mis] = Sigma_NFW_at_Rmis[:,None]
-        Delta_Sigma = np.zeros(Sigma_NFW.shape)
-        Delta_Sigma[:,r_Mpch>R_mis] = Delta_Sigma_NFW[:,r_Mpch>R_mis] - (R_mis/r_Mpch[r_Mpch>R_mis][None,:])**2 * Delta_Sigma_NFW_at_Rmis[:,None]
+        Sigma_mis = get_Sigma_mis(r_Mpch[None,:], r_s[:,None], rho_c_z, delta_c[:,None], R_mis)
+        DeltaSigma_mis = get_DeltaSigma_mis(r_Mpch[None,:], r_s[:,None], rho_c_z, delta_c[:,None], R_mis)
 
         # Reduced shear profile [mass][radius]
-        reduced_shear = Delta_Sigma/Sigma_c / (1 - Sigma_mis/Sigma_c)
+        reduced_shear = DeltaSigma_mis/Sigma_c / (1 - Sigma_mis/Sigma_c)
 
         # Cluster member contamination
-        A = boost_get_A(self.WLcalib['boost'], 'Gausssmooth', self.WLcalib['boost']['z_arr'], self.cat_cl['REDSHIFT'], self.cat_cl['richness'], r_Mpch, R_mis)
+        A = boost_get_A(self.boost_dict, 'Gausssmooth', self.boost_dict['z_arr'], self.cat_cl['REDSHIFT'], self.cat_cl['richness'], r_Mpch, R_mis)
         reduced_shear_cont = 1/(1+A) * reduced_shear
 
         # Likelihood!
@@ -194,7 +200,7 @@ class SPTlensing:
         Sigma_c = 1.6624541593797974e+18/Dl/self.beta_avg
 
         # gamma_t, kappa, g_t [Radius][Mass]
-        gamma_2d = get_Delta_Sigma(x, r_s, rho_c_z, delta_c) / Sigma_c
+        gamma_2d = get_DeltaSigma(x, r_s, rho_c_z, delta_c) / Sigma_c
         kappa_2d = get_Sigma(x, r_s, rho_c_z, delta_c) / Sigma_c
         g_2d = gamma_2d/(1-kappa_2d) * (1 + kappa_2d*(self.beta2_avg/self.beta_avg**2-1))
 
@@ -220,7 +226,7 @@ class SPTlensing:
         Sigma_c = 1.6624541593797974e+18/Dl/betaR
 
         # gamma_t and kappa [Radius][Mass]
-        gamma_2d = get_Delta_Sigma(x, r_s, rho_c_z, delta_c) / Sigma_c[:,None]
+        gamma_2d = get_DeltaSigma(x, r_s, rho_c_z, delta_c) / Sigma_c[:,None]
         kappa_2d = get_Sigma(x, r_s, rho_c_z, delta_c) / Sigma_c[:,None]
 
         # [Radius][Mass]
@@ -325,7 +331,7 @@ def arcsec(z):
     val = 1j * np.log(val2 + val1)
     return .5 * np.pi + val
 
-def get_Delta_Sigma(x, r_s, rho_c_z, delta_c):
+def get_DeltaSigma(x, r_s, rho_c_z, delta_c):
     """Return Delta Sigma = Sigma - Sigma_mean"""
     fac = 2 * r_s * rho_c_z * delta_c
     val1 = 1 / (1 - x**2)
@@ -341,6 +347,35 @@ def get_Sigma(x, r_s, rho_c_z, delta_c):
     val1 = 1 / (x**2 - 1)
     val2 = (arcsec(x) / (sm.sqrt(x**2 - 1))**3).real
     return fac * (val1-val2)
+
+def get_Sigma_mis(r_Mpch, r_s, rho_c_z, delta_c, R_mis):
+    """Return Sigma(r) for an NFW profile but where Sigma is constant within
+    `R_mis`. `r_Mpch` and `r_s` can be arrays (if `r_s` is array then `delta_c`
+    should have same size), `R_mis` must be scalar."""
+    Sigma = get_Sigma(r_Mpch/r_s, r_s, rho_c_z, delta_c)
+    Sigma_NFW_at_Rmis = get_Sigma(R_mis/r_s, r_s, rho_c_z, delta_c)
+    ones = np.ones(Sigma.shape)
+    const_idx = r_Mpch*ones<R_mis
+    Sigma[const_idx] = (Sigma_NFW_at_Rmis*ones)[const_idx]
+    return Sigma
+
+def get_DeltaSigma_mis(r_Mpch, r_s, rho_c_z, delta_c, R_mis):
+    """Return DeltaSigma(r) for an NFW profile but where Sigma is constant
+    within `R_mis`. `r_Mpch` and `r_s` can be arrays (if `r_s` is array then
+    `delta_c` should have same size), `R_mis` must be scalar."""
+    # NFW Sigma and DeltaSigma
+    x = r_Mpch/r_s
+    Sigma_NFW = get_Sigma(x, r_s, rho_c_z, delta_c)
+    DeltaSigma_NFW = get_DeltaSigma(x, r_s, rho_c_z, delta_c)
+    Sigma_NFW_mean = Sigma_NFW - DeltaSigma_NFW
+    # NFW Sigma and DeltaSigma at Rmis
+    x_Rmis = R_mis/r_s
+    DeltaSigma_NFW_at_Rmis = get_DeltaSigma(x_Rmis, r_s, rho_c_z, delta_c)
+    # Miscentered DeltaSigma
+    ones = np.ones(Sigma_NFW.shape)
+    DeltaSigma = DeltaSigma_NFW - (R_mis/r_Mpch)**2 * DeltaSigma_NFW_at_Rmis
+    DeltaSigma[r_Mpch*np.ones(DeltaSigma.shape)<R_mis] = 0.
+    return DeltaSigma
 
 def boost_get_A(params, method, z_arr, z, lam, r_Mpc_over_h, Rmis):
     """Compute A(z, lambda, r) where fcl = A/(1+A)."""
