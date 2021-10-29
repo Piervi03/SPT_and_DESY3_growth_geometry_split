@@ -151,14 +151,14 @@ class MockUpDESWL:
         R_mis = self.miscenterer.get_mean_Rmis(self.cat, self.cosmology)
 
         Sigma_NFW = lensing.get_Sigma(x, rs, self.rho_c_z, delta_c)
-        Delta_Sigma_NFW = lensing.get_Delta_Sigma(x, rs, self.rho_c_z, delta_c)
-        Sigma_NFW_mean = Sigma_NFW - Delta_Sigma_NFW
+        DeltaSigma_NFW = lensing.get_DeltaSigma(x, rs, self.rho_c_z, delta_c)
+        Sigma_NFW_mean = Sigma_NFW - DeltaSigma_NFW
 
         # NFW surface mass densities at Rmis [mass]
         x_Rmis = R_mis/rs
         Sigma_NFW_at_Rmis = lensing.get_Sigma(x_Rmis, rs, self.rho_c_z, delta_c)
-        Delta_Sigma_NFW_at_Rmis = lensing.get_Delta_Sigma(x_Rmis, rs, self.rho_c_z, delta_c)
-        Sigma_NFW_mean_at_Rmis = Sigma_NFW_at_Rmis - Delta_Sigma_NFW_at_Rmis
+        DeltaSigma_NFW_at_Rmis = lensing.get_DeltaSigma(x_Rmis, rs, self.rho_c_z, delta_c)
+        Sigma_NFW_mean_at_Rmis = Sigma_NFW_at_Rmis - DeltaSigma_NFW_at_Rmis
 
         # Miscentered quantities
         # Sigma = Sigma(R_mis) for r<R_mis
@@ -172,7 +172,7 @@ class MockUpDESWL:
 
         # Reduced shear profile [mass][radius]
         g_t_mis = (Sigma_mis-Sigma_mis_mean)/Sigma_c / (1 - Sigma_mis/Sigma_c)
-        g_t_cen = Delta_Sigma_NFW/Sigma_c / (1-Sigma_NFW/Sigma_c)
+        g_t_cen = DeltaSigma_NFW/Sigma_c / (1-Sigma_NFW/Sigma_c)
 
         return g_t_mis, g_t_cen, R_mis
 
@@ -317,12 +317,12 @@ class MockUpHSTWL:
 
         # NFW halo [mass][radius]
         Sigma_NFW = lensing.get_Sigma(x, rs, self.rho_c_z, delta_c)
-        Delta_Sigma_NFW = lensing.get_Delta_Sigma(x, rs, self.rho_c_z, delta_c)
+        DeltaSigma_NFW = lensing.get_DeltaSigma(x, rs, self.rho_c_z, delta_c)
 
         # Beta correction [Radius][Mass]
         betaratio = beta2_avg/beta_avg**2
         betaCorr = 1 + Sigma_NFW/Sigma_c*(betaratio-1)
-        g_t = betaCorr * Delta_Sigma_NFW/Sigma_c / (1-Sigma_NFW/Sigma_c)
+        g_t = betaCorr * DeltaSigma_NFW/Sigma_c / (1-Sigma_NFW/Sigma_c)
 
         return g_t
 
