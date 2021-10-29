@@ -2,7 +2,7 @@ import numpy as np
 
 SPT_survey = '/home/bocquet/SPT_cluster_data/SPT_SZ_ECS_500d_survey_210529_mix.txt'
 
-random_seed = 0
+random_seed = 2
 
 # We mainly need the cosmology for E(z) and h
 # (and for the DK15 c-M relation)

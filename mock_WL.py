@@ -58,30 +58,6 @@ def main():
                 ddd = ggg.create_dataset('magnificationcorr', data=corr)
                 ddd = ggg.create_dataset('pzs', data=source_dist[1])
 
-    # Create setup file
-    with open ('WLsimcalib_%s.py'%datetime, 'w') as f:
-        f.write("import numpy as np\n\n")
-        #f.write("WLcalibration = {\n    # HST\n    'HSTsim': {\n")
-        #for i,name in enumerate(cat['SPT_ID']):
-        #    if cat['Mwl_HST_200'][i]>0:
-        #        f.write("        '%s': {'z': %.3f, 'bias': [%.3f, %.3f, %.3f, %.3f], 'obs_scatter': %.3e, 'center_err': %.3f},\n"%(
-        #        name, cat['REDSHIFT'][i], 1, .02, mockconfigMod.scaling['DWL_HST'], .05, 6e13, .075))
-        #f.write("    },\n")
-        #f.write("    'HSTmcErr': .04,\n")
-        #f.write("    'HSTshearErr': .023,\n")
-        #f.write("    'HSTzDistErr': .047,\n")
-        #f.write("\n    # DES\n")
-        #f.write("    'miscenter_opt': {\n")
-        #for k in WLconfigMod.DES['miscenter_opt'].keys():
-        #    f.write("        '%s': %s,\n"%(k, str(WLconfigMod.DES['miscenter_opt'][k])))
-        #f.write("    },\n")
-        #f.write("    'boost': {\n")
-        #for k in WLconfigMod.DES['boost'].keys():
-        #    f.write("        '%s': %s,\n"%(k, str(WLconfigMod.DES['boost'][k])))
-        #f.write("    },\n")
-        f.write("    # Megacam\n    'MegacamSim': (.938, .028, .214, .04),\n    'MegacamMcErr': .015,\n    'MegacamCenterErr': .03,\n    'MegacamShearErr': .032,\n    'MegacamzDistErr': .012,\n    'MegacamContamCorr': .009,\n    'Megacam_LSS': (6.3e13, 7e12),\n")
-        f.write("}\n")
-
 
 
 ################################################################################
