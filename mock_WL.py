@@ -133,46 +133,25 @@ class MockUpDESWL:
         self.w_interp = interp1d(weights[0], weights[1:])
 
 
-    def get_miscentered_gt(self, z, beta_avg):
+    def get_gt(self, z, beta_avg):
         """Return the predicted radial shear profile for a given mass, redshift,
         and betas."""
         ##### M200 and scale radius, wrt critical density, everything in h units
         c = self.MCrel.calC200(self.M_Delta, z)
         delta_c = self.Delta_crit/3 * c**3 / (np.log(1+c) - c/(1+c))
         rs = self.r_Delta/c
-
-        ##### Now let's do WL!
         x = self.r_arr / rs
-
         # Sigma_crit, with c^2/4piG [h Msun/Mpc^2]
         Sigma_c = 1.6624541593797974e+18/self.Dl/beta_avg
-
-        # Miscentered Sigma(r)
-        R_mis = self.miscenterer.get_mean_Rmis(self.cat, self.cosmology)
-
+        # Centered shear profile for reference
         Sigma_NFW = lensing.get_Sigma(x, rs, self.rho_c_z, delta_c)
         DeltaSigma_NFW = lensing.get_DeltaSigma(x, rs, self.rho_c_z, delta_c)
-        Sigma_NFW_mean = Sigma_NFW - DeltaSigma_NFW
-
-        # NFW surface mass densities at Rmis [mass]
-        x_Rmis = R_mis/rs
-        Sigma_NFW_at_Rmis = lensing.get_Sigma(x_Rmis, rs, self.rho_c_z, delta_c)
-        DeltaSigma_NFW_at_Rmis = lensing.get_DeltaSigma(x_Rmis, rs, self.rho_c_z, delta_c)
-        Sigma_NFW_mean_at_Rmis = Sigma_NFW_at_Rmis - DeltaSigma_NFW_at_Rmis
-
-        # Miscentered quantities
-        # Sigma = Sigma(R_mis) for r<R_mis
-        Sigma_mis = Sigma_NFW.copy()
-        if not R_mis<self.r_arr[0]:
-            Sigma_mis[self.r_arr<R_mis] = Sigma_NFW_at_Rmis
-
-        Sigma_mis_mean = np.empty(Sigma_NFW.shape)
-        Sigma_mis_mean[self.r_arr<R_mis] = Sigma_NFW_at_Rmis
-        Sigma_mis_mean[self.r_arr>R_mis] = Sigma_NFW_mean[self.r_arr>R_mis] + (R_mis/self.r_arr[self.r_arr>R_mis])**2 * (Sigma_NFW_at_Rmis-Sigma_NFW_mean_at_Rmis)
-
-        # Reduced shear profile [mass][radius]
-        g_t_mis = (Sigma_mis-Sigma_mis_mean)/Sigma_c / (1 - Sigma_mis/Sigma_c)
         g_t_cen = DeltaSigma_NFW/Sigma_c / (1-Sigma_NFW/Sigma_c)
+        # Miscentered profile
+        R_mis = self.miscenterer.get_mean_Rmis(self.cat, self.cosmology)
+        Sigma_mis = lensing.get_Sigma_mis(self.r_arr, rs, self.rho_c_z, delta_c, R_mis)
+        DeltaSigma_mis = lensing.get_DeltaSigma_mis(self.r_arr, rs, self.rho_c_z, delta_c, R_mis)
+        g_t_mis = DeltaSigma_mis/Sigma_c / (1-Sigma_mis/Sigma_c)
 
         return g_t_mis, g_t_cen, R_mis
 
@@ -248,7 +227,7 @@ class MockUpDESWL:
         beta_avg = self.get_beta(z_cl, source_dist_r)
         # beta_avg0 = self.get_beta(z_cl, source_dist[None,:])
         # print(beta_avg, beta_avg0)
-        g_t_mis, g_t_cen, R_mis = self.get_miscentered_gt(z_cl, beta_avg)
+        g_t_mis, g_t_cen, R_mis = self.get_gt(z_cl, beta_avg)
         g_t_cont = self.apply_cl_mem_contamination(z_cl, R_mis, g_t_mis)
 
         # Error on shear is shape_noise / sqrt(N(r))
