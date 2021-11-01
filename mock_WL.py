@@ -168,11 +168,8 @@ class MockUpDESWL:
 
 
     def apply_cl_mem_contamination(self, z, Rmis, g_t):
-
-
         A = lensing.boost_get_A(self.boost_dict, 'Gausssmooth', self.boost_dict['z_arr'], z, self.cat['richness'], self.r_arr, Rmis)
         reduced_shear_cont = 1/(1+A) * g_t
-
         return reduced_shear_cont
 
 
@@ -181,13 +178,10 @@ class MockUpDESWL:
         self.cat = cat
         z_cl = cat['REDSHIFT']
         self.M_Delta = cat['Mwl_DES_200']
-
         self.tomo_weights = self.w_interp(z_cl)
         self.rho_c_z = cosmo.RHOCRIT * cosmo.Ez(z_cl, self.cosmology)**2
         self.Dl = cosmo.dA(z_cl, self.cosmology)
-
         self.r_Delta = (3*self.M_Delta/4/np.pi/self.Delta_crit/self.rho_c_z)**(1/3)
-
         # Radii
         r_min = .5
         r_max = 3.2 / (1+z_cl)
@@ -198,20 +192,18 @@ class MockUpDESWL:
         self.r_arr = 2/3 * (these_edges[1:]**3-these_edges[:-1]**3)/(these_edges[1:]**2-these_edges[:-1]**2)
         self.r_arcmin = self.r_arr / self.Dl * 60*180/np.pi
         self.r_arcmin_edges = these_edges / self.Dl * 60*180/np.pi
-
+        # Source redshift distributions and shear profiles
         source_dist_r, source_dist, N_r = self.get_source_gals(z_cl)
         beta_avg = self.get_beta(z_cl, source_dist_r)
-        # beta_avg0 = self.get_beta(z_cl, source_dist[None,:])
-        # print(beta_avg, beta_avg0)
+        beta_fid = self.get_beta(z_cl, source_dist[None,:])
         g_t_mis, g_t_cen, R_mis = self.get_gt(z_cl, beta_avg)
         g_t_cont = self.apply_cl_mem_contamination(z_cl, R_mis, g_t_mis)
-
         # Error on shear is shape_noise / sqrt(N(r))
         good_idx = (np.isfinite(g_t_cont)&(N_r>4)).nonzero()[0]
         g_t = g_t_cont[good_idx]
         g_t_err = self.config_mod.DES['shape_noise'] / np.sqrt(N_r[good_idx])
         g_t+= g_t_err*self.rng.standard_normal(len(g_t))
-
+        # Return dictionary of outputs
         res_dict = {'r_Mpch': self.r_arr[good_idx],
                     'r_arcmin': self.r_arcmin[good_idx],
                     'shear_cen': g_t_cen[good_idx],
@@ -220,7 +212,9 @@ class MockUpDESWL:
                     'shear': g_t,
                     'shear_err': g_t_err,
                     'source_dist': source_dist,
+                    'source_dist_r': source_dist_r,
                     'beta': beta_avg[good_idx],
+                    'beta_fid': beta_fid,
                     'tomo_weights': self.tomo_weights,
                    }
         return res_dict
