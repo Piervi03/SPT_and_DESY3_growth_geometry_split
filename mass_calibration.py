@@ -231,7 +231,7 @@ class MassCalibration:
                 this_xi_arr = xi_arr_int[None,None,None,:]
             HMF_integrand[np.isnan(HMF_integrand)] = 0.
         # dP/dxi = dP/dlnzeta dlnzeta/dxi
-        HMF_xi = HMF_integrand * scaling_relations.dlnzeta_dxi(this_xi_arr)
+        HMF_xi = HMF_integrand * scaling_relations.dlnzeta_dxi_given_xi(this_xi_arr)
         # Simultaneous convolution and evaluation at xi
         unit_var_kernel = norm.pdf(xi, this_xi_arr, 1)
         HMF_at_xi = np.trapz(HMF_xi * unit_var_kernel, this_xi_arr, axis=-1)

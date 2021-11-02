@@ -315,7 +315,7 @@ class MassCalibration:
                 obs_lnweights[o] = np.zeros(Ndraw)
             elif obs=='zeta':
                 zeta, obs_lnweights[o] = self.get_zeta_draws(self.catalog['XI'][dataID])
-                obs_lnweights[o]+= np.log(scaling_relations.zeta2xi(zeta)/zeta**2)
+                obs_lnweights[o]+= np.log(scaling_relations.dlnzeta_dxi_given_zeta(zeta))
                 zeta/= self.thisSPTfield_gamma
                 lnM_obs[o] = np.log(scaling_relations.obs2mass('zeta', zeta, self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology))
             else:

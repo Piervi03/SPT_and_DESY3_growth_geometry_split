@@ -9,8 +9,11 @@ def xi2zeta(xi):
     return np.sqrt(xi**2 - 3)
 def zeta2xi(zeta):
     return np.sqrt(zeta**2 + 3)
-def dlnzeta_dxi(xi):
+def dlnzeta_dxi_given_xi(xi):
+    """d(ln(zeta))/d xi = d(ln((xi^2 - 3)^0.5))/d xi = 0.5 / (xi^2 - 3) * 2*xi = xi/zeta^2"""
     return xi / (xi**2 - 3)
+def dlnzeta_dxi_given_zeta(zeta):
+    return zeta2xi(zeta)/zeta**2
 
 
 ####################

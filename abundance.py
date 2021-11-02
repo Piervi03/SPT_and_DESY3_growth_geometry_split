@@ -45,7 +45,7 @@ class NumberCount:
         self.xi_bins = np.linspace(xi_min, self.surveyCutSZmax+3, Nxi)
         self.dxi = self.xi_bins[1] - self.xi_bins[0]
         self.ln_zeta_xi_arr = np.log(scaling_relations.xi2zeta(self.xi_bins))
-        self.dlnzeta_dxi_arr = scaling_relations.dlnzeta_dxi(self.xi_bins)
+        self.dlnzeta_dxi_arr = scaling_relations.dlnzeta_dxi_given_xi(self.xi_bins)
 
         self.dN_dlnzeta_unitSolidAng = {}
         for tmp in ['shallow', 'deep']:
