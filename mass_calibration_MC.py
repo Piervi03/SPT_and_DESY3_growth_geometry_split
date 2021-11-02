@@ -195,13 +195,14 @@ class MassCalibration:
 
     def get_Mwl_draws(self, dataID):
         """Draw Mwl from lensing likelihood. We draw from P(Mwl)/Mwl to get a
-        broader distribution. Correct for this with weights."""
-        # Draw lnMwl from ln(P(Mwl))
+        broader distribution and to extend to lower mass. Correct for this with
+        weights."""
+        # Draw lnMwl from P(Mwl)/Mwl = exp(ln(PMwl)-ln(Mwl))
         WL_cum = integrate.cumtrapz(np.exp(self.catalog['lnp_Mwl'][dataID]-self.WL.lnM_arr), self.WL.lnM_arr)
         WL_cum = np.insert(WL_cum/WL_cum[-1], 0, 0.)
         r = self.rng.random(size=Ndraw)
         lnMwl = np.interp(r, WL_cum, self.WL.lnM_arr)
-        # We drew from ln(P(Mwl)) but we want to sample P(Mwl)
+        # We drew from P(Mwl)/Mwl but we need to sample P(Mwl)
         WL_lnweights = lnMwl
         # LSS noise for HST
         if self.catalog['WLdata'][dataID]['datatype']=='HST':
