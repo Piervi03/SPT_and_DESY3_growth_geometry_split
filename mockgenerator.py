@@ -89,7 +89,7 @@ def main():
                         Mg = rng.lognormal(np.log(obs[k,1]), sigma=configMod.Xerr)
 
                         # Observed richness
-                        richness_obs = obs[k,3]#rng.lognormal(np.log(obs[k,3]), obs[k,3]**-.5)
+                        richness_obs = rng.normal(obs[k,3], np.sqrt(obs[k,3]))
                         #richness_obs = rng.normal(richness_int, configMod.richness_err)
                         mock.append((M, z, xi, Mg, obs[k,0], richness_obs, obs[k,4]))
                         fieldnames.append(field)

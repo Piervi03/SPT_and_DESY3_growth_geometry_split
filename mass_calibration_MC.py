@@ -8,10 +8,9 @@ import time
 import scipy.special as ss
 from scipy import integrate, signal
 from scipy.interpolate import InterpolatedUnivariateSpline, RectBivariateSpline
-from scipy.stats import norm, lognorm, multivariate_normal
+from scipy.stats import norm
 from scipy.special import erfinv
 import cosmo, Mconversion_concentration, scaling_relations
-import multivariate_normal
 
 cosmologyRef = {'Omega_m':.272, 'Omega_l':.728, 'h':.702, 'w0':-1, 'wa':0}
 GETPULL = False
@@ -214,43 +213,12 @@ class MassCalibration:
 
     def get_mass_function_lnweights(self, z, lnM):
         """Return log-probability of halo mass function
-        ln(P(lnM)) = ln(dN/dlnM) at given `z` and array `lnM`."""
+        ln(P(M)) = ln(dN/dlnM /M) at given `z` and array `lnM`."""
         # Scipy.RectBivariateSpline only accepts sorted inputs
         idx = np.argsort(lnM)
         mass_lnweights = np.zeros(len(lnM))
-        mass_lnweights[idx] = self.HMF_interp(np.log(z), lnM[idx])
+        mass_lnweights[idx] = self.HMF_interp(np.log(z), lnM[idx])-lnM[idx]
         return mass_lnweights
-
-
-    def get_P_xi(self, z, lnM_zeta, zeta_lnweights, covmat_lnM, pos, dataID=None):
-        """Return P(xi) = \int dM P(xi|M) P(M). `covmat_lnM` must be ordered
-        richness-SZ."""
-        SZscatter_lnM = np.sqrt(covmat_lnM[pos['zeta'],pos['zeta']])
-        r_min = norm.cdf(self.lnM_arr[0], loc=lnM_zeta, scale=SZscatter_lnM)
-        r_max = norm.cdf(self.lnM_arr[-1], loc=lnM_zeta, scale=SZscatter_lnM)
-        r = r_min + (r_max-r_min)*self.rng.random(Ndraw)
-        lnM = erfinv(2*r-1)*SZscatter_lnM*np.sqrt(2) + lnM_zeta
-        idx = np.isfinite(lnM)
-        if not np.any(idx):
-            return 0.
-        if self.todo['lambda_min']:
-            lnM_lambda_mean = lnM[idx] + covmat_lnM[pos['zeta'],pos['richness']]/covmat_lnM[pos['zeta'],pos['zeta']] * (lnM_zeta-lnM)[idx]
-            lnM_lambda_std = np.sqrt(covmat_lnM[pos['richness'],pos['richness']] - covmat_lnM[pos['zeta'],pos['richness']]**2/covmat_lnM[pos['zeta'],pos['zeta']])
-            if self.catalog['FIELD'][dataID]=='SPTPOL_500d':
-                lambda_min = self.surveyCutRichness['deep'](z)
-            else:
-                lambda_min = self.surveyCutRichness['shallow'](z)
-            lnM_lambda_min = np.log(scaling_relations.obs2mass('richness', lambda_min, z, self.scaling))
-            xi_lambdacut_lnweights = np.log(norm.cdf(lnM_lambda_mean, lnM_lambda_min, lnM_lambda_std))
-        else:
-            xi_lambdacut_lnweights = 0.
-        mass_lnweights = self.get_mass_function_lnweights(z, lnM[idx])
-        lnweights = zeta_lnweights[idx]+mass_lnweights+xi_lambdacut_lnweights
-        shift_lnweights = np.amax(lnweights)-700
-        diff_lnweights = lnweights - shift_lnweights
-        with np.errstate(all='ignore'):
-            Pxi = np.exp(shift_lnweights) * np.mean(np.exp(diff_lnweights))
-        return Pxi
 
 
     def draw_lnm_given_lnzeta(self, lnM_zeta, SZscatter_lnM):
@@ -274,27 +242,32 @@ class MassCalibration:
         return covmat
 
 
-    def mass_given_obs(self, obsnames, dataID):
-        """Returns mass draws given measurements."""
-        N_obs = len(obsnames)
-        lnM_obs, obs_lnweights = N_obs*[None], N_obs*[None]
-        pos = {}
-        for o,obs in enumerate(obsnames):
-            pos[obs] = o
-            if obs in ['WLDES', 'WLHST', 'WLMegacam']:
-                lnMwl, obs_lnweights[o] = self.get_Mwl_draws(dataID)
-                lnM_obs[o] = np.log(scaling_relations.obs2mass(obs, np.exp(lnMwl), self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, self.catalog['SPT_ID'][dataID]))
-            elif obs=='richness':
-                lnM_obs[o] = np.log(scaling_relations.obs2mass('richness', self.catalog['richness'][dataID], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology))*np.ones(Ndraw)
-                obs_lnweights[o] = np.zeros(Ndraw)
-            elif obs=='zeta':
-                zeta, obs_lnweights[o] = self.get_zeta_draws(self.catalog['XI'][dataID])
-                obs_lnweights[o]+= np.log(scaling_relations.dlnzeta_dxi_given_zeta(zeta))
-                zeta/= self.thisSPTfield_gamma
-                lnM_obs[o] = np.log(scaling_relations.obs2mass('zeta', zeta, self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology))
-            else:
-                print('to do')
-        return lnM_obs, obs_lnweights, pos
+    def get_lnM_zeta_given_xi(self, dataID):
+        """Returns mass draws given xi."""
+        zeta, lnweights = self.get_zeta_draws(self.catalog['XI'][dataID])
+        zeta/= self.thisSPTfield_gamma
+        lnM = np.log(scaling_relations.obs2mass('zeta', zeta, self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology))
+        return lnM, lnweights
+
+
+    def get_lnlike_obs(self, dataID, obsnames, lnM_obs):
+        """Return likelihood of observable(s) given mass."""
+        lnlike = len(obsnames)*[None]
+        for o,obsname in enumerate(obsnames):
+            obs = scaling_relations.mass2obs(obsname, np.exp(lnM_obs[o]), self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
+            if obsname=='richness':
+                lnlike[o] = -.5*(self.catalog['richness'][dataID]-obs)**2/self.catalog['richness'][dataID] - .5*np.log(2*np.pi*self.catalog['richness'][dataID])
+            elif obsname in ['WLDES', 'WLHST', 'WLMegacam']:
+                if obsname=='WLHST':
+                    idx = (self.HSTcalib['SPT_ID']==self.catalog['SPT_ID'][dataID]).nonzero()[0]
+                    std = np.sqrt(self.HSTcalib['LSS'][idx]**2 + self.HSTcalib['LOS'][idx]**2)
+                    r_min = norm.cdf(self.WL.M_arr[0], loc=obs, scale=std)
+                    r_max = norm.cdf(self.WL.M_arr[-1], loc=obs, scale=std)
+                    r = r_min + (r_max-r_min)*self.rng.random(len(obs))
+                    obs+= erfinv(2*r-1)*std*np.sqrt(2)
+                WL_interp = InterpolatedUnivariateSpline(np.log(self.WL.M_arr), self.catalog['lnp_Mwl'][dataID], k=1)
+                lnlike[o] = WL_interp(np.log(obs))
+        return lnlike
 
 
     ############################################################################
@@ -306,35 +279,28 @@ class MassCalibration:
         obsnames_nozeta = obsnames.copy()
         obsnames_nozeta.remove('zeta')
         dlnM_dlnobs = np.array([scaling_relations.dlnM_dlnobs(obs, self.scaling) for obs in obsnames])
-
-        # Mass given follow-up observables
-        lnM_obs, obs_lnweights, pos = self.mass_given_obs(obsnames, dataID)
-        # Account for change of variables
+        pos = {}
         for o,obs in enumerate(obsnames):
-            obs_lnweights[o]+= np.log(dlnM_dlnobs[pos[obs]])
-
-        # Draw mass given zeta
+            pos[obs] = o
+        # Mass given zeta
+        lnM_zeta, zeta_lnweights = self.get_lnM_zeta_given_xi(dataID)
         SZscatter_lnM = self.scaling['Dsz'] * dlnM_dlnobs[pos['zeta']]
-        lnM = self.draw_lnm_given_lnzeta(lnM_obs[pos['zeta']], SZscatter_lnM)
-
+        lnM = self.draw_lnm_given_lnzeta(lnM_zeta, SZscatter_lnM)
         # Sometimes there are failures when mean obs is very unlikely
         if np.all(np.isinf(lnM)):
             return 0.
         idx = np.isfinite(lnM)
         if not np.all(idx):
             lnM = lnM[idx]
-            for i in range(N_obs):
-                lnM_obs[i] = lnM_obs[i][idx]
-                obs_lnweights[i] = obs_lnweights[i][idx]
-
-        # Mass function
+            lnM_zeta = lnM_zeta[idx]
+            zeta_lnweights = zeta_lnweights[idx]
+        # Weight with mass function
         mass_lnweights = self.get_mass_function_lnweights(z_cluster, lnM)
-
         # Weights of optical cleaning
         if self.todo['lambda_min']:
             covmat = self.get_covmat_obs(['zeta', 'richness'])
             covmat_lnM = covmat * dlnM_dlnobs[[pos['zeta'], pos['richness']]][:,None]*dlnM_dlnobs[[pos['zeta'], pos['richness']]][None,:]
-            lnM_lambda_mean = lnM + covmat_lnM[0,1]/covmat_lnM[0,0]*(lnM_obs[pos['zeta']]-lnM)
+            lnM_lambda_mean = lnM + covmat_lnM[0,1]/covmat_lnM[0,0]*(lnM_zeta-lnM)
             lnM_lambda_std = np.sqrt(covmat_lnM[1,1] - covmat_lnM[0,1]**2/covmat_lnM[0,0])
             if self.catalog['FIELD'][dataID]=='SPTPOL_500d':
                 lambda_min = self.surveyCutRichness['deep'](z_cluster)
@@ -344,16 +310,14 @@ class MassCalibration:
             xi_lambdacut_lnweights = np.log(norm.cdf(lnM_lambda_mean, lnM_lambda_min, lnM_lambda_std))
         else:
             xi_lambdacut_lnweights = 0.
-
         # Normalization P(xi)
-        lnweights = obs_lnweights[pos['zeta']] + mass_lnweights + xi_lambdacut_lnweights
+        lnweights = zeta_lnweights + mass_lnweights + xi_lambdacut_lnweights
         shift_lnweights = np.amax(lnweights)-700
         diff_lnweights = lnweights - shift_lnweights
         with np.errstate(all='ignore'):
             Pxi = np.exp(shift_lnweights) * np.mean(np.exp(diff_lnweights))
         if Pxi==0:
             return 0.
-
         # Covariance matrix in ln-mass [draw, N_obs, N_obs]
         covmat = self.get_covmat_obs(obsnames)
         Jacobian = dlnM_dlnobs[:,None]*dlnM_dlnobs[None,:]
@@ -366,30 +330,24 @@ class MassCalibration:
             scatter = self.scaling['DWL_HST'][self.catalog['SPT_ID'][dataID]]
             covmat_lnM[:,pos['WLHST'],:]*= scatter
             covmat_lnM[:,:,pos['WLHST']]*= scatter
-
-        # Conditional probability of follow-up observables
+        # Mean and covariance of conditional probability of follow-up observables
         covmat_lnM_zeta = covmat_lnM[:,pos['zeta'],pos['zeta']]
         covmat_lnM_mix = np.delete(covmat_lnM[:,pos['zeta'],:], pos['zeta'], axis=1)
-
-        lnobs_given_lnzeta_mean = (lnM[:,None] + covmat_lnM_mix / covmat_lnM_zeta[:,None] * (lnM_obs[pos['zeta']] - lnM)[:,None]).T
+        lnobs_given_lnzeta_mean = lnM[:,None] + covmat_lnM_mix / covmat_lnM_zeta[:,None] * (lnM_zeta - lnM)[:,None]
         inv = np.linalg.inv(covmat_lnM)
-        lnobs_given_lnzeta_cov_inv = np.delete(np.delete(inv, pos['zeta'], axis=1), pos['zeta'], axis=2)
-
+        lnobs_given_lnzeta_cov = np.linalg.inv(np.delete(np.delete(inv, pos['zeta'], axis=1), pos['zeta'], axis=2))
+        # Draw follow-up observables
         if N_obs==2:
-            chi2 = (lnM_obs[pos[obsnames_nozeta[0]]]-lnobs_given_lnzeta_mean)[0]**2 * lnobs_given_lnzeta_cov_inv[:,0,0]
-        elif N_obs==3:
-            chi2 = multivariate_normal.bivariate_chi2_multivec(lnM_obs[pos[obsnames_nozeta[0]]]-lnobs_given_lnzeta_mean[0],
-                                                               lnM_obs[pos[obsnames_nozeta[1]]]-lnobs_given_lnzeta_mean[1],
-                                                               lnobs_given_lnzeta_cov_inv)
-        elif N_obs==4:
-            chi2 = multivariate_normal.trivariate_chi2_multivec(lnM_obs[pos[obsnames_nozeta[0]]]-lnobs_given_lnzeta_mean[0],
-                                                                lnM_obs[pos[obsnames_nozeta[1]]]-lnobs_given_lnzeta_mean[1],
-                                                                lnM_obs[pos[obsnames_nozeta[2]]]-lnobs_given_lnzeta_mean[2],
-                                                                lnobs_given_lnzeta_cov_inv)
-        P_obs_lnweights = -.5 * chi2 - .5 * np.log((2*np.pi)**(N_obs-1) / np.linalg.det(lnobs_given_lnzeta_cov_inv))
-
+            lnM_obs = [self.rng.normal(lnobs_given_lnzeta_mean[:,0], np.sqrt(lnobs_given_lnzeta_cov[:,0,0])),]
+        else:
+            Cho = np.linalg.cholesky(lnobs_given_lnzeta_cov)
+            u = self.rng.normal(0, 1, size=lnobs_given_lnzeta_mean.shape)
+            r = np.sum(Cho[:,:,:]*u[:,None,:], axis=2)
+            lnM_obs = (lnobs_given_lnzeta_mean + r).T
+        # Likelihood of follow-up observables
+        lnlike_obs = self.get_lnlike_obs(dataID, obsnames_nozeta, lnM_obs)
         # Final likelihood
-        lnweights = np.sum(obs_lnweights, axis=0) + mass_lnweights + P_obs_lnweights
+        lnweights = zeta_lnweights + mass_lnweights + xi_lambdacut_lnweights + np.sum(lnlike_obs, axis=0)
         shift_lnweights = np.amax(lnweights)-700
         diff_lnweights = lnweights - shift_lnweights
         with np.errstate(all='ignore'):
