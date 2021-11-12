@@ -138,15 +138,9 @@ class MassCalibration:
             self.thisSPTfield_gamma*= self.scaling['SPECS_calib']
 
         #####
-        probability = np.inf
-        n = 0
-        while np.isinf(probability) | np.isnan(probability):
-            probability = self.get_P_obs_xi_zetadraw(obsnames, i)
-            n+= 1
-            if n==10:
-                break
+        probability = self.get_P_obs_xi_zetadraw(obsnames, i)
 
-        if (probability<0) | np.isnan(probability):
+        if (probability<0) | np.isnan(probability) | np.isinf(probability):
             return 0.
             # raise ValueError("P(obs|xi) =", probability, name)
 
@@ -218,6 +212,7 @@ class MassCalibration:
         idx = np.argsort(lnM)
         mass_lnweights = np.zeros(len(lnM))
         mass_lnweights[idx] = self.HMF_interp(np.log(z), lnM[idx])-lnM[idx]
+        mass_lnweights-= np.amax(mass_lnweights)
         return mass_lnweights
 
 
@@ -256,7 +251,15 @@ class MassCalibration:
         for o,obsname in enumerate(obsnames):
             obs = scaling_relations.mass2obs(obsname, np.exp(lnM_obs[o]), self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
             if obsname=='richness':
-                lnlike[o] = -.5*(self.catalog['richness'][dataID]-obs)**2/self.catalog['richness'][dataID] - .5*np.log(2*np.pi*self.catalog['richness'][dataID])
+                lnlike[o] = -.5*(self.catalog['richness'][dataID]-obs)**2/obs - .5*np.log(2*np.pi*obs)
+                if self.todo['lambda_min']:
+                    if self.catalog['FIELD'][dataID]=='SPTPOL_500d':
+                        lambda_min = self.surveyCutRichness['deep'](self.catalog['REDSHIFT'][dataID])
+                    else:
+                        lambda_min = self.surveyCutRichness['shallow'](self.catalog['REDSHIFT'][dataID])
+                    with np.errstate(all='ignore'):
+                        lnP_lambda_gtr_lambda_min = np.log(norm.cdf(obs, lambda_min, np.sqrt(obs)))
+                    lnlike[o]-= lnP_lambda_gtr_lambda_min
             elif obsname in ['WLDES', 'WLHST', 'WLMegacam']:
                 if obsname=='WLHST':
                     idx = (self.HSTcalib['SPT_ID']==self.catalog['SPT_ID'][dataID]).nonzero()[0]
@@ -296,28 +299,10 @@ class MassCalibration:
             zeta_lnweights = zeta_lnweights[idx]
         # Weight with mass function
         mass_lnweights = self.get_mass_function_lnweights(z_cluster, lnM)
-        # Weights of optical cleaning
-        if self.todo['lambda_min']:
-            covmat = self.get_covmat_obs(['zeta', 'richness'])
-            covmat_lnM = covmat * dlnM_dlnobs[[pos['zeta'], pos['richness']]][:,None]*dlnM_dlnobs[[pos['zeta'], pos['richness']]][None,:]
-            lnM_lambda_mean = lnM + covmat_lnM[0,1]/covmat_lnM[0,0]*(lnM_zeta-lnM)
-            lnM_lambda_std = np.sqrt(covmat_lnM[1,1] - covmat_lnM[0,1]**2/covmat_lnM[0,0])
-            if self.catalog['FIELD'][dataID]=='SPTPOL_500d':
-                lambda_min = self.surveyCutRichness['deep'](z_cluster)
-            else:
-                lambda_min = self.surveyCutRichness['shallow'](z_cluster)
-            lnM_lambda_min = np.log(scaling_relations.obs2mass('richness', lambda_min, z_cluster, self.scaling))
-            xi_lambdacut_lnweights = np.log(norm.cdf(lnM_lambda_mean, lnM_lambda_min, lnM_lambda_std))
-        else:
-            xi_lambdacut_lnweights = 0.
         # Normalization P(xi)
-        lnweights = zeta_lnweights + mass_lnweights + xi_lambdacut_lnweights
-        shift_lnweights = np.amax(lnweights)-700
-        diff_lnweights = lnweights - shift_lnweights
-        with np.errstate(all='ignore'):
-            Pxi = np.exp(shift_lnweights) * np.mean(np.exp(diff_lnweights))
-        if Pxi==0:
-            return 0.
+        lnweights = zeta_lnweights + mass_lnweights
+        #with np.errstate(all='ignore'):
+        Pxi = np.mean(np.exp(lnweights))
         # Covariance matrix in ln-mass [draw, N_obs, N_obs]
         covmat = self.get_covmat_obs(obsnames)
         Jacobian = dlnM_dlnobs[:,None]*dlnM_dlnobs[None,:]
@@ -347,12 +332,32 @@ class MassCalibration:
         # Likelihood of follow-up observables
         lnlike_obs = self.get_lnlike_obs(dataID, obsnames_nozeta, lnM_obs)
         # Final likelihood
-        lnweights = zeta_lnweights + mass_lnweights + xi_lambdacut_lnweights + np.sum(lnlike_obs, axis=0)
-        shift_lnweights = np.amax(lnweights)-700
-        diff_lnweights = lnweights - shift_lnweights
+        lnweights = zeta_lnweights + mass_lnweights + np.sum(lnlike_obs, axis=0)
+        # Let's accept two invalid draws (and discard them)
+        lnweights = lnweights[np.isfinite(lnweights)]
+        if len(lnweights)<Ndraw-2:
+            return 0.
+        # If we cannot even compute the largest weight we're doomed
+        if np.exp(np.amax(lnweights))==0:
+            return 0.
+        # Lots of potential warnings ahead...
         with np.errstate(all='ignore'):
-            Pobsxi = np.exp(shift_lnweights) * np.mean(np.exp(diff_lnweights))
-        like = Pobsxi/Pxi
-        if (like<=0.) | np.isinf(like) | np.isnan(like):
-            print(self.catalog['SPT_ID'][dataID], 'like', like)
+            # Let's be optimistic
+            Pobsxi = np.mean(np.exp(lnweights))
+            like = Pobsxi/Pxi
+            # Maybe it works by shifting to the mean ln-weight
+            if (like<=0.) | np.isinf(like) | np.isnan(like):    
+                shift_lnweights = np.mean(lnweights)
+                diff_lnweights = lnweights - shift_lnweights
+                Pobsxi = np.exp(shift_lnweights) * np.mean(np.exp(diff_lnweights))
+                like = Pobsxi/Pxi
+                # Now we're desperate - maybe shift such that max(weight) = 1
+                if (like<=0.) | np.isinf(like) | np.isnan(like):
+                    shift_lnweights = np.amax(lnweights)
+                    diff_lnweights = lnweights - shift_lnweights
+                    Pobsxi = np.exp(shift_lnweights) * np.mean(np.exp(diff_lnweights))
+                    like = Pobsxi/Pxi
+                    # OK we're giving up
+                    if (like<=0.) | np.isinf(like) | np.isnan(like):
+                        print(self.catalog['SPT_ID'][dataID], N_obs, 'like', like)
         return like
