@@ -19,7 +19,6 @@ def setup(options):
     surveyCutLambda = {'shallow': interp1d(tmp[0], tmp[1], kind='linear'),
                        'deep': interp1d(tmp[0], tmp[2], kind='linear')}
     NPROC = options.get_int(option_section, 'NPROC')
-    method = options.get_string(option_section, 'method')
     # SPT survey
     SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
     # Double counted clusters
@@ -31,7 +30,7 @@ def setup(options):
     # HST file
     HSTcalibfile = options.get_string(option_section, 'HSTcalibfile')
 
-    masscalibration = mass_calibration.MassCalibration(todo, method, mcType,
+    masscalibration = mass_calibration.MassCalibration(todo, mcType,
                                                        surveyCutRedshift, surveyCutLambda,
                                                        SPT_survey_fields, SPT_doublecounts, SPTcatalogfile,
                                                        HSTcalibfile,
