@@ -315,17 +315,21 @@ class MassCalibration:
             scatter = self.scaling['DWL_HST'][self.catalog['SPT_ID'][dataID]]
             covmat_lnM[:,pos['WLHST'],:]*= scatter
             covmat_lnM[:,:,pos['WLHST']]*= scatter
-        # Mean and covariance of conditional probability of follow-up observables
+        # Draw follow-up observables using mean and covariance of conditional probability
         covmat_lnM_zeta = covmat_lnM[:,pos['zeta'],pos['zeta']]
         covmat_lnM_mix = np.delete(covmat_lnM[:,pos['zeta'],:], pos['zeta'], axis=1)
         lnobs_given_lnzeta_mean = lnM[:,None] + covmat_lnM_mix / covmat_lnM_zeta[:,None] * (lnM_zeta - lnM)[:,None]
-        inv = np.linalg.inv(covmat_lnM)
-        lnobs_given_lnzeta_cov = np.linalg.inv(np.delete(np.delete(inv, pos['zeta'], axis=1), pos['zeta'], axis=2))
-        # Draw follow-up observables
         if N_obs==2:
-            lnM_obs = [self.rng.normal(lnobs_given_lnzeta_mean[:,0], np.sqrt(lnobs_given_lnzeta_cov[:,0,0])),]
-        else:
-            Cho = np.linalg.cholesky(lnobs_given_lnzeta_cov)
+            var = covmat_lnM[:,pos[obsnames_nozeta[0]],pos[obsnames_nozeta[0]]] - covmat_lnM[:,0,1]**2/covmat_lnM[:,pos['zeta'],pos['zeta']]
+            lnM_obs = [self.rng.normal(lnobs_given_lnzeta_mean[:,0], np.sqrt(var)),]
+        elif N_obs==3:
+            var = np.delete(np.delete(covmat_lnM.copy(), pos['zeta'], axis=1), pos['zeta'], axis=2)
+            var[:,0,0]-= covmat_lnM[:,pos['zeta'],pos[obsnames_nozeta[0]]]**2/covmat_lnM[:,pos['zeta'],pos['zeta']]
+            var[:,1,1]-= covmat_lnM[:,pos['zeta'],pos[obsnames_nozeta[1]]]**2/covmat_lnM[:,pos['zeta'],pos['zeta']]
+            tmp = covmat_lnM[:,pos['zeta'],pos[obsnames_nozeta[0]]]*covmat_lnM[:,pos['zeta'],pos[obsnames_nozeta[1]]]/covmat_lnM[:,pos['zeta'],pos['zeta']]
+            var[:,0,1]-= tmp
+            var[:,1,0]-= tmp
+            Cho = np.linalg.cholesky(var)
             u = self.rng.normal(0, 1, size=lnobs_given_lnzeta_mean.shape)
             r = np.sum(Cho[:,:,:]*u[:,None,:], axis=2)
             lnM_obs = (lnobs_given_lnzeta_mean + r).T
