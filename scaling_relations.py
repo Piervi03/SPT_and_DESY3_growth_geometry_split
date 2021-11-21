@@ -1,5 +1,6 @@
 from __future__ import division
 import numpy as np
+from scipy.interpolate import interp1d
 
 import cosmo
 
@@ -51,7 +52,8 @@ def mass2obs(name, mass, z, scaling, cosmology=None, cluster_ID=None):
         return scaling['bWL_HST'][cluster_ID] * mass
     elif name=='WLDES':
         bias_z = scaling['DESwl_bias_mean'] + np.array([scaling['DES_b_dev_%d'%i] for i in range(3)])*scaling['DESwl_bias_std']
-        b = np.interp(z, scaling['DESwl_z'], bias_z)
+        f = interp1d(scaling['DESwl_z'], bias_z, fill_value='extrapolate')
+        b = f(z)
         return scaling['DES_m_piv'] * np.exp(b)  * (mass/scaling['DES_m_piv'])**scaling['DES_b_m']
     else:
         raise ValueError("Observable not known:", name)
@@ -74,7 +76,8 @@ def obs2mass(name, obs, z, scaling, cosmology=None, cluster_ID=None):
         return obs/scaling['bWL_HST'][cluster_ID]
     elif name=='WLDES':
         bias_z = scaling['DESwl_bias_mean'] + np.array([scaling['DES_b_dev_%d'%i] for i in range(3)])*scaling['DESwl_bias_std']
-        b = np.interp(z, scaling['DESwl_z'], bias_z)
+        f = interp1d(scaling['DESwl_z'], bias_z, fill_value='extrapolate')
+        b = f(z)
         return scaling['DES_m_piv'] * (obs / scaling['DES_m_piv'] / np.exp(b))**(1/scaling['DES_b_m'])
     else:
         raise ValueError("Observable not known:", name)
@@ -110,7 +113,8 @@ def dlnM_dlnobs(name, scaling, cosmology=None, M0_arr=None, z=None):
 def WLscatter(name, mass, z, scaling):
     if name=='main':
         scatter_z = scaling['DESwl_scatter_mean'] + np.array([scaling['DES_s_dev_%d'%i] for i in range(3)])*scaling['DESwl_scatter_std']
-        s = np.interp(z, scaling['DESwl_z'], scatter_z)
+        f = interp1d(scaling['DESwl_z'], scatter_z, fill_value='extrapolate')
+        s = f(z)
         lnvar = s + scaling['DES_s_M']*np.log(mass/scaling['DES_m_piv'])
         return  np.exp(.5 * lnvar)
     elif name=='wide':
