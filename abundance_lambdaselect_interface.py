@@ -45,9 +45,13 @@ def execute(block, number_count):
         HMF['z_arr'] = z['SZ_lambdacut_shallow_z']
     HMF['len_z'] = len(HMF['z_arr'])
     # Compute the likelihood
-    lnlike = float(number_count.lnlike(HMF, cosmology, scaling))
+    lnlike, dN_dz, dN_dz_500d, dN_dz_SZ, dN_dz_SPECS, dN_dxi, dN_dxi_500d, dN_dxi_SZ, dN_dxi_SPECS, N_total = number_count.lnlike(HMF, cosmology, scaling)
     if np.isneginf(lnlike):
         return 1
+    for i,n in enumerate(dN_dz):
+        block.put_double('dN', 'dN_dz_%d'%i, n)
+    for i,n in enumerate(dN_dxi):
+        block.put_double('dN', 'dN_dxi_%d'%i)
     block.put_double('likelihoods', 'ABUNDANCE_LIKE', lnlike)
     return 0
 

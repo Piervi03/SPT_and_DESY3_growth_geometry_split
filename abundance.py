@@ -2,7 +2,7 @@ from __future__ import division
 import numpy as np
 from multiprocessing import Pool
 from scipy.stats import norm
-from scipy.interpolate import RectBivariateSpline
+from scipy.interpolate import interp1d, RectBivariateSpline
 from scipy.ndimage import gaussian_filter1d
 import scaling_relations
 
@@ -30,6 +30,14 @@ class NumberCount:
         dz = .01
         Nz = int((self.surveyCutRedshift[1]-self.surveyCutRedshift[0])/dz + 1)
         self.z_arr = np.linspace(self.surveyCutRedshift[0], self.surveyCutRedshift[1], Nz)
+        # For output
+        dz = .1
+        Nz = int((self.surveyCutRedshift[1]-self.surveyCutRedshift[0])/dz + 1)
+        self.z_bins_output = np.linspace(self.surveyCutRedshift[0], self.surveyCutRedshift[1], Nz)
+        self.xi_bins_output = np.logspace(np.log10(4.25), np.log10(self.surveyCutSZmax), 11)
+        self.xi_bins_survey = {'SPTPOL_500d': self.xi_bins_output,
+                               'SZ': np.logspace(np.log10(4.5), np.log10(self.surveyCutSZmax), 11),
+                               'SPECS': np.logspace(np.log10(5), np.log10(self.surveyCutSZmax), 11)}
 
 
 
@@ -62,13 +70,23 @@ class NumberCount:
             with Pool(processes=self.NPROC) as pool:
                 argin = zip([self]*num_fields, range(num_fields))
                 field_results = pool.map(unwrap_self_f, argin)
-        field_results = np.array(field_results)
-        lnlike = np.sum(field_results[:,0])
-        Ntotal = np.sum(field_results[:,1])
+        lnlike = np.sum([field_results[i][0] for i in range(num_fields)])
+        Ntotal = np.sum([field_results[i][1] for i in range(num_fields)])
+        dN_dz = np.array([field_results[i][2] for i in range(num_fields)])
+        dN_dxi = np.array([field_results[i][3] for i in range(num_fields)]).sum(axis=0)
+        dN_dxi_survey = np.array([field_results[i][4] for i in range(num_fields)])
+        subsurveys = np.array([field_results[i][5] for i in range(num_fields)])
+        dN_dz_total = dN_dz.sum(axis=0)
+        dN_dz_500d = dN_dz[subsurveys=='SPTPOL_500d',:].sum(axis=0)
+        dN_dz_SZ = dN_dz[subsurveys=='SZ',:].sum(axis=0)
+        dN_dz_SPECS = dN_dz[subsurveys=='SPECS',:].sum(axis=0)
+        dN_dxi_500d = dN_dxi_survey[subsurveys=='SPTPOL_500d',:].sum(axis=0)
+        dN_dxi_SZ = dN_dxi_survey[subsurveys=='SZ',:].sum(axis=0)
+        dN_dxi_SPECS = dN_dxi_survey[subsurveys=='SPECS',:].sum(axis=0)
 
         # print 'abundance lnlike %.3f, Ntotal %.2f'%(lnlike, Ntotal)
 
-        return lnlike
+        return lnlike, dN_dz_total, dN_dz_500d, dN_dz_SZ, dN_dz_SPECS, dN_dxi, dN_dxi_500d, dN_dxi_SZ, dN_dxi_SPECS, Ntotal
 
 
     ##########
@@ -112,6 +130,14 @@ class NumberCount:
         dNdz = np.sum(integrand, axis=1)
         Ntotal = np.trapz(dNdz, self.z_arr)
 
+        # dN_dxi and dN_dz for output
+        dNdz_interp = interp1d(self.z_arr, dNdz, kind='cubic')
+        dN_dz_out = dNdz_interp(self.z_bins_output)
+        integrand = np.exp(lndNdxi(np.log(self.z_arr), np.log(self.xi_bins_output)))
+        dN_dxi_out = np.trapz(integrand, self.z_arr, axis=0)
+        integrand = np.exp(lndNdxi(np.log(self.z_arr), np.linspace(np.log(self.SPT_survey['XI_MIN'][fieldidx]), np.log(50), 11)))
+        dN_dxi_out_survey = np.trapz(integrand, self.z_arr, axis=0)
+
         # Likelihood contribution from Ntotal
         lnlike_this_field = -Ntotal
 
@@ -146,4 +172,4 @@ class NumberCount:
             this_lnlike = np.log(dNdxifalse + dNdxitrue)
             lnlike_this_field+= this_lnlike
 
-        return lnlike_this_field, Ntotal
+        return lnlike_this_field, Ntotal, dN_dz_out, dN_dxi_out, dN_dxi_out_survey, self.SPT_survey['SURVEY'][fieldidx]
