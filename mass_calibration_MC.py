@@ -7,7 +7,7 @@ from astropy.table import Table
 import time
 import scipy.special as ss
 from scipy import integrate, signal
-from scipy.interpolate import InterpolatedUnivariateSpline, RectBivariateSpline
+from scipy.interpolate import interp1d, RectBivariateSpline
 from scipy.stats import norm
 from scipy.special import erfinv
 import cosmo, Mconversion_concentration, scaling_relations
@@ -249,7 +249,7 @@ class MassCalibration:
         """Return likelihood of observable(s) given mass."""
         lnlike = len(obsnames)*[None]
         for o,obsname in enumerate(obsnames):
-            obs = scaling_relations.mass2obs(obsname, np.exp(lnM_obs[o]), self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
+            obs = scaling_relations.mass2obs(obsname, np.exp(lnM_obs[o]), self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, self.catalog['SPT_ID'][dataID])
             if obsname=='richness':
                 lnlike[o] = -.5*(self.catalog['richness'][dataID]-obs)**2/obs - .5*np.log(2*np.pi*obs)
                 if self.todo['lambda_min']:
@@ -260,6 +260,13 @@ class MassCalibration:
                     with np.errstate(all='ignore'):
                         lnP_lambda_gtr_lambda_min = np.log(norm.cdf(obs, lambda_min, np.sqrt(obs)))
                     lnlike[o]-= lnP_lambda_gtr_lambda_min
+                # For goodness of fit
+                # r_min = np.amax((.001*np.ones(len(obs)), norm.cdf(0, loc=obs, scale=np.sqrt(obs))), axis=0)
+                # r_max = .999
+                # r = r_min + (r_max-r_min)*self.rng.random(len(obs))
+                # lambda_obs = obs + erfinv(2*r-1)*np.sqrt(obs)*np.sqrt(2)
+                # lnlike[o] = self.catalog['richness'][dataID]-lambda_obs
+
             elif obsname in ['WLDES', 'WLHST', 'WLMegacam']:
                 if obsname=='WLHST':
                     idx = (self.HSTcalib['SPT_ID']==self.catalog['SPT_ID'][dataID]).nonzero()[0]
@@ -268,8 +275,9 @@ class MassCalibration:
                     r_max = norm.cdf(self.WL.M_arr[-1], loc=obs, scale=std)
                     r = r_min + (r_max-r_min)*self.rng.random(len(obs))
                     obs+= erfinv(2*r-1)*std*np.sqrt(2)
-                WL_interp = InterpolatedUnivariateSpline(np.log(self.WL.M_arr), self.catalog['lnp_Mwl'][dataID], k=1)
-                lnlike[o] = WL_interp(np.log(obs))
+                lnlike[o] = interp1d(self.WL.lnM_arr, self.catalog['lnp_Mwl'][dataID], fill_value='extrapolate')(np.log(obs))
+                # For goodness of fit
+                # lnlike[o] = lnlike[o], self.WL.M_arr[:,None]-obs[None,:] 
         return lnlike
 
 
@@ -335,11 +343,15 @@ class MassCalibration:
             lnM_obs = (lnobs_given_lnzeta_mean + r).T
         # Likelihood of follow-up observables
         lnlike_obs = self.get_lnlike_obs(dataID, obsnames_nozeta, lnM_obs)
+        # Goodness of fit
+        # np.save(self.catalog['SPT_ID'][dataID]+'_Delta_richness', (lnlike_obs[0], zeta_lnweights+mass_lnweights))
+        # np.save(self.catalog['SPT_ID'][dataID]+'_Delta_Mwl', (lnlike_obs[0][1], zeta_lnweights+mass_lnweights+lnlike_obs[0][0]))
+        # return 0
         # Final likelihood
         lnweights = zeta_lnweights + mass_lnweights + np.sum(lnlike_obs, axis=0)
         # Let's accept two invalid draws (and discard them)
         lnweights = lnweights[np.isfinite(lnweights)]
-        if len(lnweights)<Ndraw-2:
+        if len(lnweights)<Ndraw-32:
             return 0.
         # If we cannot even compute the largest weight we're doomed
         if np.exp(np.amax(lnweights))==0:
