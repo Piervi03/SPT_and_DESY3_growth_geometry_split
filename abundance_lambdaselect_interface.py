@@ -51,7 +51,7 @@ def execute(block, number_count):
     for i,n in enumerate(dN_dz):
         block.put_double('dN', 'dN_dz_%d'%i, n)
     for i,n in enumerate(dN_dxi):
-        block.put_double('dN', 'dN_dxi_%d'%i)
+        block.put_double('dN', 'dN_dxi_%d'%i, n)
     block.put_double('likelihoods', 'ABUNDANCE_LIKE', lnlike)
     return 0
 

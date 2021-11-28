@@ -35,7 +35,8 @@ def execute(block, computer):
                  'wa': block.get_double('cosmological_parameters', 'wa')}
     # SZ scaling relation parameters
     scaling = {}
-    for p in ['Asz', 'Bsz', 'Csz', 'Dsz', 'Esz', 'SPECS_calib', 'SZmPivot', 'zeta_min']:
+    for p in ['Asz', 'Bsz', 'Csz', 'Dsz', 'Esz', 'SPECS_calib', 'SZmPivot', 'zeta_min',
+              'Arichness', 'Brichness', 'Crichness', 'richmPivot']:
         scaling[p] = block.get_double('mor_parameters', p)
     # Convolved halo mass function
     HMF = {'M_arr': block.get_double_array_1d('dN_dmultiobs', 'M_arr'),
@@ -47,7 +48,7 @@ def execute(block, computer):
     #for i,n in enumerate(dN_dz):
     #    block.put_double('dN', 'dN_dz_%d'%i, n)
     for i,n in enumerate(dN_dlambda):
-        block.put_double('dN', 'dN_dlambda_%d'%i)
+        block.put_double('dN', 'dN_dlambda_%d'%i, n)
     return 0
 
 def cleanup(config):
