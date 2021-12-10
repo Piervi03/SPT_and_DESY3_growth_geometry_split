@@ -8,7 +8,7 @@ import time
 import scipy.special as ss
 from scipy import integrate, signal
 from scipy.interpolate import interp1d, RectBivariateSpline
-from scipy.stats import norm
+from scipy.stats import lognorm, norm
 from scipy.special import erfinv
 import cosmo, Mconversion_concentration, scaling_relations
 
@@ -30,7 +30,7 @@ def unwrap_self_f(arg):
 class MassCalibration:
 
     def __init__(self, todo, mcType,
-                 surveyCutRedshift, surveyCutRichness,
+                 surveyCutRedshift, surveyCutRichness, richnesslognormalGaussPoisson,
                  SPT_survey_fields, SPT_doublecounts, SPTcatalogfile,
                  HSTcalibfile,
                  NPROC):
@@ -40,6 +40,7 @@ class MassCalibration:
         self.mcType = mcType
         self.surveyCutRedshift = surveyCutRedshift
         self.surveyCutRichness = surveyCutRichness
+        self.richnesslognormalGaussPoisson = richnesslognormalGaussPoisson
 
         # Read input files
         self.SPT_survey = Table.read(SPT_survey_fields, format='ascii.commented_header')
@@ -245,39 +246,89 @@ class MassCalibration:
         return lnM, lnweights
 
 
-    def get_lnlike_obs(self, dataID, obsnames, lnM_obs):
-        """Return likelihood of observable(s) given mass."""
-        lnlike = len(obsnames)*[None]
-        for o,obsname in enumerate(obsnames):
-            obs = scaling_relations.mass2obs(obsname, np.exp(lnM_obs[o]), self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, self.catalog['SPT_ID'][dataID])
-            if obsname=='richness':
-                lnlike[o] = -.5*(self.catalog['richness'][dataID]-obs)**2/obs - .5*np.log(2*np.pi*obs)
-                if self.todo['lambda_min']:
-                    if self.catalog['FIELD'][dataID]=='SPTPOL_500d':
-                        lambda_min = self.surveyCutRichness['deep'](self.catalog['REDSHIFT'][dataID])
-                    else:
-                        lambda_min = self.surveyCutRichness['shallow'](self.catalog['REDSHIFT'][dataID])
-                    with np.errstate(all='ignore'):
-                        lnP_lambda_gtr_lambda_min = np.log(norm.cdf(obs, lambda_min, np.sqrt(obs)))
-                    lnlike[o]-= lnP_lambda_gtr_lambda_min
-                # For goodness of fit
-                # r_min = np.amax((.001*np.ones(len(obs)), norm.cdf(0, loc=obs, scale=np.sqrt(obs))), axis=0)
-                # r_max = .999
-                # r = r_min + (r_max-r_min)*self.rng.random(len(obs))
-                # lambda_obs = obs + erfinv(2*r-1)*np.sqrt(obs)*np.sqrt(2)
-                # lnlike[o] = self.catalog['richness'][dataID]-lambda_obs
+    def get_conditional_on_zeta(self, covmat_lnM, lnM, lnM_zeta, pos, obsnames_nozeta):
+        """Return mean and (co-)variance of conditional distribution
+        P(obs|M, M(zeta))."""
+        # Conditional mean = mu + Sigma_12 / var_lnzeta (lnzeta - mu_lnzeta)
+        lnM_obs_given_lnzeta_mean = lnM[:,None] + np.delete(covmat_lnM[:,pos['zeta'],:], pos['zeta'], axis=1) / covmat_lnM[:,pos['zeta'],pos['zeta']][:,None] * (lnM_zeta - lnM)[:,None]
+        # Conditional (co-)variance = Sigma_11 - Sigma_12 / var_lnzeta * Sigma_21
+        if len(obsnames_nozeta)==1:
+            var = covmat_lnM[:,pos[obsnames_nozeta[0]],pos[obsnames_nozeta[0]]] - covmat_lnM[:,0,1]**2/covmat_lnM[:,pos['zeta'],pos['zeta']]
+        elif len(obsnames_nozeta)==2:
+            var = np.delete(np.delete(covmat_lnM.copy(), pos['zeta'], axis=1), pos['zeta'], axis=2)
+            var[:,0,0]-= covmat_lnM[:,pos['zeta'],pos[obsnames_nozeta[0]]]**2/covmat_lnM[:,pos['zeta'],pos['zeta']]
+            var[:,1,1]-= covmat_lnM[:,pos['zeta'],pos[obsnames_nozeta[1]]]**2/covmat_lnM[:,pos['zeta'],pos['zeta']]
+            tmp = covmat_lnM[:,pos['zeta'],pos[obsnames_nozeta[0]]]*covmat_lnM[:,pos['zeta'],pos[obsnames_nozeta[1]]]/covmat_lnM[:,pos['zeta'],pos['zeta']]
+            var[:,0,1]-= tmp
+            var[:,1,0]-= tmp
+        return lnM_obs_given_lnzeta_mean, var
 
-            elif obsname in ['WLDES', 'WLHST', 'WLMegacam']:
-                if obsname=='WLHST':
-                    idx = (self.HSTcalib['SPT_ID']==self.catalog['SPT_ID'][dataID]).nonzero()[0]
-                    std = np.sqrt(self.HSTcalib['LSS'][idx]**2 + self.HSTcalib['LOS'][idx]**2)
-                    r_min = norm.cdf(self.WL.M_arr[0], loc=obs, scale=std)
-                    r_max = norm.cdf(self.WL.M_arr[-1], loc=obs, scale=std)
-                    r = r_min + (r_max-r_min)*self.rng.random(len(obs))
-                    obs+= erfinv(2*r-1)*std*np.sqrt(2)
-                lnlike[o] = interp1d(self.WL.lnM_arr, self.catalog['lnp_Mwl'][dataID], fill_value='extrapolate')(np.log(obs))
-                # For goodness of fit
-                # lnlike[o] = lnlike[o], self.WL.M_arr[:,None]-obs[None,:] 
+
+    def get_lnlike_obs(self, dataID, obsnames, lnM_obs_given_lnzeta_mean, covmat_lnM):
+        """Return likelihood of observable(s) given their expected mean and
+        covariance. For multiple observables, repeatedly apply conditional
+        probability."""
+        pos = {}
+        for o,obs in enumerate(obsnames):
+            pos[obs] = o
+        lnlike = len(obsnames)*[None]
+
+        if 'richness' in obsnames:
+            obsnames_norichness = obsnames.copy()
+            obsnames_norichness.remove('richness')
+            # Variance in richness
+            if len(obsnames)==1:
+                richness_var_lnM = covmat_lnM
+            elif len(obsnames)==2:
+                richness_var_lnM = covmat_lnM[:,pos['richness'], pos['richness']]
+            # Compute lambda_min
+            if self.todo['lambda_min']:
+                if self.catalog['FIELD'][dataID]=='SPTPOL_500d':
+                    lambda_min = self.surveyCutRichness['deep'](self.catalog['REDSHIFT'][dataID])
+                else:
+                    lambda_min = self.surveyCutRichness['shallow'](self.catalog['REDSHIFT'][dataID])
+            # Convolve lognormal scatter with Gaussian of width sqrt(richness)
+            if self.richnesslognormalGaussPoisson:
+                lnM_richness = self.rng.normal(lnM_obs_given_lnzeta_mean[:,pos['richness']], np.sqrt(richness_var_lnM))
+                richness = scaling_relations.mass2obs('richness', np.exp(lnM_richness), self.catalog['REDSHIFT'][dataID], self.scaling)
+                lnlike[pos['richness']] = -.5*(self.catalog['richness'][dataID]-richness)**2/richness - .5*np.log(2*np.pi*richness)
+                if self.todo['lambda_min']:
+                    with np.errstate(all='ignore'):
+                        lnP_lambda_gtr_lambda_min = np.log(norm.cdf(richness, lambda_min, np.sqrt(richness)))
+                    lnlike[pos['richness']]-= lnP_lambda_gtr_lambda_min
+            # Lognormal scatter
+            else:
+                lnM_richness = np.log(scaling_relations.obs2mass('richness', self.catalog['richness'][dataID], self.catalog['REDSHIFT'][dataID], self.scaling))
+                lnrichness_std = np.sqrt(richness_var_lnM)/scaling_relations.dlnM_dlnobs(obs, self.scaling)
+                richness = scaling_relations.mass2obs('richness', np.exp(lnM_obs_given_lnzeta_mean[:,pos['richness']]), self.catalog['REDSHIFT'][dataID], self.scaling)
+                lnlike[pos['richness']] = -.5*(np.log(self.catalog['richness'][dataID]/richness))**2/lnrichness_std**2 - np.log(self.catalog['richness'][dataID]*lnrichness_std) - .5*np.log(2*np.pi)
+                if self.todo['lambda_min']:
+                    with np.errstate(all='ignore'):
+                        lnP_lambda_gtr_lambda_min = np.log(lognorm.cdf(self.catalog['richness'][dataID], scale=lambda_min, s=lnrichness_std))
+                    lnlike[pos['richness']]-= lnP_lambda_gtr_lambda_min
+            # Condition remaining observable(s) on measured richness
+            if len(obsnames)>1:
+                # Conditional mean: mu + Sigma_12 / var_lnrichness (lnrichness - mu_lnrichness)
+                lnobs_given_lnrichness_mean = np.delete(lnM_obs_given_lnzeta_mean, pos['richness'], axis=1) + np.delete(covmat_lnM[:,pos['richness'],:], pos['richness'], axis=1)/richness_var_lnM[:,None] * (lnM_richness - lnM_obs_given_lnzeta_mean[:,pos['richness']])[:,None]
+                # Conditional (co-)variance = Sigma_11 - Sigma_12 / var_lnrichness * Sigma_21
+                if len(obsnames)==2:
+                    lnobs_given_lnrichness_mean = lnobs_given_lnrichness_mean[:,0]
+                    var = covmat_lnM[:,pos[obsnames_norichness[0]],pos[obsnames_norichness[0]]] - covmat_lnM[:,0,1]**2/richness_var_lnM
+
+        if ('WLDES' in obsnames)|('WLHST' in obsnames)|('WLMegacam' in obsnames):
+            lnM_lensing = self.rng.normal(lnobs_given_lnrichness_mean, np.sqrt(var))
+            obs = scaling_relations.mass2obs(obsnames_norichness[0], np.exp(lnM_lensing), self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, self.catalog['SPT_ID'][dataID])
+            # Draw from HST large-scale structure scatter
+            if 'WLHST' in obsnames:
+                idx = (self.HSTcalib['SPT_ID']==self.catalog['SPT_ID'][dataID]).nonzero()[0]
+                std = np.sqrt(self.HSTcalib['LSS'][idx]**2 + self.HSTcalib['LOS'][idx]**2)
+                r_min = norm.cdf(self.WL.M_arr[0], loc=obs, scale=std)
+                r_max = norm.cdf(self.WL.M_arr[-1], loc=obs, scale=std)
+                r = r_min + (r_max-r_min)*self.rng.random(len(obs))
+                obs+= erfinv(2*r-1)*std*np.sqrt(2)
+            # Lensing likelihood
+            lnlike[pos[obsnames_norichness[0]]] = interp1d(self.WL.lnM_arr, self.catalog['lnp_Mwl'][dataID], fill_value='extrapolate')(np.log(obs))
+
         return lnlike
 
 
@@ -323,30 +374,10 @@ class MassCalibration:
             scatter = self.scaling['DWL_HST'][self.catalog['SPT_ID'][dataID]]
             covmat_lnM[:,pos['WLHST'],:]*= scatter
             covmat_lnM[:,:,pos['WLHST']]*= scatter
-        # Draw follow-up observables using mean and covariance of conditional probability
-        covmat_lnM_zeta = covmat_lnM[:,pos['zeta'],pos['zeta']]
-        covmat_lnM_mix = np.delete(covmat_lnM[:,pos['zeta'],:], pos['zeta'], axis=1)
-        lnobs_given_lnzeta_mean = lnM[:,None] + covmat_lnM_mix / covmat_lnM_zeta[:,None] * (lnM_zeta - lnM)[:,None]
-        if N_obs==2:
-            var = covmat_lnM[:,pos[obsnames_nozeta[0]],pos[obsnames_nozeta[0]]] - covmat_lnM[:,0,1]**2/covmat_lnM[:,pos['zeta'],pos['zeta']]
-            lnM_obs = [self.rng.normal(lnobs_given_lnzeta_mean[:,0], np.sqrt(var)),]
-        elif N_obs==3:
-            var = np.delete(np.delete(covmat_lnM.copy(), pos['zeta'], axis=1), pos['zeta'], axis=2)
-            var[:,0,0]-= covmat_lnM[:,pos['zeta'],pos[obsnames_nozeta[0]]]**2/covmat_lnM[:,pos['zeta'],pos['zeta']]
-            var[:,1,1]-= covmat_lnM[:,pos['zeta'],pos[obsnames_nozeta[1]]]**2/covmat_lnM[:,pos['zeta'],pos['zeta']]
-            tmp = covmat_lnM[:,pos['zeta'],pos[obsnames_nozeta[0]]]*covmat_lnM[:,pos['zeta'],pos[obsnames_nozeta[1]]]/covmat_lnM[:,pos['zeta'],pos['zeta']]
-            var[:,0,1]-= tmp
-            var[:,1,0]-= tmp
-            Cho = np.linalg.cholesky(var)
-            u = self.rng.normal(0, 1, size=lnobs_given_lnzeta_mean.shape)
-            r = np.sum(Cho[:,:,:]*u[:,None,:], axis=2)
-            lnM_obs = (lnobs_given_lnzeta_mean + r).T
+        # Get mean and (co-)variance of follow-up observables
+        lnM_obs_given_lnzeta_mean, var = self.get_conditional_on_zeta(covmat_lnM, lnM, lnM_zeta, pos, obsnames_nozeta)
         # Likelihood of follow-up observables
-        lnlike_obs = self.get_lnlike_obs(dataID, obsnames_nozeta, lnM_obs)
-        # Goodness of fit
-        # np.save(self.catalog['SPT_ID'][dataID]+'_Delta_richness', (lnlike_obs[0], zeta_lnweights+mass_lnweights))
-        # np.save(self.catalog['SPT_ID'][dataID]+'_Delta_Mwl', (lnlike_obs[0][1], zeta_lnweights+mass_lnweights+lnlike_obs[0][0]))
-        # return 0
+        lnlike_obs = self.get_lnlike_obs(dataID, obsnames_nozeta, lnM_obs_given_lnzeta_mean, var)
         # Final likelihood
         lnweights = zeta_lnweights + mass_lnweights + np.sum(lnlike_obs, axis=0)
         # Let's accept two invalid draws (and discard them)
@@ -362,7 +393,7 @@ class MassCalibration:
             Pobsxi = np.mean(np.exp(lnweights))
             like = Pobsxi/Pxi
             # Maybe it works by shifting to the mean ln-weight
-            if (like<=0.) | np.isinf(like) | np.isnan(like):    
+            if (like<=0.) | np.isinf(like) | np.isnan(like):
                 shift_lnweights = np.mean(lnweights)
                 diff_lnweights = lnweights - shift_lnweights
                 Pobsxi = np.exp(shift_lnweights) * np.mean(np.exp(diff_lnweights))
