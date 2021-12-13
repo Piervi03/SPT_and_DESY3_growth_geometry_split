@@ -18,7 +18,7 @@ def setup(options):
     tmp = np.loadtxt(surveyCutLambda_file, unpack=True)
     surveyCutLambda = {'shallow': interp1d(tmp[0], tmp[1], kind='linear'),
                        'deep': interp1d(tmp[0], tmp[2], kind='linear')}
-    richnesslognormalGaussPoisson = options.get_bool(option_section, 'richnesslognormalGaussPoisson')
+    richness_scatter_model = options.get_bool(option_section, 'richness_scatter_model')
     NPROC = options.get_int(option_section, 'NPROC')
     # SPT survey
     SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
@@ -32,7 +32,7 @@ def setup(options):
     HSTcalibfile = options.get_string(option_section, 'HSTcalibfile')
 
     masscalibration = mass_calibration.MassCalibration(todo, mcType,
-                                                       surveyCutRedshift, surveyCutLambda, richnesslognormalGaussPoisson,
+                                                       surveyCutRedshift, surveyCutLambda, richness_scatter_model,
                                                        SPT_survey_fields, SPT_doublecounts, SPTcatalogfile,
                                                        HSTcalibfile,
                                                        NPROC)
