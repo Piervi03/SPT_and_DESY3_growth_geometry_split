@@ -2,14 +2,13 @@ from __future__ import division, print_function
 import numpy as np
 import os
 import imp
+from math import sqrt as msqrt
 from multiprocessing import Pool
 from astropy.table import Table
-import time
-from scipy.special import ndtr
+from scipy.special import erfinv, ndtr
 from scipy import integrate, signal
 from scipy.interpolate import interp1d, RectBivariateSpline
-from scipy.stats import lognorm, norm
-from scipy.special import erfinv
+from scipy.stats import norm
 import cosmo, Mconversion_concentration, scaling_relations
 
 cosmologyRef = {'Omega_m':.272, 'Omega_l':.728, 'h':.702, 'w0':-1, 'wa':0}
@@ -176,7 +175,7 @@ class MassCalibration:
         r_min = norm.cdf(self.xi_min, loc=xi-1, scale=1)
         r = r_min + (1-r_min)*self.rng.random(Ndraw)
         # Percent point function (scipy stats is too slow)
-        xi0 = erfinv(2*r-1)*np.sqrt(2) + xi-1
+        xi0 = erfinv(2*r-1)*msqrt(2) + xi-1
         zeta = scaling_relations.xi2zeta(xi0)
         # Ratio of normals
         zeta_lnweights = -.5 * ((xi0-xi)**2 - (xi0-(xi-1))**2)
@@ -198,11 +197,11 @@ class MassCalibration:
         if self.catalog['WLdata'][dataID]['datatype']=='HST':
             mean = np.exp(lnMwl)
             idx = (self.HSTcalib['SPT_ID']==self.catalog['SPT_ID'][dataID]).nonzero()[0]
-            std = np.sqrt(self.HSTcalib['LSS'][idx]**2 + self.HSTcalib['LOS'][idx]**2)
+            std = msqrt(self.HSTcalib['LSS'][idx]**2 + self.HSTcalib['LOS'][idx]**2)
             r_min = norm.cdf(self.WL.M_arr[0], loc=mean, scale=std)
             r_max = norm.cdf(self.WL.M_arr[-1], loc=mean, scale=std)
             r = r_min + (r_max-r_min)*self.rng.random(Ndraw)
-            lnMwl = np.log(erfinv(2*r-1)*std*np.sqrt(2) + mean)
+            lnMwl = np.log(erfinv(2*r-1)*std*msqrt(2) + mean)
         return lnMwl, WL_lnweights
 
 
@@ -222,7 +221,7 @@ class MassCalibration:
         r_min = norm.cdf(self.lnM_arr[0], loc=lnM_zeta, scale=SZscatter_lnM)
         r_max = norm.cdf(self.lnM_arr[-1], loc=lnM_zeta, scale=SZscatter_lnM)
         r = r_min + (r_max-r_min)*self.rng.random(len(lnM_zeta))
-        lnM = erfinv(2*r-1)*SZscatter_lnM*np.sqrt(2) + lnM_zeta
+        lnM = erfinv(2*r-1)*SZscatter_lnM*msqrt(2) + lnM_zeta
         return lnM
 
 
@@ -332,11 +331,11 @@ class MassCalibration:
             # Draw from HST large-scale structure scatter
             if 'WLHST' in obsnames:
                 idx = (self.HSTcalib['SPT_ID']==self.catalog['SPT_ID'][dataID]).nonzero()[0]
-                std = np.sqrt(self.HSTcalib['LSS'][idx]**2 + self.HSTcalib['LOS'][idx]**2)
+                std = msqrt(self.HSTcalib['LSS'][idx]**2 + self.HSTcalib['LOS'][idx]**2)
                 r_min = norm.cdf(self.WL.M_arr[0], loc=obs, scale=std)
                 r_max = norm.cdf(self.WL.M_arr[-1], loc=obs, scale=std)
                 r = r_min + (r_max-r_min)*self.rng.random(len(obs))
-                obs+= erfinv(2*r-1)*std*np.sqrt(2)
+                obs+= erfinv(2*r-1)*std*msqrt(2)
             # Lensing likelihood
             lnlike[pos[obsnames_norichness[0]]] = interp1d(self.WL.lnM_arr, self.catalog['lnp_Mwl'][dataID], fill_value='extrapolate')(np.log(obs))
 
