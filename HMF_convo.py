@@ -1,12 +1,12 @@
 from __future__ import division, print_function
 import numpy as np
 from math import sqrt as msqrt
-import time
 
 from multiprocessing import Pool
 from scipy.interpolate import RectBivariateSpline
 from scipy.stats import norm
 from scipy.ndimage import gaussian_filter1d
+from scipy.special import ndtr
 
 import multivariate_normal as cy_multivariate_normal
 import convolution, scaling_relations
@@ -20,7 +20,7 @@ class MultiObsConvolution:
 
     def __init__(self, observable_pairs,
                  pairs_zmin, pairs_zmax, pairs_Nz,
-                 lambda_cut,
+                 lambda_cut, richness_scatter_model,
                  NPROC):
         # Sigma-clipping in convolutions
         self.N_sigma = np.array([4, 3])
@@ -30,6 +30,8 @@ class MultiObsConvolution:
         self.NPROC = NPROC
         # Cut in richness
         self.lambda_cut = lambda_cut
+        # Poisson-style scatter in richness
+        self.richness_scatter_model = richness_scatter_type
 
         self.other_pairnames = ['SZ', 'SZ_lambdacut_shallow', 'SZ_lambdacut_deep', 'DES_SZ_lambdacut']
         self.pairnames_2d = ['Yx_SZ', 'Mgas_SZ', 'Megacam_SZ', 'richness_SZ']
@@ -126,9 +128,19 @@ class MultiObsConvolution:
         if pairname=='SZ':
             return self.get_P_zeta_z(z)
         elif pairname=='SZ_lambdacut_shallow':
-            return self.get_P_zeta_lambdacut_z(covmat, z, 'shallow')
+            if self.richness_scatter_model=='lognormal':
+                return self.get_P_zeta_lambdacut_lognormal_z(covmat, z, 'shallow')
+            elif self.richness_scatter_model=='lognormalrelPoisson':
+                return self.get_P_zeta_lambdacut_lognormalrelPoisson_z(z, 'shallow')
+            elif self.richness_scatter_model=='lognormalGaussPoisson':
+                return self.get_P_zeta_lambdacut_lognormalGaussPoisson_z(covmat, z, 'shallow')
         elif pairname=='SZ_lambdacut_deep':
-            return self.get_P_zeta_lambdacut_z(covmat, z, 'deep')
+            if self.richness_scatter_model=='lognormal':
+                return self.get_P_zeta_lambdacut_lognormal_z(covmat, z, 'deep')
+            elif self.richness_scatter_model=='lognormalrelPoisson':
+                return self.get_P_zeta_lambdacut_lognormalrelPoisson_z(z, 'deep')
+            elif self.richness_scatter_model=='lognormalGaussPoisson':
+                return self.get_P_zeta_lambdacut_lognormalGaussPoisson_z(covmat, z, 'deep')
         elif pairname in self.pairnames_2d:
             return self.get_P_2obs_z(obsname, covmat, z)
         elif pairname in self.pairnames_2d_DES:
@@ -143,13 +155,24 @@ class MultiObsConvolution:
 
     def get_Nbins_array(self, std):
         """Return number of bins and array that satisfy that std/Delta_lnM is
-        covered self.N_sigma times. 0 is Nbins_hilo[0]st element."""
+        covered self.N_sigma times. 0 is Nbins_hilo[1] first element."""
         # Number of bins below and above (without 0). At least 1
         Nbins_hilo = (self.N_sigma * std / self.Delta_lnM).astype(int) +1
         # We want uneven total number. Add 1 to lower if needed
         if (Nbins_hilo[0]+Nbins_hilo[1]+1)%2 == 0:
             Nbins_hilo[0]+= 1
         lnobs_arr = self.Delta_lnM * np.linspace(-Nbins_hilo[0], Nbins_hilo[1], Nbins_hilo[0]+Nbins_hilo[1]+1)
+        return Nbins_hilo, lnobs_arr
+
+
+    def get_Nbins_array_vec(self, std):
+        """Return number of bins and array that satisfy that std/Delta_lnM is
+        covered self.N_sigma times. This is same as `get_Nbins_array` but for
+        array of `std`. Too slow so propably shouldn't be used. 0 is
+        Nbins_hilo[1] first element."""
+        Nbins_hilo = (self.N_sigma[None,:] * std[:,None] / self.Delta_lnM).astype(int) +1
+        Nbins_hilo[(Nbins_hilo[:,0]+Nbins_hilo[:,1]+1)%2==0,0]+= 1
+        lnobs_arr = [self.Delta_lnM * np.linspace(-Nbins_hilo[i,0], Nbins_hilo[i,1], Nbins_hilo[i,0]+Nbins_hilo[i,1]+1) for i in range(len(Nbins_hilo))]
         return Nbins_hilo, lnobs_arr
 
 
@@ -167,7 +190,7 @@ class MultiObsConvolution:
         return lnHMF_1d
 
 
-    def get_P_zeta_lambdacut_z(self, covmat, z, SZsurvey):
+    def get_P_zeta_lambdacut_lognormal_z(self, covmat, z, SZsurvey):
         """Return dN/dlnzeta accounting for richness confirmation."""
         dN_dlnM, = np.exp(self.HMF_interp(np.log(z), np.log(self.HMF['M_arr'])))
         # Convert observable covmat into covmat in mass
@@ -181,10 +204,81 @@ class MultiObsConvolution:
         Nbins_zeta = np.ones((len(self.HMF['M_arr']), 2), dtype=int) * Nbins_zeta[None,:]
         lnmass_lambda_mean = np.log(self.HMF['M_arr'])[:,None] + covmat_lnM[0,1]/covmat_lnM[1,1]*lnzeta_arr[None,:]
         lnlambda_mean = np.log(scaling_relations.mass2obs('richness', np.exp(lnmass_lambda_mean), z, self.scaling))
-        lnmass_lambda_std = np.sqrt(covmat_lnM[0,0] - covmat_lnM[0,1]**2/covmat_lnM[1,1])
+        lnmass_lambda_std = msqrt(covmat_lnM[0,0] - covmat_lnM[0,1]**2/covmat_lnM[1,1])
         lnlambda_std = lnmass_lambda_std/dlnM_dlnobs
-        P_lambda_gtr_cut = norm.cdf(lnlambda_mean, np.log(self.lambda_cut[SZsurvey](z)), lnlambda_std)
+        # Cumulative Gaussian
+        P_lambda_gtr_cut = ndtr((lnlambda_mean-np.log(self.lambda_cut[SZsurvey](z)))/lnlambda_std)
         kernels = P_lambda_gtr_cut * norm.pdf(lnzeta_arr, 0, msqrt(covmat_lnM[1,1]))
+        # Convolution
+        HMF_1d = convolution.convolve_HMF_1obs_varkernel(dN_dlnM, self.Delta_lnM, kernels, Nbins_zeta)
+        # Compress
+        HMF_1d = HMF_1d[::self.compression]
+        # We know we're doing log(0)...
+        with np.errstate(divide='ignore'):
+            lnHMF_1d = np.log(HMF_1d)
+        return lnHMF_1d
+
+
+    def get_P_zeta_lambdacut_lognormalrelPoisson_z(self, z, SZsurvey):
+        """Return dN/dlnzeta accounting for richness confirmation. Lognormal
+        scatter in richness is increased by 1/sqrt(lambda) to mimic relative
+        increase due to Poisson shot noise."""
+        dN_dlnM, = np.exp(self.HMF_interp(np.log(z), np.log(self.HMF['M_arr'])))
+        # Convert observable covmat into covmat in mass
+        dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
+        dlnM_dlnobs = scaling_relations.dlnM_dlnobs('richness', self.scaling)
+        Jacobian = np.array([[dlnM_dlnobs**2, dlnM_dlnobs*dlnM_dlnzeta],
+                             [dlnM_dlnobs*dlnM_dlnzeta, dlnM_dlnzeta**2]])
+        covmat_base = np.array([[self.scaling['Drichness']**2, self.scaling['rhoSZrichness']*self.scaling['Drichness']*self.scaling['Dsz']],
+                                [self.scaling['rhoSZrichness']*self.scaling['Drichness']*self.scaling['Dsz'], self.scaling['Dsz']**2]])
+        richness = scaling_relations.mass2obs('richness', self.HMF['M_arr'], z, self.scaling)
+        covmat = covmat_base[None,:,:] + 1/richness[:,None,None]*np.array([[1, 0], [0, 0]])[None,:,:]
+        covmat_lnM = covmat * Jacobian[None,:,:]
+        # Number of bins and arrays for each observable
+        Nbins_zeta, lnzeta_arr = self.get_Nbins_array(msqrt(np.amax(covmat_lnM[:,1,1])))
+        Nbins_zeta = Nbins_zeta[None,:] * np.ones((len(self.HMF['M_arr']),2), dtype=int)
+        lnmass_lambda_mean = np.log(self.HMF['M_arr'])[:,None] + (covmat_lnM[:,0,1]/covmat_lnM[:,1,1])[:,None]*lnzeta_arr
+        lambda_mean = scaling_relations.mass2obs('richness', np.exp(lnmass_lambda_mean), z, self.scaling)
+        lnmass_lambda_std = np.sqrt(covmat_lnM[:,0,0] - covmat_lnM[:,0,1]**2/covmat_lnM[:,1,1])
+        lnlambda_std = lnmass_lambda_std/dlnM_dlnobs
+        P_lambda_gtr_cut = ndtr(np.log(lambda_mean/self.lambda_cut[SZsurvey](z))/lnlambda_std[:,None])
+        kernels = P_lambda_gtr_cut * norm.pdf(lnzeta_arr, 0, np.sqrt(covmat_lnM[:,1,1])[:,None])
+        # Convolution
+        HMF_1d = convolution.convolve_HMF_1obs_varkernel(dN_dlnM, self.Delta_lnM, kernels, Nbins_zeta)
+        # Compress
+        HMF_1d = HMF_1d[::self.compression]
+        # We know we're doing log(0)...
+        with np.errstate(divide='ignore'):
+            lnHMF_1d = np.log(HMF_1d)
+        return lnHMF_1d
+
+
+    def get_P_zeta_lambdacut_lognormalGaussPoisson_z(self, covmat, z, SZsurvey):
+        """Return dN/dlnzeta accounting for richness confirmation. Lognormal
+        scatter in richness is convolved by Gaussian of width 1/sqrt(lambda) to
+        mimic Poisson shot noise in Gaussian limit."""
+        dN_dlnM, = np.exp(self.HMF_interp(np.log(z), np.log(self.HMF['M_arr'])))
+        # Convert observable covmat into covmat in mass
+        dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
+        dlnM_dlnobs = scaling_relations.dlnM_dlnobs('richness', self.scaling)
+        Jacobian = np.array([[dlnM_dlnobs**2, dlnM_dlnobs*dlnM_dlnzeta],
+                             [dlnM_dlnobs*dlnM_dlnzeta, dlnM_dlnzeta**2]])
+        covmat_lnM = covmat * Jacobian
+        # Number of bins and arrays for each observable
+        Nbins_zeta, lnzeta_arr = self.get_Nbins_array(msqrt(covmat_lnM[1,1]))
+        Nbins_zeta = Nbins_zeta[None,:] * np.ones((len(self.HMF['M_arr']), 2), dtype=int)
+        # Conditional P(lambda|mass, zeta)
+        lnmass_lambda_mean = np.log(self.HMF['M_arr'])[:,None] + covmat_lnM[0,1]/covmat_lnM[1,1]*lnzeta_arr
+        lambda_mean = scaling_relations.mass2obs('richness', np.exp(lnmass_lambda_mean), z, self.scaling)
+        lnlambda_mean = np.log(lambda_mean)
+        lnmass_lambda_std = msqrt(covmat_lnM[0,0] - covmat_lnM[0,1]**2/covmat_lnM[1,1])
+        lnlambda_std = lnmass_lambda_std/dlnM_dlnobs
+        lambda_arr = np.exp(np.linspace(lnlambda_mean-3*lnlambda_std, lnlambda_mean+3*lnlambda_std, 32))
+        P_lambda_intrinsic = np.exp(-.5*np.log(lambda_arr/lambda_mean)**2/lnlambda_std**2) / (msqrt(2*np.pi)*lambda_arr*lnlambda_std)
+        # Cumulative Gaussian
+        P_lambda_gtr_cut = ndtr((lambda_arr-self.lambda_cut[SZsurvey](z))/np.sqrt(lambda_arr))
+        P_lambda = np.trapz(P_lambda_gtr_cut*P_lambda_intrinsic, lambda_arr, axis=0)
+        kernels = P_lambda * np.exp(-.5*lnzeta_arr**2/covmat_lnM[1,1]) / msqrt(2*np.pi*covmat_lnM[1,1])
         # Convolution
         HMF_1d = convolution.convolve_HMF_1obs_varkernel(dN_dlnM, self.Delta_lnM, kernels, Nbins_zeta)
         # Compress
@@ -293,7 +387,7 @@ class MultiObsConvolution:
             pos[:,:,0], pos[:,:,1] = np.meshgrid(lnDES_arr, lnzeta_arr, indexing='ij', sparse=True)
             lnmass_lambda_mean = np.log(self.HMF['M_arr'][i]) + (covmat_lnM[i,1,0]*np.sum(inv_cov[0,:]*pos, axis=2) + covmat_lnM[i,1,2]*np.sum(inv_cov[1,:]*pos, axis=2))
             lnlambda_mean = np.log(scaling_relations.mass2obs('richness', np.exp(lnmass_lambda_mean), z, self.scaling))
-            lnmass_lambda_std = np.sqrt(covmat_lnM[i,1,1] - np.dot(covmat_lnM[i,1,[0,2]], np.dot(inv_cov, covmat_lnM[i,[0,2],1])))
+            lnmass_lambda_std = msqrt(covmat_lnM[i,1,1] - np.dot(covmat_lnM[i,1,[0,2]], np.dot(inv_cov, covmat_lnM[i,[0,2],1])))
             lnlambda_std = lnmass_lambda_std/dlnM_dlnobs[1]
             P_lambda_gtr_cut = norm.cdf(lnlambda_mean, np.log(self.lambda_cut(z)), lnlambda_std)
             # Multivariate Gaussian kernel
