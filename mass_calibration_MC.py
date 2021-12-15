@@ -244,22 +244,24 @@ class MassCalibration:
         return lnM, lnweights
 
 
-    def get_conditional_on_zeta(self, covmat_lnM, lnM, lnM_zeta, pos, obsnames_nozeta):
-        """Return mean and (co-)variance of conditional distribution
-        P(obs|M, M(zeta))."""
-        # Conditional mean = mu + Sigma_12 / var_lnzeta (lnzeta - mu_lnzeta)
-        lnM_obs_given_lnzeta_mean = lnM[:,None] + np.delete(covmat_lnM[:,pos['zeta'],:], pos['zeta'], axis=1) / covmat_lnM[:,pos['zeta'],pos['zeta']][:,None] * (lnM_zeta - lnM)[:,None]
-        # Conditional (co-)variance = Sigma_11 - Sigma_12 / var_lnzeta * Sigma_21
-        if len(obsnames_nozeta)==1:
-            var = covmat_lnM[:,pos[obsnames_nozeta[0]],pos[obsnames_nozeta[0]]] - covmat_lnM[:,0,1]**2/covmat_lnM[:,pos['zeta'],pos['zeta']]
-        elif len(obsnames_nozeta)==2:
-            var = np.delete(np.delete(covmat_lnM.copy(), pos['zeta'], axis=1), pos['zeta'], axis=2)
-            var[:,0,0]-= covmat_lnM[:,pos['zeta'],pos[obsnames_nozeta[0]]]**2/covmat_lnM[:,pos['zeta'],pos['zeta']]
-            var[:,1,1]-= covmat_lnM[:,pos['zeta'],pos[obsnames_nozeta[1]]]**2/covmat_lnM[:,pos['zeta'],pos['zeta']]
-            tmp = covmat_lnM[:,pos['zeta'],pos[obsnames_nozeta[0]]]*covmat_lnM[:,pos['zeta'],pos[obsnames_nozeta[1]]]/covmat_lnM[:,pos['zeta'],pos['zeta']]
-            var[:,0,1]-= tmp
-            var[:,1,0]-= tmp
-        return lnM_obs_given_lnzeta_mean, var
+    def get_conditional(self, lnM, lnM_meas, covmat_lnM, pos, obsname_meas, all_obsnames):
+        """Return mean and (co-)variance conditioned on
+        `obsname_meas`=`lnM_meas`."""
+        # Mean of conditional distribution
+        lnM_cond = lnM[:,None] + np.delete(covmat_lnM[:,pos[obsname_meas],:], pos[obsname_meas], axis=1) / covmat_lnM[:,pos[obsname_meas],pos[obsname_meas]][:,None] * (lnM_meas-lnM)[:,None]
+        # Variance (depends on dimensionality
+        obsnames_cond = all_obsnames.copy()
+        obsnames_cond.remove(obsname_meas)
+        if len(obsnames_cond)==1:
+            var = covmat_lnM[:,pos[obsnames_cond[0]],pos[obsnames_cond[0]]] - covmat_lnM[:,0,1]**2/covmat_lnM[:,pos[obsname_meas],pos[obsname_meas]]
+        elif len(obsnames_cond)==2:
+            var = np.delete(np.delete(covmat_lnM.copy(), pos[obsname_meas], axis=1), pos[obsname_meas], axis=2)
+            var[:,0,0]-= covmat_lnM[:,pos[obsname_meas],pos[obsnames_cond[0]]]**2/covmat_lnM[:,pos[obsname_meas],pos[obsname_meas]]
+            var[:,1,1]-= covmat_lnM[:,pos[obsname_meas],pos[obsnames_cond[1]]]**2/covmat_lnM[:,pos[obsname_meas],pos[obsname_meas]]
+            tmp = covmat_lnM[:,pos[obsname_meas],pos[obsnames_cond[0]]]*covmat_lnM[:,pos[obsname_meas],pos[obsnames_cond[1]]]/covmat_lnM[:,pos[obsname_meas],pos[obsname_meas]]
+            var[:,0,1]-= tmp 
+            var[:,1,0]-= tmp 
+        return lnM_cond, var, obsnames_cond
 
 
     def get_lnlike_obs(self, dataID, obsnames, lnM_obs_given_lnzeta_mean, covmat_lnM):
@@ -347,8 +349,6 @@ class MassCalibration:
         # Basic setup
         N_obs = len(obsnames)
         z_cluster = self.catalog['REDSHIFT'][dataID]
-        obsnames_nozeta = obsnames.copy()
-        obsnames_nozeta.remove('zeta')
         dlnM_dlnobs = np.array([scaling_relations.dlnM_dlnobs(obs, self.scaling) for obs in obsnames])
         pos = {}
         for o,obs in enumerate(obsnames):
@@ -381,8 +381,8 @@ class MassCalibration:
             scatter = self.scaling['DWL_HST'][self.catalog['SPT_ID'][dataID]]
             covmat_lnM[:,pos['WLHST'],:]*= scatter
             covmat_lnM[:,:,pos['WLHST']]*= scatter
-        # Get mean and (co-)variance of follow-up observables
-        lnM_obs_given_lnzeta_mean, var = self.get_conditional_on_zeta(covmat_lnM, lnM, lnM_zeta, pos, obsnames_nozeta)
+        # Get mean and (co-)variance of follow-up observables conditioned on lnM_zeta
+        lnM_obs_given_lnzeta_mean, var, obsnames_nozeta = self.get_conditional(lnM, lnM_zeta, covmat_lnM, pos, 'zeta', obsnames)
         # Likelihood of follow-up observables
         lnlike_obs = self.get_lnlike_obs(dataID, obsnames_nozeta, lnM_obs_given_lnzeta_mean, var)
         # Final likelihood
