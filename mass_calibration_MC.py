@@ -181,29 +181,6 @@ class MassCalibration:
         return zeta, zeta_lnweights
 
 
-    def get_Mwl_draws(self, dataID):
-        """Draw Mwl from lensing likelihood. We draw from P(Mwl)/Mwl to get a
-        broader distribution and to extend to lower mass. Correct for this with
-        weights."""
-        # Draw lnMwl from P(Mwl)/Mwl = exp(ln(PMwl)-ln(Mwl))
-        WL_cum = integrate.cumtrapz(np.exp(self.catalog['lnp_Mwl'][dataID]-self.WL.lnM_arr), self.WL.lnM_arr)
-        WL_cum = np.insert(WL_cum/WL_cum[-1], 0, 0.)
-        r = self.rng.random(size=Ndraw)
-        lnMwl = np.interp(r, WL_cum, self.WL.lnM_arr)
-        # We drew from P(Mwl)/Mwl but we need to sample P(Mwl)
-        WL_lnweights = lnMwl
-        # LSS noise for HST
-        if self.catalog['WLdata'][dataID]['datatype']=='HST':
-            mean = np.exp(lnMwl)
-            idx = (self.HSTcalib['SPT_ID']==self.catalog['SPT_ID'][dataID]).nonzero()[0]
-            std = msqrt(self.HSTcalib['LSS'][idx]**2 + self.HSTcalib['LOS'][idx]**2)
-            r_min = ndtr((self.WL.M_arr[0]-mean)/std)
-            r_max = ndtr((self.WL.M_arr[-1]-mean)/std)
-            r = r_min + (r_max-r_min)*self.rng.random(Ndraw)
-            lnMwl = np.log(erfinv(2*r-1)*std*msqrt(2) + mean)
-        return lnMwl, WL_lnweights
-
-
     def get_mass_function_lnweights(self, z, lnM):
         """Return log-probability of halo mass function
         ln(P(M)) = ln(dN/dlnM /M) at given `z` and array `lnM`."""
