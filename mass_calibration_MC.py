@@ -8,7 +8,6 @@ from astropy.table import Table
 from scipy.special import erfinv, ndtr
 from scipy import integrate, signal
 from scipy.interpolate import interp1d, RectBivariateSpline
-from scipy.stats import norm
 import cosmo, Mconversion_concentration, scaling_relations
 
 cosmologyRef = {'Omega_m':.272, 'Omega_l':.728, 'h':.702, 'w0':-1, 'wa':0}
@@ -172,7 +171,7 @@ class MassCalibration:
         """Draw zetas from `xi`. In practice, draw from N(xi-1, 1) so that
         there are more low-mass samples which will later be up-weighted by the
         mass function. Return zeta and weights."""
-        r_min = norm.cdf(self.xi_min, loc=xi-1, scale=1)
+        r_min = ndtr(self.xi_min-(xi-1))
         r = r_min + (1-r_min)*self.rng.random(Ndraw)
         # Percent point function (scipy stats is too slow)
         xi0 = erfinv(2*r-1)*msqrt(2) + xi-1
@@ -198,8 +197,8 @@ class MassCalibration:
             mean = np.exp(lnMwl)
             idx = (self.HSTcalib['SPT_ID']==self.catalog['SPT_ID'][dataID]).nonzero()[0]
             std = msqrt(self.HSTcalib['LSS'][idx]**2 + self.HSTcalib['LOS'][idx]**2)
-            r_min = norm.cdf(self.WL.M_arr[0], loc=mean, scale=std)
-            r_max = norm.cdf(self.WL.M_arr[-1], loc=mean, scale=std)
+            r_min = ndtr((self.WL.M_arr[0]-mean)/std)
+            r_max = ndtr((self.WL.M_arr[-1]-mean)/std)
             r = r_min + (r_max-r_min)*self.rng.random(Ndraw)
             lnMwl = np.log(erfinv(2*r-1)*std*msqrt(2) + mean)
         return lnMwl, WL_lnweights
@@ -218,8 +217,8 @@ class MassCalibration:
 
     def draw_lnm_given_lnzeta(self, lnM_zeta, SZscatter_lnM):
         """Return draws of ln(mass) given ln(zeta)."""
-        r_min = norm.cdf(self.lnM_arr[0], loc=lnM_zeta, scale=SZscatter_lnM)
-        r_max = norm.cdf(self.lnM_arr[-1], loc=lnM_zeta, scale=SZscatter_lnM)
+        r_min = ndtr((self.lnM_arr[0]-lnM_zeta)/SZscatter_lnM)
+        r_max = ndtr((self.lnM_arr[-1]-lnM_zeta)/SZscatter_lnM)
         r = r_min + (r_max-r_min)*self.rng.random(len(lnM_zeta))
         lnM = erfinv(2*r-1)*SZscatter_lnM*msqrt(2) + lnM_zeta
         return lnM
@@ -332,8 +331,8 @@ class MassCalibration:
             if 'WLHST' in obsnames:
                 idx = (self.HSTcalib['SPT_ID']==self.catalog['SPT_ID'][dataID]).nonzero()[0]
                 std = msqrt(self.HSTcalib['LSS'][idx]**2 + self.HSTcalib['LOS'][idx]**2)
-                r_min = norm.cdf(self.WL.M_arr[0], loc=obs, scale=std)
-                r_max = norm.cdf(self.WL.M_arr[-1], loc=obs, scale=std)
+                r_min = ndtr((self.WL.M_arr[0]-obs)/std)
+                r_max = ndtr((self.WL.M_arr[-1]-obs)/std)
                 r = r_min + (r_max-r_min)*self.rng.random(len(obs))
                 obs+= erfinv(2*r-1)*std*msqrt(2)
             # Lensing likelihood
@@ -369,9 +368,7 @@ class MassCalibration:
         # Weight with mass function
         mass_lnweights = self.get_mass_function_lnweights(z_cluster, lnM)
         # Normalization P(xi)
-        lnweights = zeta_lnweights + mass_lnweights
-        #with np.errstate(all='ignore'):
-        Pxi = np.mean(np.exp(lnweights))
+        Pxi = np.mean(np.exp(zeta_lnweights + mass_lnweights))
         # Covariance matrix in ln-mass [draw, N_obs, N_obs]
         covmat = self.get_covmat_obs(obsnames)
         Jacobian = dlnM_dlnobs[:,None]*dlnM_dlnobs[None,:]
