@@ -221,23 +221,29 @@ class MassCalibration:
         return lnM, lnweights
 
 
-    def get_conditional(self, lnM, lnM_meas, covmat_lnM, pos, obsname_meas, all_obsnames):
+    def get_conditional(self, lnM, lnM_meas, covmat_lnM, obsname_meas, all_obsnames):
         """Return mean and (co-)variance conditioned on
-        `obsname_meas`=`lnM_meas`."""
+        `obsname_meas`=`lnM_meas` along with list of remaining observable names
+        `obsnames_cond`."""
+        # index of obsname_meas
+        idx_meas = all_obsnames.index(obsname_meas)
         # Mean of conditional distribution
-        lnM_cond = lnM[:,None] + np.delete(covmat_lnM[:,pos[obsname_meas],:], pos[obsname_meas], axis=1) / covmat_lnM[:,pos[obsname_meas],pos[obsname_meas]][:,None] * (lnM_meas-lnM)[:,None]
+        lnM_cond = lnM[:,None] + np.delete(covmat_lnM[:,idx_meas,:], idx_meas, axis=1) / covmat_lnM[:,idx_meas,idx_meas][:,None] * (lnM_meas-lnM)[:,None]
         # Variance (depends on dimensionality
         obsnames_cond = all_obsnames.copy()
         obsnames_cond.remove(obsname_meas)
         if len(obsnames_cond)==1:
-            var = covmat_lnM[:,pos[obsnames_cond[0]],pos[obsnames_cond[0]]] - covmat_lnM[:,0,1]**2/covmat_lnM[:,pos[obsname_meas],pos[obsname_meas]]
+            idx_cond = all_obsnames.index(obsnames_cond[0])
+            var = covmat_lnM[:,idx_cond,idx_cond] - covmat_lnM[:,0,1]**2/covmat_lnM[:,idx_meas,idx_meas]
         elif len(obsnames_cond)==2:
-            var = np.delete(np.delete(covmat_lnM.copy(), pos[obsname_meas], axis=1), pos[obsname_meas], axis=2)
-            var[:,0,0]-= covmat_lnM[:,pos[obsname_meas],pos[obsnames_cond[0]]]**2/covmat_lnM[:,pos[obsname_meas],pos[obsname_meas]]
-            var[:,1,1]-= covmat_lnM[:,pos[obsname_meas],pos[obsnames_cond[1]]]**2/covmat_lnM[:,pos[obsname_meas],pos[obsname_meas]]
-            tmp = covmat_lnM[:,pos[obsname_meas],pos[obsnames_cond[0]]]*covmat_lnM[:,pos[obsname_meas],pos[obsnames_cond[1]]]/covmat_lnM[:,pos[obsname_meas],pos[obsname_meas]]
-            var[:,0,1]-= tmp 
-            var[:,1,0]-= tmp 
+            idx_cond_0 = all_obsnames.index(obsnames_cond[0])
+            idx_cond_1 = all_obsnames.index(obsnames_cond[1])
+            var = np.delete(np.delete(covmat_lnM.copy(), idx_meas, axis=1), idx_meas, axis=2)
+            var[:,0,0]-= covmat_lnM[:,idx_meas,idx_cond_0]**2/covmat_lnM[:,idx_meas,idx_meas]
+            var[:,1,1]-= covmat_lnM[:,idx_meas,idx_cond_1]**2/covmat_lnM[:,idx_meas,idx_meas]
+            tmp = covmat_lnM[:,idx_meas,idx_cond_0]*covmat_lnM[:,idx_meas,idx_cond_1]/covmat_lnM[:,idx_meas,idx_meas]
+            var[:,0,1]-= tmp
+            var[:,1,0]-= tmp
         return lnM_cond, var, obsnames_cond
 
 
@@ -327,12 +333,9 @@ class MassCalibration:
         N_obs = len(obsnames)
         z_cluster = self.catalog['REDSHIFT'][dataID]
         dlnM_dlnobs = np.array([scaling_relations.dlnM_dlnobs(obs, self.scaling) for obs in obsnames])
-        pos = {}
-        for o,obs in enumerate(obsnames):
-            pos[obs] = o
         # Mass given zeta
         lnM_zeta, zeta_lnweights = self.get_lnM_zeta_given_xi(dataID)
-        SZscatter_lnM = self.scaling['Dsz'] * dlnM_dlnobs[pos['zeta']]
+        SZscatter_lnM = self.scaling['Dsz'] * dlnM_dlnobs[obsnames.index('zeta')]
         lnM = self.draw_lnm_given_lnzeta(lnM_zeta, SZscatter_lnM)
         # Sometimes there are failures when mean obs is very unlikely
         if np.all(np.isinf(lnM)):
@@ -352,14 +355,14 @@ class MassCalibration:
         covmat_lnM = covmat * Jacobian * np.ones((len(lnM),N_obs,N_obs))
         if 'WLDES' in obsnames:
             DES_scatter = scaling_relations.WLscatter('main', np.exp(lnM), z_cluster, self.scaling)
-            covmat_lnM[:,pos['WLDES'],:]*= DES_scatter[:,None]
-            covmat_lnM[:,:,pos['WLDES']]*= DES_scatter[:,None]
+            covmat_lnM[:,obsnames.index('WLDES'),:]*= DES_scatter[:,None]
+            covmat_lnM[:,:,obsnames.index('WLDES')]*= DES_scatter[:,None]
         elif 'WLHST' in obsnames:
             scatter = self.scaling['DWL_HST'][self.catalog['SPT_ID'][dataID]]
-            covmat_lnM[:,pos['WLHST'],:]*= scatter
-            covmat_lnM[:,:,pos['WLHST']]*= scatter
+            covmat_lnM[:,obsnames.index('WLHST'),:]*= scatter
+            covmat_lnM[:,:,obsnames.index('WLHST')]*= scatter
         # Get mean and (co-)variance of follow-up observables conditioned on lnM_zeta
-        lnM_obs_given_lnzeta_mean, var, obsnames_nozeta = self.get_conditional(lnM, lnM_zeta, covmat_lnM, pos, 'zeta', obsnames)
+        lnM_obs_given_lnzeta_mean, var, obsnames_nozeta = self.get_conditional(lnM, lnM_zeta, covmat_lnM, 'zeta', obsnames)
         # Likelihood of follow-up observables
         lnlike_obs = self.get_lnlike_obs(dataID, obsnames_nozeta, lnM_obs_given_lnzeta_mean, var)
         # Final likelihood
