@@ -237,7 +237,7 @@ class MassCalibration:
         obsnames_cond.remove(obsname_meas)
         if len(obsnames_cond)==1:
             idx_cond = all_obsnames.index(obsnames_cond[0])
-            var = covmat_lnM[:,idx_cond,idx_cond] - covmat_lnM[:,0,1]**2/covmat_lnM[:,idx_meas,idx_meas]
+            var = (covmat_lnM[:,idx_cond,idx_cond] - covmat_lnM[:,0,1]**2/covmat_lnM[:,idx_meas,idx_meas])[:,None,None]
         elif len(obsnames_cond)==2:
             idx_cond_0 = all_obsnames.index(obsnames_cond[0])
             idx_cond_1 = all_obsnames.index(obsnames_cond[1])
@@ -351,15 +351,10 @@ class MassCalibration:
         lnlike_obs = []
         # Always pick the first element and then remove it from list
         while True:
-            # Variance
-            if len(obsnames_remaining)==1:
-                var_lnM = var_remaining
-            elif len(obsnames_remaining)==2:
-                var_lnM = var_remaining[:,0,0]
             if obsnames_remaining[0]=='richness':
-                tmp, lnM_meas = self.get_lnlike_richness(lnM_remaining[:,0], np.sqrt(var_lnM), dataID)
+                tmp, lnM_meas = self.get_lnlike_richness(lnM_remaining[:,0], np.sqrt(var_remaining[:,0,0]), dataID)
             elif obsnames_remaining[0] in ['WLDES', 'WLHST', 'WLMegacam']:
-                tmp, lnM_meas = self.get_lnlike_WL(lnM_remaining[:,0], np.sqrt(var_lnM), dataID, obsnames_remaining[0])
+                tmp, lnM_meas = self.get_lnlike_WL(lnM_remaining[:,0], np.sqrt(var_remaining[:,0,0]), dataID, obsnames_remaining[0])
             lnlike_obs.append(tmp)
             # Condition on this follow-up observable or finish
             if len(obsnames_remaining)>1:
@@ -368,7 +363,7 @@ class MassCalibration:
                 break
         # Final likelihood
         lnweights = zeta_lnweights + mass_lnweights + np.sum(lnlike_obs, axis=0)
-        # Let's accept two invalid draws (and discard them)
+        # Let's accept a few invalid draws (and discard them)
         lnweights = lnweights[np.isfinite(lnweights)]
         if len(lnweights)<Ndraw-32:
             return 0.
