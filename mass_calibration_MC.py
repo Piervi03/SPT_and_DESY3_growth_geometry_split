@@ -264,28 +264,28 @@ class MassCalibration:
             lnM_richness = np.log(scaling_relations.obs2mass('richness', self.catalog['richness'][dataID], self.catalog['REDSHIFT'][dataID], self.scaling))
             lnrichness_std = richness_std_lnM/scaling_relations.dlnM_dlnobs('richness', self.scaling)
             richness = scaling_relations.mass2obs('richness', np.exp(lnM), self.catalog['REDSHIFT'][dataID], self.scaling)
-            lnlike = -.5*(np.log(self.catalog['richness'][dataID]/richness))**2/lnrichness_std**2 - np.log(self.catalog['richness'][dataID]*lnrichness_std) - .5*np.log(2*np.pi)
+            lnlike = -.5*np.log(self.catalog['richness'][dataID]/richness)**2/lnrichness_std**2 - np.log(self.catalog['richness'][dataID]*lnrichness_std) - .5*np.log(2*np.pi)
             if self.todo['lambda_min']:
                 with np.errstate(all='ignore'):
                     lnP_lambda_gtr_lambda_min = np.log(ndtr(np.log(richness/lambda_min)/lnrichness_std))
                 lnlike-= lnP_lambda_gtr_lambda_min
-        # Lognormal scatter in richness gets additional 1/lambda for relative shot noise
-        elif self.richness_scatter_model=='lognormalrelPoisson':
+        # In all other cases we need to draw richness
+        elif self.richness_scatter_model in ['lognormalrelPoisson', 'lognormalGaussPoisson']:
             lnM_richness = self.rng.normal(lnM, richness_std_lnM)
             richness = scaling_relations.mass2obs('richness', np.exp(lnM_richness), self.catalog['REDSHIFT'][dataID], self.scaling)
-            lnlike = -.5*np.log(self.catalog['richness'][dataID]/richness)**2*richness - np.log(self.catalog['richness'][dataID]*np.sqrt(2*np.pi/richness))
-            if self.todo['lambda_min']:
-                lnP_lambda_gtr_lambda_min = np.log(ndtr(np.log(richness/lambda_min)*np.sqrt(richness)))
-                lnlike-= lnP_lambda_gtr_lambda_min
-        # Convolve lognormal scatter with Gaussian of width sqrt(richness)
-        elif self.richness_scatter_model=='lognormalGaussPoisson':
-            lnM_richness = self.rng.normal(lnM, richness_std_lnM)
-            richness = scaling_relations.mass2obs('richness', np.exp(lnM_richness), self.catalog['REDSHIFT'][dataID], self.scaling)
-            lnlike = -.5*(self.catalog['richness'][dataID]-richness)**2/richness - .5*np.log(2*np.pi*richness)
-            if self.todo['lambda_min']:
-                with np.errstate(all='ignore'):
-                    lnP_lambda_gtr_lambda_min = np.log(ndtr((richness-lambda_min)/np.sqrt(richness)))
-                lnlike-= lnP_lambda_gtr_lambda_min
+            # Lognormal scatter in richness gets additional 1/lambda for relative shot noise
+            if self.richness_scatter_model=='lognormalrelPoisson':
+                lnlike = -.5*np.log(self.catalog['richness'][dataID]/richness)**2*richness - np.log(self.catalog['richness'][dataID]*np.sqrt(2*np.pi/richness))
+                if self.todo['lambda_min']:
+                    lnP_lambda_gtr_lambda_min = np.log(ndtr(np.log(richness/lambda_min)*np.sqrt(richness)))
+                    lnlike-= lnP_lambda_gtr_lambda_min
+            # Convolve lognormal scatter with Gaussian of width sqrt(richness)
+            elif self.richness_scatter_model=='lognormalGaussPoisson':
+                lnlike = -.5*(self.catalog['richness'][dataID]-richness)**2/richness - .5*np.log(2*np.pi*richness)
+                if self.todo['lambda_min']:
+                    with np.errstate(all='ignore'):
+                        lnP_lambda_gtr_lambda_min = np.log(ndtr((richness-lambda_min)/np.sqrt(richness)))
+                    lnlike-= lnP_lambda_gtr_lambda_min
         # No valid option
         else:
             raise RuntimeError("richness_scatter_model %s not found"%self.richness_scatter_model)
