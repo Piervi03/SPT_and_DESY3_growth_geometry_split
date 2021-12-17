@@ -267,7 +267,7 @@ class MassCalibration:
             lnlike = -.5*(np.log(self.catalog['richness'][dataID]/richness))**2/lnrichness_std**2 - np.log(self.catalog['richness'][dataID]*lnrichness_std) - .5*np.log(2*np.pi)
             if self.todo['lambda_min']:
                 with np.errstate(all='ignore'):
-                    lnP_lambda_gtr_lambda_min = np.log(ndtr(np.log(self.catalog['richness'][dataID]/lambda_min)/lnrichness_std))
+                    lnP_lambda_gtr_lambda_min = np.log(ndtr(np.log(richness/lambda_min)/lnrichness_std))
                 lnlike-= lnP_lambda_gtr_lambda_min
         # Lognormal scatter in richness gets additional 1/lambda for relative shot noise
         elif self.richness_scatter_model=='lognormalrelPoisson':
