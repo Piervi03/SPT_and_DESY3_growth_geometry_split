@@ -136,7 +136,7 @@ class MassCalibration:
             self.thisSPTfield_gamma*= self.scaling['SPECS_calib']
 
         ##### Set up random number generator and get likelihood
-        self.rng = np.random.default_rng(hash(i+np.sum([self.scaling[key] for key in ['Asz', 'Bsz', 'Csz', 'Dsz']])))
+        self.rng = np.random.default_rng(np.abs(hash(i+np.sum([self.scaling[key] for key in ['Asz', 'Bsz', 'Csz', 'Dsz']]))))
         probability = self.get_P_obs_xi_zetadraw(obsnames, i)
 
         if (probability<0) | np.isnan(probability) | np.isinf(probability):
@@ -171,13 +171,14 @@ class MassCalibration:
         """Draw zetas from `xi`. In practice, draw from N(xi-1, 1) so that
         there are more low-mass samples which will later be up-weighted by the
         mass function. Return zeta and weights."""
-        r_min = ndtr(self.xi_min-(xi-1))
+        xi_offset = -3/xi**2
+        r_min = ndtr(self.xi_min-(xi+xi_offset))
         r = r_min + (1-r_min)*self.rng.random(Ndraw)
         # Percent point function (scipy stats is too slow)
-        xi0 = erfinv(2*r-1)*msqrt(2) + xi-1
+        xi0 = erfinv(2*r-1)*msqrt(2) + xi+xi_offset
         zeta = scaling_relations.xi2zeta(xi0)
         # Ratio of normals
-        zeta_lnweights = -.5 * ((xi0-xi)**2 - (xi0-(xi-1))**2)
+        zeta_lnweights = -.5 * ((xi0-xi)**2 - (xi0-(xi+xi_offset))**2)
         return zeta, zeta_lnweights
 
 
@@ -194,11 +195,13 @@ class MassCalibration:
 
     def draw_lnm_given_lnzeta(self, lnM_zeta, SZscatter_lnM):
         """Return draws of ln(mass) given ln(zeta)."""
-        r_min = ndtr((self.lnM_arr[0]-lnM_zeta)/SZscatter_lnM)
+        offset = -3*SZscatter_lnM**2
+        r_min = ndtr((self.lnM_arr[0]-(lnM_zeta+offset))/SZscatter_lnM)
         r_max = ndtr((self.lnM_arr[-1]-lnM_zeta)/SZscatter_lnM)
         r = r_min + (r_max-r_min)*self.rng.random(len(lnM_zeta))
-        lnM = erfinv(2*r-1)*SZscatter_lnM*msqrt(2) + lnM_zeta
-        return lnM
+        lnM = erfinv(2*r-1)*SZscatter_lnM*msqrt(2) + lnM_zeta+offset
+        lnweights = -.5/SZscatter_lnM**2 * ((lnM-lnM_zeta)**2 - (lnM-(lnM_zeta+offset))**2)
+        return lnM, lnweights
 
 
     def get_covmat_obs(self, obsnames):
@@ -318,9 +321,9 @@ class MassCalibration:
         z_cluster = self.catalog['REDSHIFT'][dataID]
         dlnM_dlnobs = np.array([scaling_relations.dlnM_dlnobs(obs, self.scaling) for obs in obsnames])
         # Mass given zeta
-        lnM_zeta, zeta_lnweights = self.get_lnM_zeta_given_xi(dataID)
+        lnM_zeta, xi_lnweights = self.get_lnM_zeta_given_xi(dataID)
         SZscatter_lnM = self.scaling['Dsz'] * dlnM_dlnobs[obsnames.index('zeta')]
-        lnM = self.draw_lnm_given_lnzeta(lnM_zeta, SZscatter_lnM)
+        lnM, zeta_lnweights = self.draw_lnm_given_lnzeta(lnM_zeta, SZscatter_lnM)
         # Sometimes there are failures when mean obs is very unlikely
         if np.all(np.isinf(lnM)):
             return 0.
@@ -328,11 +331,12 @@ class MassCalibration:
         if not np.all(idx):
             lnM = lnM[idx]
             lnM_zeta = lnM_zeta[idx]
+            xi_lnweights = xi_lnweights[idx]
             zeta_lnweights = zeta_lnweights[idx]
         # Weight with mass function
         mass_lnweights = self.get_mass_function_lnweights(z_cluster, lnM)
         # Normalization P(xi)
-        Pxi = np.mean(np.exp(zeta_lnweights + mass_lnweights))
+        Pxi = np.mean(np.exp(xi_lnweights + zeta_lnweights + mass_lnweights))
         # Covariance matrix in ln-mass [draw, N_obs, N_obs]
         covmat = self.get_covmat_obs(obsnames)
         Jacobian = dlnM_dlnobs[:,None]*dlnM_dlnobs[None,:]
@@ -362,7 +366,7 @@ class MassCalibration:
             else:
                 break
         # Final likelihood
-        lnweights = zeta_lnweights + mass_lnweights + np.sum(lnlike_obs, axis=0)
+        lnweights = xi_lnweights + zeta_lnweights + mass_lnweights + np.sum(lnlike_obs, axis=0)
         # Let's accept a few invalid draws (and discard them)
         lnweights = lnweights[np.isfinite(lnweights)]
         if len(lnweights)<Ndraw-32:
