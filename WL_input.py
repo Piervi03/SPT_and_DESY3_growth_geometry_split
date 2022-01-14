@@ -8,7 +8,7 @@ DES = {'WL_z_max': .85,
        # DES Y3
        'source_p_arcmin2': 6,
        # From Grandis+19
-       'shape_noise': .27,
+       'shape_noise': .3,
        # Type of M-c scaling relation, 'Duffy08' or 'DK15' or 'Cihld18_obs' or float
        'mcType': 3.5,
        # Boost and miscentering chains
