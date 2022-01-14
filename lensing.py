@@ -16,7 +16,7 @@ import cosmo, Mconversion_concentration, miscentering, scaling_relations
 
 # Mass [Msun/h]
 grid_lgM_min = 12.5
-grid_lgM_max = 15.5
+grid_lgM_max = 16.
 
 def unwrap_self_lnlike_cluster(arg):
     return SPTlensing.lnlike_cluster(*arg)
