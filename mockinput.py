@@ -2,7 +2,7 @@ import numpy as np
 
 SPT_survey = '/home/bocquet/SPT_cluster_data/SPT_SZ_ECS_500d_survey_210529_mix.txt'
 
-random_seed = 2
+random_seed = 0
 
 # We mainly need the cosmology for E(z) and h
 # (and for the DK15 c-M relation)
@@ -50,13 +50,14 @@ scaling['DES_b_m'] = np.mean(tmp[:,3])
 scaling['DES_s_M'] = np.mean(tmp[:,7])
 
 # SPT survey cuts
-surveyCutRedshift = (0.25, 2.)
+surveyCutRedshift = (0.25, 1.78)
 # How to model X-ray profiles? 'PL' or 'beta'
 profile_shape = 'PL'
 # Observable errors
 Xerr = .16
-richness_err = 10
 # Number of X-ray clusters
 nXrayCluster = 80
 # Use Mgas or Yx?
 Xray_obs = 'Yx'
+# Type of scatter in richness: 'lognormal', 'lognormalrelPoisson', 'lognormalGaussPoisson'
+richness_scatter_model = 'lognormal'

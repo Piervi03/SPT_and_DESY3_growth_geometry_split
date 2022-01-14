@@ -89,8 +89,14 @@ def main():
                         Mg = rng.lognormal(np.log(obs[k,1]), sigma=configMod.Xerr)
 
                         # Observed richness
-                        richness_obs = rng.normal(obs[k,3], np.sqrt(obs[k,3]))
-                        #richness_obs = rng.normal(richness_int, configMod.richness_err)
+                        if configMod.richness_scatter_model=='lognormal':
+                            richness_obs = obs[k,3]
+                        elif configMod.richness_scatter_model=='lognormalrelPoisson':
+                            richness_obs = np.exp(rng.normal(np.log(obs[k,3]), scale=1/np.sqrt(obs[k,3])))
+                        elif configMod.richness_scatter_model=='lognormalGaussPoisson':
+                            richness_obs = rng.normal(obs[k,3], scale=np.sqrt(obs[k,3]))
+                        else:
+                            raise ValueError("Unknown value for richness_scatter_model")
                         mock.append((M, z, xi, Mg, obs[k,0], richness_obs, obs[k,4]))
                         fieldnames.append(field)
 
