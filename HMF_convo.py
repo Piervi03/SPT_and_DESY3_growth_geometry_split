@@ -31,7 +31,7 @@ class MultiObsConvolution:
         # Cut in richness
         self.lambda_cut = lambda_cut
         # Poisson-style scatter in richness
-        self.richness_scatter_model = richness_scatter_type
+        self.richness_scatter_model = richness_scatter_model
 
         self.other_pairnames = ['SZ', 'SZ_lambdacut_shallow', 'SZ_lambdacut_deep', 'DES_SZ_lambdacut']
         self.pairnames_2d = ['Yx_SZ', 'Mgas_SZ', 'Megacam_SZ', 'richness_SZ']
