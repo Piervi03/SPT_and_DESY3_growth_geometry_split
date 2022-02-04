@@ -37,9 +37,9 @@ def execute(block, multi_obs_convolution):
     scaling = {}
     for p in ['Bsz', 'Bx', 'Dsz',
               'Arichness', 'Brichness', 'Crichness', 'Drichness', 'richmPivot',
-              'DES_b_dev_0', 'DES_b_dev_1', 'DES_b_dev_2',
-              'DES_s_dev_0', 'DES_s_dev_1', 'DES_s_dev_2',
-              'DES_b_m', 'DES_s_M', 'DES_m_piv',
+              'DES_b_dev_0', 'DES_b_dev_1', 'DES_b_dev_2', 'DES_b_dev_m', 'DESwl_bias_m_mean', 'DESwl_bias_m_std',
+              'DES_s_dev_0', 'DES_s_dev_1', 'DES_s_dev_2', 'DES_s_dev_m', 'DESwl_scatter_m_mean', 'DESwl_scatter_m_std',
+              'DES_m_piv',
               'rhoSZWL', 'rhoSZrichness', 'rhoWLrichness']:
         scaling[p] = block.get_double('mor_parameters', p)
     for p in ['DESwl_z', 'DESwl_scatter_mean', 'DESwl_scatter_std']:

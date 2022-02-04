@@ -80,9 +80,9 @@ def execute(block, masscalibration):
         scaling[p] = block.get_double('mor_parameters', p)
     # DES
     if block.has_value('mor_parameters', 'DESwl_z'):
-        for p in ['DES_b_dev_0', 'DES_b_dev_1', 'DES_b_dev_2',
-                  'DES_s_dev_0', 'DES_s_dev_1', 'DES_s_dev_2',
-                  'DES_b_m', 'DES_s_M', 'DES_m_piv']:
+        for p in ['DES_b_dev_0', 'DES_b_dev_1', 'DES_b_dev_2', 'DES_b_dev_m', 'DESwl_bias_m_mean', 'DESwl_bias_m_std',
+                  'DES_s_dev_0', 'DES_s_dev_1', 'DES_s_dev_2', 'DES_s_dev_m', 'DESwl_scatter_m_mean', 'DESwl_scatter_m_std',
+                  'DES_m_piv']:
             scaling[p] = block.get_double('mor_parameters', p)
         for p in ['DESwl_z', 'DESwl_bias_mean', 'DESwl_bias_std', 'DESwl_scatter_mean', 'DESwl_scatter_std']:
             scaling[p] = block.get_double_array_1d('mor_parameters', p)

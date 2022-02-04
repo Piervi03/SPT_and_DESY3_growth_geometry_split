@@ -54,7 +54,8 @@ def mass2obs(name, mass, z, scaling, cosmology=None, cluster_ID=None):
         bias_z = scaling['DESwl_bias_mean'] + np.array([scaling['DES_b_dev_%d'%i] for i in range(3)])*scaling['DESwl_bias_std']
         f = interp1d(scaling['DESwl_z'], bias_z, fill_value='extrapolate')
         b = f(z)
-        return scaling['DES_m_piv'] * np.exp(b)  * (mass/scaling['DES_m_piv'])**scaling['DES_b_m']
+        b_m = scaling['DESwl_bias_m_mean'] + scaling['DES_b_dev_m']*scaling['DESwl_bias_m_std']
+        return scaling['DES_m_piv'] * np.exp(b)  * (mass/scaling['DES_m_piv'])**b_m
     else:
         raise ValueError("Observable not known:", name)
 
@@ -78,7 +79,8 @@ def obs2mass(name, obs, z, scaling, cosmology=None, cluster_ID=None):
         bias_z = scaling['DESwl_bias_mean'] + np.array([scaling['DES_b_dev_%d'%i] for i in range(3)])*scaling['DESwl_bias_std']
         f = interp1d(scaling['DESwl_z'], bias_z, fill_value='extrapolate')
         b = f(z)
-        return scaling['DES_m_piv'] * (obs / scaling['DES_m_piv'] / np.exp(b))**(1/scaling['DES_b_m'])
+        b_m = scaling['DESwl_bias_m_mean'] + scaling['DES_b_dev_m']*scaling['DESwl_bias_m_std']
+        return scaling['DES_m_piv'] * (obs / scaling['DES_m_piv'] / np.exp(b))**(1/b_m)
     else:
         raise ValueError("Observable not known:", name)
 
@@ -100,7 +102,8 @@ def dlnM_dlnobs(name, scaling, cosmology=None, M0_arr=None, z=None):
     elif (name=='WLMegacam')|(name=='WLHST'):
         return 1.
     elif name=='WLDES':
-        return 1/scaling['DES_b_m']
+        b_m = scaling['DESwl_bias_m_mean'] + scaling['DES_b_dev_m']*scaling['DESwl_bias_m_std']
+        return 1/b_m
     elif name=='disp':
         dlnM = np.log(1.01)
         dlnobs = np.log(mass2obs('disp', 1.01*M0_arr, z)/mass2obs('disp', M0_arr, z))
@@ -115,7 +118,8 @@ def WLscatter(name, mass, z, scaling):
         scatter_z = scaling['DESwl_scatter_mean'] + np.array([scaling['DES_s_dev_%d'%i] for i in range(3)])*scaling['DESwl_scatter_std']
         f = interp1d(scaling['DESwl_z'], scatter_z, fill_value='extrapolate')
         s = f(z)
-        lnvar = s + scaling['DES_s_M']*np.log(mass/scaling['DES_m_piv'])
+        s_m = scaling['DESwl_scatter_m_mean'] + scaling['DES_s_dev_m']*scaling['DESwl_scatter_m_std']
+        lnvar = s + s_m*np.log(mass/scaling['DES_m_piv'])
         return  np.exp(.5 * lnvar)
     elif name=='wide':
         return np.sqrt(np.exp(scaling['DES_wide_s_0'] + scaling['DES_wide_s_1']*(mass/scaling['DES_m_piv'])))

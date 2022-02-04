@@ -20,9 +20,13 @@ def setup(options):
     
     # Individual components for ease of use
     DES_WL_prior['DESwl_bias_mean'] = DES_WL_prior['mean'][:3]
+    DES_WL_prior['DESwl_bias_m_mean'] = DES_WL_prior['mean'][3]
     DES_WL_prior['DESwl_scatter_mean'] = DES_WL_prior['mean'][4:7]
+    DES_WL_prior['DESwl_scatter_m_mean'] = DES_WL_prior['mean'][7]
     DES_WL_prior['DESwl_bias_std'] = np.sqrt(np.diag(DES_WL_prior['cov'][:3,:3]))
+    DES_WL_prior['DESwl_bias_m_std'] = np.sqrt(DES_WL_prior['cov'][3,3])
     DES_WL_prior['DESwl_scatter_std'] = np.sqrt(np.diag(DES_WL_prior['cov'][4:7,4:7]))
+    DES_WL_prior['DESwl_scatter_m_std'] = np.sqrt(DES_WL_prior['cov'][7,7])
 
     return DES_WL_prior
 
@@ -31,9 +35,11 @@ def execute(block, DES_WL_prior):
     # Create full array of entries as in posterior file
     dev = np.array([block.get_double('mor_parameters', 'DES_b_dev_%d'%i) for i in range(3)])
     b = DES_WL_prior['DESwl_bias_mean'] + dev*DES_WL_prior['DESwl_bias_std']
+    b_m = DES_WL_prior['DESwl_bias_m_mean'] + block.get_double('mor_parameters', 'DES_b_dev_m')*DES_WL_prior['DESwl_bias_m_std']
     dev = np.array([block.get_double('mor_parameters', 'DES_s_dev_%d'%i) for i in range(3)])
     s = DES_WL_prior['DESwl_scatter_mean'] + dev*DES_WL_prior['DESwl_scatter_std']
-    p = [b[0], b[1], b[2], block.get_double('mor_parameters', 'DES_b_m'), s[0], s[1], s[2], block.get_double('mor_parameters', 'DES_s_m')]
+    s_m = DES_WL_prior['DESwl_scatter_m_mean'] + block.get_double('mor_parameters', 'DES_s_dev_m')*DES_WL_prior['DESwl_scatter_m_std']
+    p = [b[0], b[1], b[2], b_m, s[0], s[1], s[2], s_m]
 
     # Likelihood
     resi = np.array(p) - DES_WL_prior['mean']
@@ -44,6 +50,8 @@ def execute(block, DES_WL_prior):
     # Write effective WL scaling relation to block. Not very elegant but better than hard-coding.
     for p in ['DESwl_z', 'DESwl_bias_mean', 'DESwl_bias_std', 'DESwl_scatter_mean', 'DESwl_scatter_std']:
         block.put_double_array_1d('mor_parameters', p, DES_WL_prior[p])
+    for p in ['DESwl_bias_m_mean', 'DESwl_bias_m_std', 'DESwl_scatter_m_mean', 'DESwl_scatter_m_std']:
+        block.put_double('mor_parameters', p, DES_WL_prior[p])
 
     return 0
 
