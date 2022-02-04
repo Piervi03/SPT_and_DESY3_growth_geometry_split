@@ -13,8 +13,8 @@ def setup(options):
 def execute(block, scaling_setter):
     # Read scaling relation parameters from block
     scaling = {}
-    for p in ['Dsz', 'Dx', 'Drichness', 'WLbias', 'WLscatter',
-              'MegacamBias', 'HSTbias',
+    for p in ['Dsz', 'Dx', 'Drichness',
+              'MegacamBias', 'HSTbias', 'WLscatter',
               'rhoSZWL', 'rhoSZX', 'rhoWLX', 'rhoSZrichness', 'rhoXdisp', 'rhoSZdisp', 'rhoWLrichness']:
         scaling[p] = block.get_double('mor_parameters', p)
     # See if DES model is defined, else skip

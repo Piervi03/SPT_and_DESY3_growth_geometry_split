@@ -25,22 +25,23 @@ class SetScaling:
         determinants are >= THRESHOLD) """
 
         # Megacam
-        massModelErr = msqrt(self.WLcalib['MegacamSim'][1]**2 + self.WLcalib['MegacamMcErr']**2 + self.WLcalib['MegacamCenterErr']**2)
-        zDistShearErr = msqrt(self.WLcalib['MegacamzDistErr']**2 + self.WLcalib['MegacamShearErr']**2 + self.WLcalib['MegacamContamCorr']**2)
+        massModel_var = self.WLcalib['MegacamSim'][1]**2 + self.WLcalib['MegacamMcErr']**2 + self.WLcalib['MegacamCenterErr']**2
+        zDistShear_var = self.WLcalib['MegacamzDistErr']**2 + self.WLcalib['MegacamShearErr']**2 + self.WLcalib['MegacamContamCorr']**2
+        bias_std = msqrt(massModel_var + zDistShear_var)
         # bias = bSim + bMassModel + (bN(z)+bShearCal)
-        scaling['bWL_Megacam'] = self.WLcalib['MegacamSim'][0] + scaling['WLbias']*massModelErr + scaling['MegacamBias']*zDistShearErr
+        # scaling['bWL_Megacam'] = self.WLcalib['MegacamSim'][0] + scaling['WLbias']*massModelErr + scaling['MegacamBias']*zDistShearErr
+        scaling['bWL_Megacam'] = self.WLcalib['MegacamSim'][0] + scaling['MegacamBias']*bias_std
         # lognormal scatter
         scaling['DWL_Megacam'] = self.WLcalib['MegacamSim'][2] + scaling['WLscatter']*self.WLcalib['MegacamSim'][3]
 
         # HST
-        zDistShearErr = np.sqrt(self.HSTcalib['shape_unc']**2 + self.HSTcalib['zdist_unc']**2)
+        zDistShear_var = self.HSTcalib['shape_unc']**2 + self.HSTcalib['zdist_unc']**2
+        mass_model_var = self.HSTcalib['bias_unc']**2 + self.HSTcalib['Mc_unc']**2 + self.HSTcalib['miscent_unc']**2
+        bias_std = np.sqrt(zDistShear_var + mass_model_var)
         scaling['bWL_HST'], scaling['DWL_HST'] = {}, {}
         for n,name in enumerate(self.HSTcalib['SPT_ID']):
             # bias = bSim + bMassModel + (bN(z)+bShearCal)
-            mass_model_err = msqrt(self.HSTcalib['bias_unc'][n]**2 + self.HSTcalib['Mc_unc'][n]**2 + self.HSTcalib['miscent_unc'][n]**2)
-            scaling['bWL_HST'][name] = self.HSTcalib['bias'][n] \
-                + scaling['WLbias'] * mass_model_err \
-                + scaling['HSTbias'] * zDistShearErr[n]
+            scaling['bWL_HST'][name] = self.HSTcalib['bias'][n] + scaling['HSTbias']*bias_std[n]
             # lognormal scatter
             DWL_HST = self.HSTcalib['scatter'][n] + scaling['WLscatter']*self.HSTcalib['scatter_unc'][n]
             scaling['DWL_HST'][name] = DWL_HST
