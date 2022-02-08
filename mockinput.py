@@ -16,7 +16,6 @@ cosmology['Omega_l'] = 1-cosmology['Omega_m']
 
 scaling = {'Asz': .96, 'Bsz': 1.5, 'Csz': .5, 'Dsz': .2, 'zeta_min': 1.,
            'Bsz2':0, 'Csz2':0, 'DszM':0, 'Esz':0,
-           'WLbias': 0., 'WLscatter': 0.,
            'HSTbias': 0., 'HSTscatterLSS':5.6e13,
            'MegacamBias': 0., 'MegacamScatterLSS': 6.3e13,
            'DWL_Megacam': .3, 'bWL_Megacam': 1,
