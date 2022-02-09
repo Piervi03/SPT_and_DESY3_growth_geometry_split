@@ -22,14 +22,14 @@ def execute(block, stuff):
     cosmology = {
                  'omega_matter': block.get_double('cosmological_parameters', 'Omega_m'),
                  'omega_baryon': block.get_double('cosmological_parameters', 'Omega_b'),
-                 'Omega_nu': block.get_double('cosmological_parameters', 'Omega_nu'),
+                 'Omnuh2': block.get_double('cosmological_parameters', 'Omnuh2'),
                  'Omega_l': block.get_double('cosmological_parameters', 'omega_lambda'),
                  'ns': block.get_double('cosmological_parameters', 'n_s'),
                  'hubble': block.get_double('cosmological_parameters', 'h0'),
                  'sigma8': block.get_double('cosmological_parameters', 'sigma_8'),
                  'w0': block.get_double('cosmological_parameters', 'w'),
                  'wa': block.get_double('cosmological_parameters', 'wa')}
-    cosmology['neutrino_mass'] = cosmology['Omega_nu']*94
+    cosmology['neutrino_mass'] = cosmology['Omnuh2']*94
     # Call the emulator
     tmp = np.empty((len(z_arr),2,200))
     for i,z in enumerate(z_arr):
