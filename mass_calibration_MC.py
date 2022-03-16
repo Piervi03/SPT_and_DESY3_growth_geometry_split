@@ -371,11 +371,11 @@ class MassCalibration:
         lnweights = lnweights[np.isfinite(lnweights)]
         if len(lnweights)<Ndraw-32:
             return 0.
-        # If we cannot even compute the largest weight we're doomed
-        if np.exp(np.amax(lnweights))==0:
-            return 0.
         # Lots of potential warnings ahead...
         with np.errstate(all='ignore'):
+            # If we cannot even compute the largest weight we're doomed
+            if np.exp(np.amax(lnweights))==0:
+                return 0.
             # Let's be optimistic
             Pobsxi = np.mean(np.exp(lnweights))
             like = Pobsxi/Pxi
