@@ -5,7 +5,7 @@ import os
 
 from cosmosis.datablock import option_section
 
-import compute_HMF
+import compute_HMF_Tinker08 as compute_HMF
 
 
 class EmptyClass:
