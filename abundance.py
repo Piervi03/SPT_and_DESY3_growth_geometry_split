@@ -143,6 +143,7 @@ class NumberCount:
 
         ##### confirmed clusters
         thisfield_conf = np.where((self.catalog['FIELD']==self.SPT_survey['FIELD'][fieldidx])
+            & (self.catalog['XI']>=self.SPT_survey['XI_MIN'][fieldidx]) & (self.catalog['XI']<=self.surveyCutSZmax)
             & (self.catalog['REDSHIFT']>=self.surveyCutRedshift[0]) & (self.catalog['REDSHIFT']<=self.surveyCutRedshift[1]))[0]
         for i in thisfield_conf:
             # spec-z: Evaluate dN/dxi/dz at exact location
