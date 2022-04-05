@@ -1,5 +1,8 @@
 import numpy as np
+from math import sqrt as msqrt
 import baccoemu
+import warnings
+warnings.filterwarnings("ignore", category=np.VisibleDeprecationWarning)
 
 from cosmosis.datablock import option_section
 
@@ -18,29 +21,37 @@ def execute(block, stuff):
     block."""
     # Setup
     z_arr, emulator = stuff
-    # Cosmology parameters
-    cosmology = {
-                 'omega_matter': block.get_double('cosmological_parameters', 'Omega_m'),
-                 'omega_baryon': block.get_double('cosmological_parameters', 'Omega_b'),
-                 'Omnuh2': block.get_double('cosmological_parameters', 'Omnuh2'),
-                 'Omega_l': block.get_double('cosmological_parameters', 'omega_lambda'),
-                 'ns': block.get_double('cosmological_parameters', 'n_s'),
-                 'hubble': block.get_double('cosmological_parameters', 'h0'),
-                 'sigma8': block.get_double('cosmological_parameters', 'sigma_8'),
-                 'w0': block.get_double('cosmological_parameters', 'w'),
-                 'wa': block.get_double('cosmological_parameters', 'wa')}
-    cosmology['neutrino_mass'] = cosmology['Omnuh2']*94
-    # Call the emulator
-    tmp = np.empty((len(z_arr),2,200))
-    for i,z in enumerate(z_arr):
-        cosmology['expfactor'] = 1/(1+z)
-        tmp[i] = emulator.get_linear_pk(cosmology)
-        if not np.array_equal(tmp[i,0,:], tmp[0,0,:]):
-            return 1
+    # Call the emulator for P_{CDM+bar}(k)
+    k, Pk = emulator.get_linear_pk(omega_matter=block.get_double('cosmological_parameters', 'Omega_m'),
+                                   omega_baryon=block.get_double('cosmological_parameters', 'Omega_b'),
+                                   hubble=block.get_double('cosmological_parameters', 'h0'),
+                                   ns=block.get_double('cosmological_parameters', 'n_s'),
+                                   w0=block.get_double('cosmological_parameters', 'w'),
+                                   wa=block.get_double('cosmological_parameters', 'wa'),
+                                   neutrino_mass=block.get_double('cosmological_parameters', 'Omnuh2')*94.,
+                                   A_s=block.get_double('cosmological_parameters', 'A_s'),
+                                   expfactor=1./(1.+z_arr),
+                                   cold=True)
+    # Compute sigma_8 for total matter
+    k_, Pk_ = emulator.get_linear_pk(omega_matter=block.get_double('cosmological_parameters', 'Omega_m'),
+                                     omega_baryon=block.get_double('cosmological_parameters', 'Omega_b'),
+                                     hubble=block.get_double('cosmological_parameters', 'h0'),
+                                     ns=block.get_double('cosmological_parameters', 'n_s'),
+                                     w0=block.get_double('cosmological_parameters', 'w'),
+                                     wa=block.get_double('cosmological_parameters', 'wa'),
+                                     neutrino_mass=block.get_double('cosmological_parameters', 'Omnuh2')*94.,
+                                     A_s=block.get_double('cosmological_parameters', 'A_s'),
+                                     expfactor=1.,
+                                     cold=False)
+    kR = 8.*k_
+    window = 3. * (np.sin(kR)/kR**3 - np.cos(kR)/kR**2)
+    integrand_sigma2 = Pk_ * window**2 * k_**3
+    sigma8_squ = .5/np.pi**2 * np.trapz(integrand_sigma2, np.log(k_))
     # Write to block
+    block.put_double('cosmological_parameters', 'sigma_8', msqrt(sigma8_squ))
     block.put_double_array_1d('matter_power_lin_cdm_baryon', 'z', z_arr)
-    block.put_double_array_1d('matter_power_lin_cdm_baryon', 'k_h', tmp[0,0,:])
-    block.put_double_array_nd('matter_power_lin_cdm_baryon', 'p_k', tmp[:,1,:])
+    block.put_double_array_1d('matter_power_lin_cdm_baryon', 'k_h', k)
+    block.put_double_array_nd('matter_power_lin_cdm_baryon', 'p_k', Pk)
 
     return 0
 
