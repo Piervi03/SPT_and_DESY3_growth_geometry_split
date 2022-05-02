@@ -4,7 +4,7 @@ import os
 import sys
 import time
 import importlib
-from scipy.interpolate import RectBivariateSpline
+from scipy.interpolate import interp1d, RectBivariateSpline
 from astropy.table import Table
 
 import compute_HMF_MiraTitan, cosmo, Mconversion_concentration, scaling_relations
@@ -18,6 +18,10 @@ def main():
     configMod = importlib.import_module(sys.argv[1][:-3])
     # SPT survey information
     SPT_survey = Table.read(configMod.SPT_survey, format='ascii.commented_header')
+    tmp = np.loadtxt(configMod.MCMF_lambda_min, unpack=True)
+    surveyCutLambda = {'shallow': interp1d(tmp[0], tmp[1], kind='linear'),
+                       'deep': interp1d(tmp[0], tmp[2], kind='linear')}
+
     cosmology = configMod.cosmology
     scaling = configMod.scaling
     rng = np.random.default_rng(configMod.random_seed)
@@ -74,6 +78,12 @@ def main():
 
 
         for i, z in enumerate(z_arr):
+            if field=='SPTPOL_500d':
+                lambda_min = surveyCutLambda['deep'](z)
+            elif SPT_survey['SURVEY'][fieldidx]=='SZ':
+                lambda_min = surveyCutLambda['shallow'](z)
+            else:
+                lambda_min = 0.
             for j, M in enumerate(HMF['m']):
                 if N[i,j]==0:
                     continue
@@ -97,6 +107,10 @@ def main():
                             richness_obs = rng.normal(obs[k,3], scale=np.sqrt(obs[k,3]))
                         else:
                             raise ValueError("Unknown value for richness_scatter_model")
+                        # Cut in richness
+                        if richness_obs<lambda_min:
+                            continue
+                            
                         mock.append((M, z, xi, Mg, obs[k,0], richness_obs, obs[k,4]))
                         fieldnames.append(field)
 
