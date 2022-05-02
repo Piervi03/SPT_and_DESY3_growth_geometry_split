@@ -294,8 +294,8 @@ class SPTlensing:
         bgIdx = (self.SOM_Z_MID>self.cat_cl['REDSHIFT']).nonzero()[0]
         beta[bgIdx] = self.dA_twoz_interp(np.log(self.cat_cl['REDSHIFT']), np.log(self.SOM_Z_MID[bgIdx]))
         beta[bgIdx]/= np.exp(self.lndA_interp(np.log(self.SOM_Z_MID[bgIdx])))
-        weights = np.sum(self.cat_cl['WLdata']['tomo_weights'][:,None]*self.SOM_BINs, axis=0)
-        self.beta_avg = np.average(beta, weights=weights)
+        weights = np.sum(self.cat_cl['WLdata']['tomo_weights'][:,:,None]*self.SOM_BINs[None,:,:], axis=1)
+        self.beta_avg = np.sum(beta*weights, axis=1)/np.sum(weights, axis=1)
         return 0
 
 
@@ -415,8 +415,8 @@ def readdata(catalog, HSTfile, MegacamFile, DESfile):
                     catalog['WLdata'][i] = {'datatype':'DES',
                                             'r_arcmin': f['clusters'][name]['r_arcmin'][:],
                                             'shear': f['clusters'][name]['shear'][:],
-                                            'shear_err': f['clusters'][name]['shear_err'][:],
-                                            'tomo_weights': f['clusters'][name]['tomo_weights'][:][1:],
+                                            'shear_err': .3/np.sqrt(f['clusters'][name]['N_source'][:]),
+                                            'tomo_weights': f['clusters'][name]['tomo_weights_R'][:][:,1:],
                                             }
 
     ##### Megacam data

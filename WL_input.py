@@ -4,7 +4,7 @@ random_seed = 0
 
 Delta_crit = 200
 
-DES = {'WL_z_max': .85,
+DES = {'WL_z_max': .94,
        # DES Y3
        'source_p_arcmin2': 6,
        # From Grandis+19

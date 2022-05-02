@@ -29,6 +29,7 @@ def main():
         fits = fitsio.FITS(WLconfigMod.DES['source_Pz_file'])
         d = g.create_dataset('SOM_Z_MID', data=fits['nz_source']['Z_MID'][:])
         d = g.create_dataset('SOM_BINs', data=[fits['nz_source']['BIN%d'%i][:] for i in range(1,5)])
+        d = g.create_dataset('shape_noise', data=WLconfigMod.DES['shape_noise'])
         g = f.create_group('clusters')
         for i,name in enumerate(cat['SPT_ID']):
             if (cat['REDSHIFT'][i]>0)&(cat['REDSHIFT'][i]<WLconfigMod.DES['WL_z_max'])&(cat['FIELD'][i] not in ['ra11hdec-25', 'ra13hdec-25', 'ra23hdec-25', 'ra23hdec-35']):
@@ -206,6 +207,7 @@ class MockUpDESWL:
         # Return dictionary of outputs
         res_dict = {'r_Mpch': self.r_arr[good_idx],
                     'r_arcmin': self.r_arcmin[good_idx],
+                    'N_source': N_r[good_idx],
                     'shear_cen': g_t_cen[good_idx],
                     'shear_mis': g_t_mis[good_idx],
                     'shear_noerr': g_t_cont[good_idx],
@@ -216,6 +218,7 @@ class MockUpDESWL:
                     'beta': beta_avg[good_idx],
                     'beta_fid': beta_fid,
                     'tomo_weights': self.tomo_weights,
+                    'tomo_weights_R': self.tomo_weights*np.ones((len(good_idx), 4))
                    }
         return res_dict
 
