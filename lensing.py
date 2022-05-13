@@ -17,24 +17,29 @@ import cosmo, Mconversion_concentration, miscentering, scaling_relations
 # Mass [Msun/h]
 grid_lgM_min = 12.5
 grid_lgM_max = 16.
+grid_lgM_N = 32
+lnM_arr_default = np.log(10.)*np.linspace(grid_lgM_min, grid_lgM_max, grid_lgM_N)
 
-def unwrap_self_lnlike_cluster(arg):
-    return SPTlensing.lnlike_cluster(*arg)
+def unwrap_self_one_cluster(arg):
+    """Wrapper function needed to make multiprocessing work within a class"""
+    return SPTlensing.one_cluster(*arg)
 
 ##### This class reads and stores shear data and calculates ln P(shear|P(M))
+
 class SPTlensing:
 
     def __init__(self, catalog, WLsimcalibfile,
                  HSTfile, MegacamFile, DESfile,
                  DESboostfile, DESmiscenterfile, DEScentertype,
                  mcType,
-                 NPROC):
+                 NPROC=0,
+                 save_shear_profiles=False):
         WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
         self.WLcalib = WLsimcalib.WLcalibration
         # Set up more stuff
-        self.len_M_arr = 32
-        self.M_arr = np.logspace(grid_lgM_min, grid_lgM_max, self.len_M_arr)
-        self.lnM_arr = np.log(self.M_arr)
+        self.lnM_arr = lnM_arr_default
+        self.M_arr = np.exp(self.lnM_arr)
+        self.save_shear_profiles = save_shear_profiles
         self.NPROC = NPROC
         self.mcType = mcType
         # Read lensing data
@@ -71,6 +76,7 @@ class SPTlensing:
 
 
     ########################################
+
     def lnlike_all(self, catalog, cosmology, scaling):
         """Return ln p(data|M_arr) for all clusters with WL data."""
         # t = []
@@ -94,14 +100,17 @@ class SPTlensing:
         # t.append(time.time())
 
         if self.NPROC==0:
-            lnp_Mwl = [self.lnlike_cluster(catalog[i]) for i in WL_idx]
+            res = [self.one_cluster(catalog[i]) for i in WL_idx]
         else:
             with Pool(processes=self.NPROC) as pool:
                 argin = zip([self]*len(WL_idx), catalog[WL_idx])
-                lnp_Mwl = pool.map(unwrap_self_lnlike_cluster, argin)
+                lnp_Mwl = pool.map(unwrap_self_one_cluster, argin)
 
         catalog['lnp_Mwl'] = [None]*len(catalog)
-        catalog['lnp_Mwl'][WL_idx] = lnp_Mwl
+        catalog['lnp_Mwl'][WL_idx] = [r[0] for r in res]
+        if self.save_shear_profiles:
+            catalog['model_shear_profile'] = [None]*len(catalog)
+            catalog['model_shear_profile'][WL_idx] = [r[1] for r in res]
         # t.append(time.time())
         # print("lensing done", t[-1]-t[0])
 
@@ -109,9 +118,11 @@ class SPTlensing:
 
 
     ########################################
-    def lnlike_cluster(self, data):
-        """Return ln-likelihood of shear profile for a given cluster (index)
-        given an array of cluster masses."""
+
+    def one_cluster(self, data):
+        """Process the cluster given by `data`. Return ln-likelihood of shear
+        profile, additionally return model shear profiles depending on
+        `save_shear_profiles`."""
         # t = []
         # t.append(time.time())
 
@@ -123,143 +134,148 @@ class SPTlensing:
 
         ##### Likelihood
         if self.cat_cl['WLdata']['datatype']=='DES':
-            lnpOfMass = self.lnlike_DES()
+            res = self.DES_cluster()
         elif self.cat_cl['WLdata']['datatype']=='Megacam':
-            rho_c_z, Dl, delta_c, r_s = self.get_cluster_properties()
-            lnpOfMass = self.lnlike_Megacam(rho_c_z, Dl, delta_c, r_s)
+            res = self.Megacam_cluster()
         elif self.cat_cl['WLdata']['datatype']=='HST':
-            rho_c_z, Dl, delta_c, r_s = self.get_cluster_properties()
-            lnpOfMass = self.lnlike_HST(rho_c_z, Dl, delta_c, r_s)
+            res = self.HST_cluster()
         # t.append(time.time())
         # t = np.array(t)
         # print('done', t[-1]-t[0], np.diff(t))
-        return lnpOfMass
-
+        return res
 
 
     ########################################
 
-
-    def lnlike_DES(self):
-        """Return array lnP(DES data|Mwl)."""
-
+    def shear_model_DES(self, mass):
+        """Return DES shear model given mass."""
         # Sigma_crit, with c^2/4piG [h Msun/Mpc^2]
         Dl = np.exp(self.lndA_interp(np.log(self.cat_cl['REDSHIFT'])))
         Sigma_c = 1.6624541593797974e+18/Dl/self.beta_avg
+        # NFW halo stuff
         rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.cat_cl['REDSHIFT'], self.cosmology)**2 # [h^2 Msun/Mpc^3]
-        r200c = (3*self.M_arr/4/np.pi/200/rho_c_z)**(1/3)
-        c200c = self.MCrel_DES.calC200(self.M_arr, self.cat_cl['REDSHIFT']) * np.ones(self.len_M_arr)
+        r200c = (3*mass/4/np.pi/200/rho_c_z)**(1/3)
+        c200c = self.MCrel_DES.calC200(mass, self.cat_cl['REDSHIFT']) * np.ones(len(mass))
         delta_c = 200/3 * c200c**3 / (np.log(1+c200c) - c200c/(1+c200c))
         r_s = r200c/c200c
-
         # Get miscentering radius
         R_mis = self.miscenterer.get_mean_Rmis(self.cat_cl, self.cosmology)
-
         # NFW surface mass densities [mass][radius]
         r_Mpch = self.cat_cl['WLdata']['r_arcmin'] * Dl * np.pi/60/180
         Sigma_mis = get_Sigma_mis(r_Mpch[None,:], r_s[:,None], rho_c_z, delta_c[:,None], R_mis)
         DeltaSigma_mis = get_DeltaSigma_mis(r_Mpch[None,:], r_s[:,None], rho_c_z, delta_c[:,None], R_mis)
-
         # Reduced shear profile [mass][radius]
         reduced_shear = DeltaSigma_mis/Sigma_c / (1 - Sigma_mis/Sigma_c)
-
         # Cluster member contamination
         A = boost_get_A(self.boost_dict, 'Gausssmooth', self.boost_dict['z_arr'], self.cat_cl['REDSHIFT'], self.cat_cl['richness'], r_Mpch, R_mis)
         reduced_shear_cont = 1/(1+A) * reduced_shear
+        return reduced_shear_cont
 
-        # Likelihood!
+
+    def DES_cluster(self):
+        """Return array lnP(DES data|Mwl) and optionally the model shear profiles."""
+        # Model
+        reduced_shear_cont = self.shear_model_DES(self.M_arr)
+        # Likelihood
         diffs = reduced_shear_cont - self.cat_cl['WLdata']['shear']
         chi2 = (diffs/self.cat_cl['WLdata']['shear_err'])**2
         lnP_DES_Mwl = -.5*np.sum(chi2, axis=1)
-
-        return lnP_DES_Mwl
-
+        if self.save_shear_profiles:
+            return lnP_DES_Mwl, reduced_shear_cont
+        else:
+            return lnP_DES_Mwl, None
 
 
     ########################################
 
-    def get_cluster_properties(self):
-        """Return rho_c(z_cluster), luminosity distance (z_cluster), delta_c,
-        and r_s."""
+    def shear_model_Megacam(self, mass):
+        """Return Megacam shear model given mass."""
         Dl = np.exp(self.lndA_interp(np.log(self.cat_cl['REDSHIFT'])))
+        # NFW halo stuff
         rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.cat_cl['REDSHIFT'], self.cosmology)**2 # [h^2 Msun/Mpc^3]
-
-        M200c = np.exp(self.MCrel.lnM_to_lnM200(self.cat_cl['REDSHIFT'], self.lnM_arr))[0]
-        r200c = (3*M200c/4/np.pi/200/rho_c_z)**(1/3)
-        c200c = self.MCrel.calC200(M200c, self.cat_cl['REDSHIFT'])
+        M200c = np.exp(self.MCrel.lnM_to_lnM200(self.cat_cl['REDSHIFT'], np.log(mass)))[0]
+        r200c = (3*mass/4/np.pi/200/rho_c_z)**(1/3)
+        c200c = self.MCrel.calC200(mass, self.cat_cl['REDSHIFT'])
         delta_c = 200/3 * c200c**3 / (np.log(1+c200c) - c200c/(1+c200c))
         r_s = r200c/c200c
-        return rho_c_z, Dl, delta_c, r_s
-
-
-    ########################################
-
-    def lnlike_Megacam(self, rho_c_z, Dl, delta_c, r_s):
-        """Return array lnP(Megacam data|Mwl)."""
         # Dimensionless radial distance [Radius][Mass]
         x = self.cat_cl['WLdata']['r_deg'][:,None] * Dl * np.pi/180 / r_s[None,:]
         # Sigma_crit, with c^2/4piG [h Msun/Mpc^2]
         Sigma_c = 1.6624541593797974e+18/Dl/self.beta_avg
-
         # gamma_t, kappa, g_t [Radius][Mass]
         gamma_2d = get_DeltaSigma(x, r_s, rho_c_z, delta_c) / Sigma_c
         kappa_2d = get_Sigma(x, r_s, rho_c_z, delta_c) / Sigma_c
         g_2d = gamma_2d/(1-kappa_2d) * (1 + kappa_2d*(self.beta2_avg/self.beta_avg**2-1))
+        return g_2d
 
+
+    def Megacam_cluster(self):
+        """Return array lnP(Megacam data|Mwl) and optionally the model shear profiles."""
+        # Model
+        g_2d = self.shear_model_Megacam(self.M_arr)
+        # Likelihood
         diff = g_2d - self.cat_cl['WLdata']['shear'][:,None]
         chi2 = (diff/self.cat_cl['WLdata']['shearerr'][:,None])**2
         lnpOfMass = -.5*np.sum(chi2, axis=0)
-
-        return lnpOfMass
-
+        if self.save_shear_profiles:
+            return lnP_DES_Mwl, reduced_shear_cont
+        else:
+            return lnP_DES_Mwl, None
 
 
     ########################################
 
-    def lnlike_HST(self, rho_c_z, Dl, delta_c, r_s):
-        """Return array lnP(HST data|Mwl)."""
+    def shear_model_HST(self, mass):
+        """Return HST shear model given mass."""
+        Dl = np.exp(self.lndA_interp(np.log(self.cat_cl['REDSHIFT'])))
+        # NFW halo stuff
+        rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.cat_cl['REDSHIFT'], self.cosmology)**2 # [h^2 Msun/Mpc^3]
+        M200c = np.exp(self.MCrel.lnM_to_lnM200(self.cat_cl['REDSHIFT'], np.log(mass)))[0]
+        r200c = (3*mass/4/np.pi/200/rho_c_z)**(1/3)
+        c200c = self.MCrel.calC200(mass, self.cat_cl['REDSHIFT'])
+        delta_c = 200/3 * c200c**3 / (np.log(1+c200c) - c200c/(1+c200c))
+        r_s = r200c/c200c
         # Dimensionless radial distance [Radius][Mass]
         x = self.cat_cl['WLdata']['r_deg'][:,None] * Dl * np.pi/180 / r_s[None,:]
-
         # Sigma_crit, with c^2/4piG [h Msun/Mpc^2] [Radius]
         rangeR = range(len(self.cat_cl['WLdata']['r_deg']))
         betaR = np.array([self.beta_avg[self.cat_cl['WLdata']['magbinids'][i]] for i in rangeR])
         beta2R = np.array([self.beta2_avg[self.cat_cl['WLdata']['magbinids'][i]] for i in rangeR])
         Sigma_c = 1.6624541593797974e+18/Dl/betaR
-
         # gamma_t and kappa [Radius][Mass]
         gamma_2d = get_DeltaSigma(x, r_s, rho_c_z, delta_c) / Sigma_c[:,None]
         kappa_2d = get_Sigma(x, r_s, rho_c_z, delta_c) / Sigma_c[:,None]
-
         # [Radius][Mass]
         mu0_2d = 1/((1-kappa_2d)**2 - gamma_2d**2)
         kappaFake = (mu0_2d-1)/2
-
         # Magnification correction [Radius][Mass]
         mykappa = kappaFake * 0.3/betaR[:,None]
-
         magcorr = [np.interp(mykappa[i], self.cat_cl['WLdata']['magcorr'][self.cat_cl['WLdata']['magbinids'][i]][0], self.cat_cl['WLdata']['magcorr'][self.cat_cl['WLdata']['magbinids'][i]][1]) for i in rangeR]
-
         # Beta correction [Radius][Mass]
         betaratio = beta2R/betaR**2
         betaCorr = (1 + kappa_2d*(betaratio[:,None]-1))
-
         # Reduced shear g_t [Radius][Mass]
         g_2d = np.array(magcorr) * gamma_2d/(1-kappa_2d) * betaCorr
+        return g_2d
 
+
+    def HST_cluster(self):
+        """Return array lnP(HST data|Mwl) and optionally the model shear profiles."""
         # Only consider 500<r/kpc/1500 in reference cosmology
         cosmoRef = {'Omega_m':.3, 'Omega_l':.7, 'h':.7, 'w0':-1., 'wa':0}
         DlRef = cosmo.dA(self.cat_cl['REDSHIFT'], cosmoRef)
         rPhysRef = self.cat_cl['WLdata']['r_deg'] * DlRef * np.pi/180 /cosmoRef['h']
         rInclude = np.where((rPhysRef>.5)&(rPhysRef<1.5))[0]
-
+        # Model
+        g_2d = self.shear_model_Megacam(self.M_arr)
+        # Likelihood
         diff = g_2d[rInclude,:] - self.cat_cl['WLdata']['shear'][rInclude,None]
         chi2 = (diff/self.cat_cl['WLdata']['shearerr'][rInclude,None])**2
         lnpOfMass = -.5*np.sum(chi2, axis=0)
-
-        return lnpOfMass
-
-
+        if self.save_shear_profiles:
+            return lnP_DES_Mwl, reduced_shear_cont
+        else:
+            return lnP_DES_Mwl, None
 
 
     ########################################
