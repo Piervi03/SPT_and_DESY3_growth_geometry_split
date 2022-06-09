@@ -14,6 +14,10 @@ cosmologyRef = {'Omega_m':.272, 'Omega_l':.728, 'h':.702, 'w0':-1, 'wa':0}
 GETPULL = False
 Ndraw = 8192
 
+# Limits for stack
+z_mid = .55
+xi_mid = 5.5
+
 scatter_dict = {'zeta': 'Dsz', 'richness': 'Drichness',
                 'Mgas': 'Dx', 'Yx': 'Dx',
                 'WLMegacam': 'DWL_Megacam', 'WLDES': 'one', 'WLHST': 'one'}
@@ -31,9 +35,11 @@ class MassCalibration:
                  surveyCutRedshift, surveyCutRichness, richness_scatter_model,
                  SPT_survey_fields, SPT_doublecounts, SPTcatalogfile,
                  HSTcalibfile,
-                 NPROC):
+                 NPROC,
+                 get_stacked_DES=False):
 
         self.NPROC = NPROC
+        self.get_stacked_DES = get_stacked_DES
         self.todo = todo
         self.mcType = mcType
         self.surveyCutRedshift = surveyCutRedshift
@@ -45,6 +51,8 @@ class MassCalibration:
         SPTdata = imp.load_source('SPTdata', SPT_doublecounts)
         self.SPTdoubleCount = SPTdata.SPTdoubleCount
         self.catalog = Table.read(SPTcatalogfile)
+        if self.get_stacked_DES:
+            self.catalog['DES_shear_profile_mean'] = [None for i in range(len(self.catalog))]
         self.HSTcalib = Table.read(HSTcalibfile, format='ascii.commented_header')
 
 
@@ -84,9 +92,23 @@ class MassCalibration:
             lnlike = np.sum(np.log(likelihoods))
 
         if np.isinf(lnlike)|np.isnan(lnlike):
-            return -np.inf
+            return -np.inf, None
 
-        return lnlike
+        ##### DES stacked shear profile
+        if self.get_stacked_DES:
+            stack = {}
+            notNone = [this is not None for this in self.catalog['DES_shear_profile_mean']]
+            idx = (notNone&(self.catalog['REDSHIFT']<z_mid)&(self.catalog['XI']<xi_mid)).nonzero()[0]
+            stack['zloxilo'] = np.mean(self.catalog['DES_shear_profile_mean'][idx], axis=0)
+            idx = (notNone&(self.catalog['REDSHIFT']<z_mid)&(self.catalog['XI']>=xi_mid)).nonzero()[0]
+            stack['zloxihi'] = np.mean(self.catalog['DES_shear_profile_mean'][idx], axis=0)
+            idx = (notNone&(self.catalog['REDSHIFT']>=z_mid)&(self.catalog['XI']<xi_mid)).nonzero()[0]
+            stack['zhixilo'] = np.mean(self.catalog['DES_shear_profile_mean'][idx], axis=0)
+            idx = (notNone&(self.catalog['REDSHIFT']>=z_mid)&(self.catalog['XI']>=xi_mid)).nonzero()[0]
+            stack['zhixihi'] = np.mean(self.catalog['DES_shear_profile_mean'][idx], axis=0)     
+            return lnlike, stack
+        else:
+            return lnlike, None
 
 
 
@@ -310,6 +332,9 @@ class MassCalibration:
             obs+= erfinv(2*r-1)*std*msqrt(2)
         # Lensing likelihood
         lnlike = interp1d(self.WL.lnM_arr, self.catalog['lnp_Mwl'][dataID], fill_value='extrapolate')(np.log(obs))
+        # Shear profile for DES stacks
+        if self.get_stacked_DES & (obsname=='WLDES'):
+            self.DES_shear_profile_MC = interp1d(self.WL.lnM_arr, self.catalog['model_shear_profile'][dataID], fill_value='extrapolate', axis=0)(np.log(obs))
         return lnlike, lnM_lensing
 
 
@@ -394,4 +419,11 @@ class MassCalibration:
                     # OK we're giving up
                     if (like<=0.) | np.isinf(like) | np.isnan(like):
                         print(self.catalog['SPT_ID'][dataID], N_obs, 'like', like)
+        # Stacked DES profile
+        if self.get_stacked_DES & ('WLDES' in obsnames):
+            weights = np.exp(xi_lnweights + zeta_lnweights + mass_lnweights)
+            profile_interp = interp1d(self.catalog['WLdata'][dataID]['r_arcmin'], self.DES_shear_profile_MC, fill_value='extrapolate')
+            profile_interpolated = profile_interp(self.catalog['WLdata'][dataID]['r_arcmin_stack'])
+            self.catalog['DES_shear_profile_mean'][dataID] = np.sum(profile_interpolated*weights[:,None], axis=0)/np.sum(weights)
         return like
+

@@ -30,12 +30,14 @@ def setup(options):
     WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
     # HST file
     HSTcalibfile = options.get_string(option_section, 'HSTcalibfile')
+    # Do stack lensing for validation
+    get_stacked_DES = options.get_bool(option_section, 'get_stacked_DES', False)
 
     masscalibration = mass_calibration.MassCalibration(todo, mcType,
                                                        surveyCutRedshift, surveyCutLambda, richness_scatter_model,
                                                        SPT_survey_fields, SPT_doublecounts, SPTcatalogfile,
                                                        HSTcalibfile,
-                                                       NPROC)
+                                                       NPROC, get_stacked_DES=get_stacked_DES)
     masscalibration.YXPARAM = options.get_string(option_section, 'YXPARAM')
 
     # Set up lensing code
@@ -52,7 +54,7 @@ def setup(options):
                                                 HSTfile, MegacamFile, DESfile,
                                                 DESboostfile, DESmiscenterfile, DEScentertype,
                                                 mcType,
-                                                NPROC)
+                                                NPROC, save_shear_profiles=get_stacked_DES)
 
     return masscalibration
 
@@ -111,9 +113,13 @@ def execute(block, masscalibration):
                                       scaling)
 
     ##### Compute likelihood
-    lnlike = masscalibration.lnlike(HMF, cosmology, scaling)
+    lnlike, DES_stack = masscalibration.lnlike(HMF, cosmology, scaling)
     if np.isfinite(lnlike):
         block.put_double('likelihoods', 'MASS_CALIBRATION_LIKE', lnlike)
+        if masscalibration.get_stacked_DES:
+            for name in ['zloxilo', 'zloxihi', 'zhixilo', 'zhixihi']:
+               for i,n in enumerate(DES_stack[name]):
+                    block.put_double('DES_stack', '%s_%d'%(name,i), n)
         return 0
     else:
         return 1
