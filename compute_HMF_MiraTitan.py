@@ -39,8 +39,7 @@ class HMFCalculator:
                 self.dNdlnM_unitVol[z_id] = np.exp(HMF_interp(z, lnM200[z_id]/np.log(10))) * dlnM200_dlnMDelta
 
         ##### Apply redshift volume
-        deltaV = cosmo.deltaV(self.z_arr[1:], cosmology)
-        deltaV = np.insert(deltaV, 0, deltaV[1])
+        deltaV = cosmo.deltaV(self.z_arr, cosmology)
         self.dNdlnM = self.dNdlnM_unitVol * deltaV[:,None]
 
         return 0

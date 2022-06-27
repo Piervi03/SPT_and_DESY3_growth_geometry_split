@@ -53,8 +53,7 @@ class HMFCalculator:
         dNdlnM_noVol = - fsigma * rho_m * dsigma2dM/2/sigma2
 
         ##### Apply redshift volume
-        deltaV = cosmo.deltaV(z_arr[1:], cosmology)
-        deltaV = np.insert(deltaV, 0, deltaV[1])
+        deltaV = cosmo.deltaV(z_arr, cosmology)
         dNdlnM = dNdlnM_noVol * deltaV[:,None]
 
         ##### Return HMF
