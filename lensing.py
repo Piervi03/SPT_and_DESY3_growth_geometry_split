@@ -47,7 +47,7 @@ class SPTlensing:
         self.NPROC = NPROC
         self.mcType = mcType
         # Read lensing data
-        readdata(catalog, HSTfile, MegacamFile, DESfile)
+        readdata(catalog, HSTfile, MegacamFile, DESfile, self.save_shear_profiles)
         # DES-specific stuff
         if DESfile != 'None':
             # source redshifts
@@ -421,7 +421,7 @@ def boost_get_A(params, method, z_arr, z, lam, r_Mpc_over_h, Rmis):
     return A
 
 ################################################################################
-def readdata(catalog, HSTfile, MegacamFile, DESfile):
+def readdata(catalog, HSTfile, MegacamFile, DESfile, save_shear_profiles):
     """Read and load weak-lensing data into `WLdata` field in `catalog` if
     the corresponding path-variables lead to valid files on disk."""
     # Empty WL data field
@@ -438,15 +438,16 @@ def readdata(catalog, HSTfile, MegacamFile, DESfile):
                                             'shear_err': .3/np.sqrt(f['clusters'][name]['N_source'][:]),
                                             'tomo_weights': f['clusters'][name]['tomo_weights_R'][:][:,1:],
                                             }
-                    if catalog['REDSHIFT'][i]<z_mid:
-                        p1 = 'zlo'
-                    else:
-                        p1 = 'zhi'
-                    if catalog['XI'][i]<xi_mid:
-                        p2 = 'xilo'
-                    else:
-                        p2 = 'xihi'
-                    catalog['WLdata'][i]['r_arcmin_stack'] = f['stack_1h_%s%s'%(p1,p2)]['r_arcmin'][:]
+                    if save_shear_profiles:
+                        if catalog['REDSHIFT'][i]<z_mid:
+                            p1 = 'zlo'
+                        else:
+                            p1 = 'zhi'
+                        if catalog['XI'][i]<xi_mid:
+                            p2 = 'xilo'
+                        else:
+                            p2 = 'xihi'
+                        catalog['WLdata'][i]['r_arcmin_stack'] = f['stack_1h_%s%s'%(p1,p2)]['r_arcmin'][:]
                       
 
     ##### Megacam data
