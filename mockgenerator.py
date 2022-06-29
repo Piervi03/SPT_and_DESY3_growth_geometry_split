@@ -130,7 +130,7 @@ def main():
     HST_z_range = ((mock[:,1]>.6)&(mock[:,1]<1.1)).nonzero()[0]
     HST_idx = np.argsort(mock[HST_z_range,2])[-30:]
     # HST_idx = rng.choice(HST_z_range, 30, replace=False)
-    mask = np.ones(len(mock), np.bool)
+    mask = np.ones(len(mock), bool)
     mask[HST_z_range[HST_idx]] = 0
     mock[mask,-1] = 0.
 
