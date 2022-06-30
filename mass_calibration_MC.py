@@ -17,6 +17,7 @@ Ndraw = 8192
 # Limits for stack
 z_mid = .55
 xi_mid = 5.5
+lnr_r200c_stack = np.linspace(np.log(.3), np.log(5), 16)
 
 scatter_dict = {'zeta': 'Dsz', 'richness': 'Drichness',
                 'Mgas': 'Dx', 'Yx': 'Dx',
@@ -53,6 +54,8 @@ class MassCalibration:
         self.catalog = Table.read(SPTcatalogfile)
         if self.get_stacked_DES:
             self.catalog['DES_shear_profile_mean'] = [None for i in range(len(self.catalog))]
+            self.catalog['DES_DeltaSigma_mean'] = [None for i in range(len(self.catalog))]
+            self.catalog['DES_DeltaSigma_data_mean'] = [None for i in range(len(self.catalog))]
         self.HSTcalib = Table.read(HSTcalibfile, format='ascii.commented_header')
 
 
@@ -100,12 +103,20 @@ class MassCalibration:
             notNone = [this is not None for this in self.catalog['DES_shear_profile_mean']]
             idx = (notNone&(self.catalog['REDSHIFT']<z_mid)&(self.catalog['XI']<xi_mid)).nonzero()[0]
             stack['zloxilo'] = np.mean(self.catalog['DES_shear_profile_mean'][idx], axis=0)
+            stack['DeltaSigma_zloxilo'] = np.mean(self.catalog['DES_DeltaSigma_mean'][idx], axis=0)
+            stack['DeltaSigma_data_zloxilo'] = np.mean(self.catalog['DES_DeltaSigma_data_mean'][idx], axis=0)
             idx = (notNone&(self.catalog['REDSHIFT']<z_mid)&(self.catalog['XI']>=xi_mid)).nonzero()[0]
             stack['zloxihi'] = np.mean(self.catalog['DES_shear_profile_mean'][idx], axis=0)
+            stack['DeltaSigma_zloxihi'] = np.mean(self.catalog['DES_DeltaSigma_mean'][idx], axis=0)
+            stack['DeltaSigma_data_zloxihi'] = np.mean(self.catalog['DES_DeltaSigma_data_mean'][idx], axis=0)
             idx = (notNone&(self.catalog['REDSHIFT']>=z_mid)&(self.catalog['XI']<xi_mid)).nonzero()[0]
             stack['zhixilo'] = np.mean(self.catalog['DES_shear_profile_mean'][idx], axis=0)
+            stack['DeltaSigma_zhixilo'] = np.mean(self.catalog['DES_DeltaSigma_mean'][idx], axis=0)
+            stack['DeltaSigma_data_zhixilo'] = np.mean(self.catalog['DES_DeltaSigma_data_mean'][idx], axis=0)
             idx = (notNone&(self.catalog['REDSHIFT']>=z_mid)&(self.catalog['XI']>=xi_mid)).nonzero()[0]
             stack['zhixihi'] = np.mean(self.catalog['DES_shear_profile_mean'][idx], axis=0)     
+            stack['DeltaSigma_zhixihi'] = np.mean(self.catalog['DES_DeltaSigma_mean'][idx], axis=0)
+            stack['DeltaSigma_data_zhixihi'] = np.mean(self.catalog['DES_DeltaSigma_data_mean'][idx], axis=0)
             return lnlike, stack
         else:
             return lnlike, None
@@ -335,6 +346,9 @@ class MassCalibration:
         # Shear profile for DES stacks
         if self.get_stacked_DES & (obsname=='WLDES'):
             self.DES_shear_profile_MC = interp1d(self.WL.lnM_arr, self.catalog['model_shear_profile'][dataID], fill_value='extrapolate', axis=0)(np.log(obs))
+            self.DES_DeltaSigma_MC = interp1d(self.WL.lnM_arr, self.catalog['model_DeltaSigma_rescaled'][dataID], fill_value='extrapolate', axis=0)(np.log(obs))
+            self.DES_r_r200c_MC = interp1d(self.WL.lnM_arr, self.catalog['model_r_r200c'][dataID], fill_value='extrapolate', axis=0)(np.log(obs))
+            self.DES_DeltaSigma_data_MC = interp1d(self.WL.lnM_arr, self.catalog['data_DeltaSigma_rescaled'][dataID], fill_value='extrapolate', axis=0)(np.log(obs))
         return lnlike, lnM_lensing
 
 
@@ -422,8 +436,19 @@ class MassCalibration:
         # Stacked DES profile
         if self.get_stacked_DES & ('WLDES' in obsnames):
             weights = np.exp(xi_lnweights + zeta_lnweights + mass_lnweights)
+            # Shear profile
             profile_interp = interp1d(self.catalog['WLdata'][dataID]['r_arcmin'], self.DES_shear_profile_MC, fill_value='extrapolate')
             profile_interpolated = profile_interp(self.catalog['WLdata'][dataID]['r_arcmin_stack'])
             self.catalog['DES_shear_profile_mean'][dataID] = np.sum(profile_interpolated*weights[:,None], axis=0)/np.sum(weights)
+            # DeltaSigma model
+            DeltaSigma_mean = np.sum(self.DES_DeltaSigma_MC*weights[:,None], axis=0)/np.sum(weights)
+            r_r200c_mean = np.sum(self.DES_r_r200c_MC*weights[:,None], axis=0)/np.sum(weights)
+            DeltaSigma_interp = interp1d(np.log(r_r200c_mean), np.log(DeltaSigma_mean), fill_value='extrapolate')
+            self.catalog['DES_DeltaSigma_mean'][dataID] = np.exp(DeltaSigma_interp(lnr_r200c_stack))
+            # DeltaSigma data
+            DeltaSigma_data_mean = np.sum(self.DES_DeltaSigma_data_MC*weights[:,None], axis=0)/np.sum(weights)
+            DeltaSigma_interp = interp1d(np.log(r_r200c_mean), DeltaSigma_data_mean, fill_value='extrapolate')
+            self.catalog['DES_DeltaSigma_data_mean'][dataID] = DeltaSigma_interp(lnr_r200c_stack)
+
         return like
 

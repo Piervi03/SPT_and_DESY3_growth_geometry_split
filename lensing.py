@@ -115,6 +115,12 @@ class SPTlensing:
         if self.save_shear_profiles:
             catalog['model_shear_profile'] = [None]*len(catalog)
             catalog['model_shear_profile'][WL_idx] = [r[1] for r in res]
+            catalog['model_DeltaSigma_rescaled'] = [None]*len(catalog)
+            catalog['model_DeltaSigma_rescaled'][WL_idx] = [r[2] for r in res]
+            catalog['model_r_r200c'] = [None]*len(catalog)
+            catalog['model_r_r200c'][WL_idx] = [r[3] for r in res]
+            catalog['data_DeltaSigma_rescaled'] = [None]*len(catalog)
+            catalog['data_DeltaSigma_rescaled'][WL_idx] = [r[4] for r in res]
         # t.append(time.time())
         # print("lensing done", t[-1]-t[0])
 
@@ -173,19 +179,21 @@ class SPTlensing:
         # Cluster member contamination
         A = boost_get_A(self.boost_dict, 'Gausssmooth', self.boost_dict['z_arr'], self.cat_cl['REDSHIFT'], self.cat_cl['richness'], r_Mpch, R_mis)
         reduced_shear_cont = 1/(1+A) * reduced_shear
-        return reduced_shear_cont
+        # Model data back to DeltaSigma
+        DeltaSigma_data = (self.cat_cl['WLdata']['shear']*Sigma_c*(1+A))[None,:]/r200c[:,None]/rho_c_z
+        return reduced_shear_cont, DeltaSigma_mis/r200c[:,None]/rho_c_z, r_Mpch[None,:]/r200c[:,None], DeltaSigma_data
 
 
     def DES_cluster(self):
         """Return array lnP(DES data|Mwl) and optionally the model shear profiles."""
         # Model
-        reduced_shear_cont = self.shear_model_DES(self.M_arr)
+        reduced_shear_cont, DeltaSigma_mis_rescaled, r_r200c, DeltaSigma_data_rescaled = self.shear_model_DES(self.M_arr)
         # Likelihood
         diffs = reduced_shear_cont - self.cat_cl['WLdata']['shear']
         chi2 = (diffs/self.cat_cl['WLdata']['shear_err'])**2
         lnP_DES_Mwl = -.5*np.sum(chi2, axis=1)
         if self.save_shear_profiles:
-            return lnP_DES_Mwl, reduced_shear_cont
+            return lnP_DES_Mwl, reduced_shear_cont, DeltaSigma_mis_rescaled, r_r200c, DeltaSigma_data_rescaled
         else:
             return lnP_DES_Mwl, None
 
