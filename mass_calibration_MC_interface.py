@@ -120,6 +120,10 @@ def execute(block, masscalibration):
             for name in ['zloxilo', 'zloxihi', 'zhixilo', 'zhixihi']:
                for i,n in enumerate(DES_stack[name]):
                     block.put_double('DES_stack', '%s_%d'%(name,i), n)
+               for i,n in enumerate(DES_stack['DeltaSigma_%s'%name]):
+                    block.put_double('DES_stack', '%s_%d'%(n,i), n)
+               for i,n in enumerate(DES_stack['DeltaSigma_data_%s'%name]):
+                    block.put_double('DES_stack', '%s_%d'%(n,i), n)
         return 0
     else:
         return 1
