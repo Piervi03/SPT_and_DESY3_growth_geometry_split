@@ -102,19 +102,19 @@ class MassCalibration:
             stack = {}
             notNone = [this is not None for this in self.catalog['DES_shear_profile_mean']]
             idx = (notNone&(self.catalog['REDSHIFT']<z_mid)&(self.catalog['XI']<xi_mid)).nonzero()[0]
-            stack['zloxilo'] = np.mean(self.catalog['DES_shear_profile_mean'][idx], axis=0)
+            stack['shear_zloxilo'] = np.mean(self.catalog['DES_shear_profile_mean'][idx], axis=0)
             stack['DeltaSigma_zloxilo'] = np.mean(self.catalog['DES_DeltaSigma_mean'][idx], axis=0)
             stack['DeltaSigma_data_zloxilo'] = np.mean(self.catalog['DES_DeltaSigma_data_mean'][idx], axis=0)
             idx = (notNone&(self.catalog['REDSHIFT']<z_mid)&(self.catalog['XI']>=xi_mid)).nonzero()[0]
-            stack['zloxihi'] = np.mean(self.catalog['DES_shear_profile_mean'][idx], axis=0)
+            stack['shear_zloxihi'] = np.mean(self.catalog['DES_shear_profile_mean'][idx], axis=0)
             stack['DeltaSigma_zloxihi'] = np.mean(self.catalog['DES_DeltaSigma_mean'][idx], axis=0)
             stack['DeltaSigma_data_zloxihi'] = np.mean(self.catalog['DES_DeltaSigma_data_mean'][idx], axis=0)
             idx = (notNone&(self.catalog['REDSHIFT']>=z_mid)&(self.catalog['XI']<xi_mid)).nonzero()[0]
-            stack['zhixilo'] = np.mean(self.catalog['DES_shear_profile_mean'][idx], axis=0)
+            stack['shear_zhixilo'] = np.mean(self.catalog['DES_shear_profile_mean'][idx], axis=0)
             stack['DeltaSigma_zhixilo'] = np.mean(self.catalog['DES_DeltaSigma_mean'][idx], axis=0)
             stack['DeltaSigma_data_zhixilo'] = np.mean(self.catalog['DES_DeltaSigma_data_mean'][idx], axis=0)
             idx = (notNone&(self.catalog['REDSHIFT']>=z_mid)&(self.catalog['XI']>=xi_mid)).nonzero()[0]
-            stack['zhixihi'] = np.mean(self.catalog['DES_shear_profile_mean'][idx], axis=0)     
+            stack['shear_zhixihi'] = np.mean(self.catalog['DES_shear_profile_mean'][idx], axis=0)
             stack['DeltaSigma_zhixihi'] = np.mean(self.catalog['DES_DeltaSigma_mean'][idx], axis=0)
             stack['DeltaSigma_data_zhixihi'] = np.mean(self.catalog['DES_DeltaSigma_data_mean'][idx], axis=0)
             return lnlike, stack

@@ -118,12 +118,12 @@ def execute(block, masscalibration):
         block.put_double('likelihoods', 'MASS_CALIBRATION_LIKE', lnlike)
         if masscalibration.get_stacked_DES:
             for name in ['zloxilo', 'zloxihi', 'zhixilo', 'zhixihi']:
-               for i,n in enumerate(DES_stack[name]):
-                    block.put_double('DES_stack', '%s_%d'%(name,i), n)
+               for i,n in enumerate(DES_stack['shear_%s'%name]):
+                    block.put_double('DES_stack', 'shear_%s_%d'%(name,i), n)
                for i,n in enumerate(DES_stack['DeltaSigma_%s'%name]):
-                    block.put_double('DES_stack', '%s_%d'%(n,i), n)
+                    block.put_double('DES_stack', 'DeltaSigma_%s_%d'%(name,i), n)
                for i,n in enumerate(DES_stack['DeltaSigma_data_%s'%name]):
-                    block.put_double('DES_stack', '%s_%d'%(n,i), n)
+                    block.put_double('DES_stack', 'DeltaSigma_data_%s_%d'%(name,i), n)
         return 0
     else:
         return 1
