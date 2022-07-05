@@ -230,9 +230,9 @@ class SPTlensing:
         chi2 = (diff/self.cat_cl['WLdata']['shearerr'][:,None])**2
         lnpOfMass = -.5*np.sum(chi2, axis=0)
         if self.save_shear_profiles:
-            return lnP_DES_Mwl, reduced_shear_cont
+            return lnpOfMass, g_2d
         else:
-            return lnP_DES_Mwl, None
+            return lnpOfMass, None
 
 
     ########################################
@@ -279,15 +279,15 @@ class SPTlensing:
         rPhysRef = self.cat_cl['WLdata']['r_deg'] * DlRef * np.pi/180 /cosmoRef['h']
         rInclude = np.where((rPhysRef>.5)&(rPhysRef<1.5))[0]
         # Model
-        g_2d = self.shear_model_Megacam(self.M_arr)
+        g_2d = self.shear_model_HST(self.M_arr)
         # Likelihood
         diff = g_2d[rInclude,:] - self.cat_cl['WLdata']['shear'][rInclude,None]
         chi2 = (diff/self.cat_cl['WLdata']['shearerr'][rInclude,None])**2
         lnpOfMass = -.5*np.sum(chi2, axis=0)
         if self.save_shear_profiles:
-            return lnP_DES_Mwl, reduced_shear_cont
+            return lnpOfMass, g_2d
         else:
-            return lnP_DES_Mwl, None
+            return lnpOfMass, None
 
 
     ########################################
@@ -472,11 +472,16 @@ def readdata(catalog, HSTfile, MegacamFile, DESfile, save_shear_profiles):
         with h5py.File(HSTfile, 'r') as f:
             for i,name in enumerate(catalog['SPT_ID']):
                 if name in f.keys():
-                    catalog['WLdata'][i] = {'datatype':'HST', 'center':f[name].attrs['center'],
-                        'r_deg':f[name]['shear_profile'][0], 'shear':f[name]['shear_profile'][1], 'shearerr':f[name]['shear_profile'][2],
-                        'magbinids':f[name]['magbinid'][:],
-                        'redshifts':f[name]['redshifts'][:],
-                        'pzs':{}, 'magcorr':{}, 'Ntot':{}}
+                    catalog['WLdata'][i] = {'datatype':'HST',
+                                            'center':f[name].attrs['center'],
+                                            'r_deg':f[name]['shear_profile'][0,:],
+                                            'shear':f[name]['shear_profile'][1,:],
+                                            'shearerr':f[name]['shear_profile'][2,:],
+                                            'magbinids':f[name]['magbinid'][:],
+                                            'redshifts':f[name]['redshifts'][:],
+                                            'pzs':{},
+                                            'magcorr':{},
+                                            'Ntot':{}}
                     for key in f[name]['magbindata'].keys():
                         dict_key = int(key)
                         catalog['WLdata'][i]['pzs'][dict_key] = f[name]['magbindata'][key]['pzs'][:]
