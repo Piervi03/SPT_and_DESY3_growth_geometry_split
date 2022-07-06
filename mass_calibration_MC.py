@@ -2,6 +2,7 @@ from __future__ import division, print_function
 import numpy as np
 import os
 import imp
+import warnings
 from math import sqrt as msqrt
 from multiprocessing import Pool
 from astropy.table import Table
@@ -100,23 +101,29 @@ class MassCalibration:
         ##### DES stacked shear profile
         if self.get_stacked_DES:
             stack = {}
-            notNone = [this is not None for this in self.catalog['DES_shear_profile_mean']]
-            idx = (notNone&(self.catalog['REDSHIFT']<z_mid)&(self.catalog['XI']<xi_mid)).nonzero()[0]
-            stack['shear_zloxilo'] = np.mean(self.catalog['DES_shear_profile_mean'][idx], axis=0)
-            stack['DeltaSigma_zloxilo'] = np.mean(self.catalog['DES_DeltaSigma_mean'][idx], axis=0)
-            stack['DeltaSigma_data_zloxilo'] = np.mean(self.catalog['DES_DeltaSigma_data_mean'][idx], axis=0)
-            idx = (notNone&(self.catalog['REDSHIFT']<z_mid)&(self.catalog['XI']>=xi_mid)).nonzero()[0]
-            stack['shear_zloxihi'] = np.mean(self.catalog['DES_shear_profile_mean'][idx], axis=0)
-            stack['DeltaSigma_zloxihi'] = np.mean(self.catalog['DES_DeltaSigma_mean'][idx], axis=0)
-            stack['DeltaSigma_data_zloxihi'] = np.mean(self.catalog['DES_DeltaSigma_data_mean'][idx], axis=0)
-            idx = (notNone&(self.catalog['REDSHIFT']>=z_mid)&(self.catalog['XI']<xi_mid)).nonzero()[0]
-            stack['shear_zhixilo'] = np.mean(self.catalog['DES_shear_profile_mean'][idx], axis=0)
-            stack['DeltaSigma_zhixilo'] = np.mean(self.catalog['DES_DeltaSigma_mean'][idx], axis=0)
-            stack['DeltaSigma_data_zhixilo'] = np.mean(self.catalog['DES_DeltaSigma_data_mean'][idx], axis=0)
-            idx = (notNone&(self.catalog['REDSHIFT']>=z_mid)&(self.catalog['XI']>=xi_mid)).nonzero()[0]
-            stack['shear_zhixihi'] = np.mean(self.catalog['DES_shear_profile_mean'][idx], axis=0)
-            stack['DeltaSigma_zhixihi'] = np.mean(self.catalog['DES_DeltaSigma_mean'][idx], axis=0)
-            stack['DeltaSigma_data_zhixihi'] = np.mean(self.catalog['DES_DeltaSigma_data_mean'][idx], axis=0)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", category=RuntimeWarning)
+                notNone = [this is not None for this in self.catalog['DES_shear_profile_mean']]
+                idx = (notNone&(self.catalog['REDSHIFT']<z_mid)&(self.catalog['XI']<xi_mid)).nonzero()[0]
+                stack['shear_zloxilo'] = np.mean(self.catalog['DES_shear_profile_mean'][idx], axis=0)
+                stack['DeltaSigma_zloxilo'] = np.mean(self.catalog['DES_DeltaSigma_mean'][idx], axis=0)
+                tmp = np.array([x for x in self.catalog['DES_DeltaSigma_data_mean'][idx]])
+                stack['DeltaSigma_data_zloxilo'] = np.nanmean(tmp, axis=0)
+                idx = (notNone&(self.catalog['REDSHIFT']<z_mid)&(self.catalog['XI']>=xi_mid)).nonzero()[0]
+                stack['shear_zloxihi'] = np.mean(self.catalog['DES_shear_profile_mean'][idx], axis=0)
+                stack['DeltaSigma_zloxihi'] = np.mean(self.catalog['DES_DeltaSigma_mean'][idx], axis=0)
+                tmp = np.array([x for x in self.catalog['DES_DeltaSigma_data_mean'][idx]])
+                stack['DeltaSigma_data_zloxihi'] = np.nanmean(tmp, axis=0)
+                idx = (notNone&(self.catalog['REDSHIFT']>=z_mid)&(self.catalog['XI']<xi_mid)).nonzero()[0]
+                stack['shear_zhixilo'] = np.mean(self.catalog['DES_shear_profile_mean'][idx], axis=0)
+                stack['DeltaSigma_zhixilo'] = np.mean(self.catalog['DES_DeltaSigma_mean'][idx], axis=0)
+                tmp = np.array([x for x in self.catalog['DES_DeltaSigma_data_mean'][idx]])
+                stack['DeltaSigma_data_zhixilo'] = np.nanmean(tmp, axis=0)
+                idx = (notNone&(self.catalog['REDSHIFT']>=z_mid)&(self.catalog['XI']>=xi_mid)).nonzero()[0]
+                stack['shear_zhixihi'] = np.mean(self.catalog['DES_shear_profile_mean'][idx], axis=0)
+                stack['DeltaSigma_zhixihi'] = np.mean(self.catalog['DES_DeltaSigma_mean'][idx], axis=0)
+                tmp = np.array([x for x in self.catalog['DES_DeltaSigma_data_mean'][idx]])
+                stack['DeltaSigma_data_zhixihi'] = np.nanmean(tmp, axis=0)
             return lnlike, stack
         else:
             return lnlike, None
@@ -447,7 +454,7 @@ class MassCalibration:
             self.catalog['DES_DeltaSigma_mean'][dataID] = np.exp(DeltaSigma_interp(lnr_r200c_stack))
             # DeltaSigma data
             DeltaSigma_data_mean = np.sum(self.DES_DeltaSigma_data_MC*weights[:,None], axis=0)/np.sum(weights)
-            DeltaSigma_interp = interp1d(np.log(r_r200c_mean), DeltaSigma_data_mean, fill_value='extrapolate')
+            DeltaSigma_interp = interp1d(np.log(r_r200c_mean), DeltaSigma_data_mean, bounds_error=False)
             self.catalog['DES_DeltaSigma_data_mean'][dataID] = DeltaSigma_interp(lnr_r200c_stack)
 
         return like
