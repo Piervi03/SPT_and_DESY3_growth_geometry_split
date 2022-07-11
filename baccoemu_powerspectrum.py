@@ -49,9 +49,9 @@ def execute(block, stuff):
     sigma8_squ = .5/np.pi**2 * np.trapz(integrand_sigma2, np.log(k_))
     # Write to block
     block.put_double('cosmological_parameters', 'sigma_8', msqrt(sigma8_squ))
-    block.put_double_array_1d('matter_power_lin_cdm_baryon', 'z', z_arr)
-    block.put_double_array_1d('matter_power_lin_cdm_baryon', 'k_h', k)
-    block.put_double_array_nd('matter_power_lin_cdm_baryon', 'p_k', Pk)
+    block.put_double_array_1d('cdm_baryon_power_lin', 'z', z_arr)
+    block.put_double_array_1d('cdm_baryon_power_lin', 'k_h', k)
+    block.put_double_array_nd('cdm_baryon_power_lin', 'p_k', Pk)
 
     return 0
 
