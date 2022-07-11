@@ -14,10 +14,14 @@ def setup(options):
     todo['lambda_min'] = options.get_bool(option_section, 'lambda_min')
     mcType = options.get_string(option_section, 'mcType')
     surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
-    surveyCutLambda_file = options.get_string(option_section, 'MCMF_lambda_min')
-    tmp = np.loadtxt(surveyCutLambda_file, unpack=True)
-    surveyCutLambda = {'shallow': interp1d(tmp[0], tmp[1], kind='linear'),
-                       'deep': interp1d(tmp[0], tmp[2], kind='linear')}
+    # Data for optical cleaning
+    if todo['lambda_min']:
+        surveyCutLambda_file = options.get_string(option_section, 'MCMF_lambda_min')
+        tmp = np.loadtxt(surveyCutLambda_file, unpack=True)
+        surveyCutLambda = {'shallow': interp1d(tmp[0], tmp[1], kind='linear'),
+                           'deep': interp1d(tmp[0], tmp[2], kind='linear')}
+    else:
+        surveyCutLambda = None
     richness_scatter_model = options.get_string(option_section, 'richness_scatter_model')
     NPROC = options.get_int(option_section, 'NPROC')
     # SPT survey
