@@ -21,7 +21,8 @@ class MultiObsConvolution:
     def __init__(self, observable_pairs,
                  pairs_zmin, pairs_zmax, pairs_Nz,
                  lambda_cut, richness_scatter_model,
-                 NPROC):
+                 do_bias=False,
+                 NPROC=0):
         # Sigma-clipping in convolutions
         self.N_sigma = np.array([4, 3])
         # Sparsity of returned arrays
@@ -32,6 +33,11 @@ class MultiObsConvolution:
         self.lambda_cut = lambda_cut
         # Poisson-style scatter in richness
         self.richness_scatter_model = richness_scatter_model
+        # Multiply mass function with halo bias
+        self.do_bias = do_bias
+        if do_bias:
+            from colossus.cosmology import cosmology as colossus_cosmology
+            from colossus.lss import bias
 
         self.other_pairnames = ['SZ', 'SZ_lambdacut_shallow', 'SZ_lambdacut_deep', 'DES_SZ_lambdacut']
         self.pairnames_2d = ['Yx_SZ', 'Mgas_SZ', 'Megacam_SZ', 'richness_SZ']
@@ -66,7 +72,7 @@ class MultiObsConvolution:
 
 
     ############################################################################
-    def execute(self, HMF, scaling, covmat):
+    def execute(self, HMF, scaling, covmat, cosmology=None):
         """Return dict with multi-obs mass functions for each pair of
         observables."""
         self.HMF = HMF
@@ -79,6 +85,15 @@ class MultiObsConvolution:
         self.Delta_lnM = np.log(HMF['M_arr'][1]/self.HMF['M_arr'][0])
         # Check length of HMF mass array for compression factor
         assert (len(HMF['M_arr'])-1)%self.compression==0, "HMF has non-standard shape"
+        # Needed for halo bias
+        if self.do_bias:
+            colossus_params = {'flat': True,
+                               'H0': 100*cosmology['h'],
+                               'Om0': cosmology['Omega_m'],
+                               'Ob0': cosmology['Omega_b'],
+                               'sigma8': cosmology['sigma8'],
+                               'ns': cosmology['n_s']}
+            this_colossus_cosmo = colossus_cosmology.setCosmology('myCosmo', colossus_params)
         # Pre-compute the intrinsic scatter convolutions
         output_dict = {'M_arr': HMF['M_arr'][::self.compression]}
         for pair_idx,pair_name in enumerate(self.observable_pairs):
@@ -193,6 +208,10 @@ class MultiObsConvolution:
     def get_P_zeta_lambdacut_lognormal_z(self, covmat, z, SZsurvey):
         """Return dN/dlnzeta accounting for richness confirmation."""
         dN_dlnM, = np.exp(self.HMF_interp(np.log(z), np.log(self.HMF['M_arr'])))
+        # Halo bias
+        if self.do_bias:
+            Tinker_bias = bias.haloBias(self.HMF['M_arr'], model='tinker10', z=z, mdef='200c')
+            dN_dlnM*= Tinker_bias
         # Convert observable covmat into covmat in mass
         dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
         dlnM_dlnobs = scaling_relations.dlnM_dlnobs('richness', self.scaling)

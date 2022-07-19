@@ -17,23 +17,34 @@ def setup(options):
         assert len(pairs_zmin)==len(observable_pairs), "Bad length of pairs_zmin"
         assert len(pairs_zmax)==len(observable_pairs), "Bad length of pairs_zmax"
         assert len(pairs_Nz)==len(observable_pairs), "Bad length of pairs_Nz"
-    NPROC = options.get_int(option_section, 'NPROC')
+    NPROC = options.get_int(option_section, 'NPROC', 0)
 
     surveyCutLambda_file = options.get_string(option_section, 'MCMF_lambda_min')
     tmp = np.loadtxt(surveyCutLambda_file, unpack=True)
     surveyCutLambda = {'shallow': interp1d(tmp[0], tmp[1], kind='linear'),
                        'deep': interp1d(tmp[0], tmp[2], kind='linear')}
     richness_scatter_model = options.get_string(option_section, 'richness_scatter_model')
+    do_bias = options.get_bool(option_section, 'do_bias', False)
 
     multi_obs_convolution = HMF_convo.MultiObsConvolution(observable_pairs,
                                                           pairs_zmin, pairs_zmax, pairs_Nz,
                                                           surveyCutLambda, richness_scatter_model,
+                                                          do_bias,
                                                           NPROC)
 
     return multi_obs_convolution
 
 def execute(block, multi_obs_convolution):
     ##### Extract from datablock
+    if multi_obs_convolution.do_bias:
+        cosmology = {'Omega_l': block.get_double('cosmological_parameters', 'Omega_lambda'),
+                     'h': block.get_double('cosmological_parameters', 'hubble')/100,
+                     'w0': block.get_double('cosmological_parameters', 'w'),
+                     'sigma8': block.get_double('cosmological_parameters', 'sigma_8')}
+        for p in ['Omega_m', 'Omega_b', 'wa', 'n_s']:
+            cosmology[p] = block.get_double('cosmological_parameters', p)
+    else:
+        cosmology = None
     scaling = {}
     for p in ['Bsz', 'Bx', 'Dsz',
               'Arichness', 'Brichness', 'Crichness', 'Drichness', 'richmPivot',
@@ -59,7 +70,7 @@ def execute(block, multi_obs_convolution):
     HMF['len_z'] = len(HMF['z_arr'])
 
     ##### Compute the convolutions
-    dN_dmultiobs_dict = multi_obs_convolution.execute(HMF, scaling, covmat)
+    dN_dmultiobs_dict = multi_obs_convolution.execute(HMF, scaling, covmat, cosmology)
     block.put_double_array_1d('dN_dmultiobs', 'M_arr', dN_dmultiobs_dict['M_arr'])
     for pair_name in multi_obs_convolution.observable_pairs:
         block.put_double_array_nd('dN_dmultiobs', pair_name, dN_dmultiobs_dict[pair_name])
