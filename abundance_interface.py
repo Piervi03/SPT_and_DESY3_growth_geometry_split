@@ -4,11 +4,13 @@ from astropy.table import Table
 
 from cosmosis.datablock import option_section
 
-import abundance
+import abundance as abundance_poisson
+import abundance_covmat
 
 def setup(options):
     ##### Global variables
     do_lambda_min = options.get_bool(option_section, 'lambda_min')
+    do_covmat = options.get_bool(option_section, 'covmat')
     NPROC = options.get_int(option_section, 'NPROC')
     surveyCutSZmax = options.get_double(option_section, 'surveyCutSZmax')
     surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
@@ -19,10 +21,16 @@ def setup(options):
     SPTcatalogfile = options.get_string(option_section, 'SPTcatalogfile')
     catalog = Table.read(SPTcatalogfile)
     ##### Initialize abundance
-    number_count = abundance.NumberCount(catalog, SPT_survey,
-                                         surveyCutSZmax, surveyCutRedshift,
-                                         NPROC)
-
+    if do_covmat:
+        covmat_file = options.get_string(option_section, 'covmatfile')
+        covmat = np.loadtxt(covmat_file)
+        number_count = abundance_covmat.NumberCount(catalog, SPT_survey, covmat,
+                                                    surveyCutSZmax, surveyCutRedshift,
+                                                    NPROC)
+    else:
+        number_count = abundance_poisson.NumberCount(catalog, SPT_survey,
+                                                     surveyCutSZmax, surveyCutRedshift,
+                                                     NPROC)
     return number_count, do_lambda_min
 
 def execute(block, stuff):
