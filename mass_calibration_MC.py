@@ -14,6 +14,8 @@ import cosmo, Mconversion_concentration, scaling_relations
 cosmologyRef = {'Omega_m':.272, 'Omega_l':.728, 'h':.702, 'w0':-1, 'wa':0}
 GETPULL = False
 Ndraw = 8192
+ndtr_m5 = ndtr(-5)
+ndtr_p4 = ndtr(4)
 
 # Limits for stack
 z_mid = .55
@@ -212,8 +214,11 @@ class MassCalibration:
         there are more low-mass samples which will later be up-weighted by the
         mass function. Return zeta and weights."""
         xi_offset = -3/xi**2
+        # xi_draw > xi_min, xi_draw > xi-5, xi_draw < xi+4
         r_min = ndtr(self.xi_min-(xi+xi_offset))
-        r = r_min + (1-r_min)*self.rng.random(Ndraw)
+        if r_min<ndtr_m5:
+            r_min = ndtr_m5
+        r = r_min + (ndtr_p4-r_min)*self.rng.random(Ndraw)
         # Percent point function (scipy stats is too slow)
         xi0 = erfinv(2*r-1)*msqrt(2) + xi+xi_offset
         zeta = scaling_relations.xi2zeta(xi0)
@@ -344,9 +349,9 @@ class MassCalibration:
         if obsname=='WLHST':
             idx = (self.HSTcalib['SPT_ID']==self.catalog['SPT_ID'][dataID]).nonzero()[0]
             std = msqrt(self.HSTcalib['LSS'][idx]**2 + self.HSTcalib['LOS'][idx]**2)
-            r_min = ndtr((self.WL.M_arr[0]-obs)/std)
-            r_max = ndtr((self.WL.M_arr[-1]-obs)/std)
-            r = r_min + (r_max-r_min)*self.rng.random(len(obs))
+            r_min = ndtr((1-obs)/std)
+            r_min[ndtr_m5>r_min] = ndtr_m5
+            r = r_min + (ndtr_p4-r_min)*self.rng.random(len(obs))
             obs+= erfinv(2*r-1)*std*msqrt(2)
         # Lensing likelihood
         lnlike = interp1d(self.WL.lnM_arr, self.catalog['lnp_Mwl'][dataID], fill_value='extrapolate')(np.log(obs))
