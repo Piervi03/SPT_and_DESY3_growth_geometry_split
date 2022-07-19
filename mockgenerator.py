@@ -111,7 +111,7 @@ def main():
                         if richness_obs<lambda_min:
                             continue
                             
-                        mock.append((M, z, xi, Mg, obs[k,0], richness_obs, obs[k,4]))
+                        mock.append((M, z, xi, Mg, obs[k,0], richness_obs, obs[k,4], SPT_survey['GAMMA'][fieldidx]))
                         fieldnames.append(field)
 
         # False detections
@@ -132,7 +132,7 @@ def main():
     # HST_idx = rng.choice(HST_z_range, 30, replace=False)
     mask = np.ones(len(mock), bool)
     mask[HST_z_range[HST_idx]] = 0
-    mock[mask,-1] = 0.
+    mock[mask,6] = 0.
 
     ##### Select XVP
     nCluster = len(mock)
@@ -213,12 +213,14 @@ def main():
                  'M_true', 'Tx_MM',
                  'M500',
                  'Mwl_DES_200', 'Mwl_HST_200',
-                 'richness',]
+                 'richness',
+                 'GAMMA_FIELD']
     data_arr = [names, fieldnames, mock[:,2], theta_core, mock[:,1], np.zeros(nCluster), redshiftLim,
                 Mgas, Xerrarr, Xerrarr,
                 mock[:,0], 1e14*np.ones(nCluster), M500_noh,
                 mock[:,4], mock[:,6],
-                mock[:,5],]
+                mock[:,5],
+                mock[:,7]]
     # Save to fits
     cat = Table(data_arr, names=names_arr)
     cat.write('mock_%s.fits'%time.strftime("%y%m%d-%H%M%S"))
