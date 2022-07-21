@@ -243,6 +243,8 @@ class MassCalibration:
         offset = -3*SZscatter_lnM**2
         r_min = ndtr((self.lnM_arr[0]-(lnM_zeta+offset))/SZscatter_lnM)
         r_max = ndtr((self.lnM_arr[-1]-lnM_zeta)/SZscatter_lnM)
+        r_min[r_min<ndtr_m5] = ndtr_m5
+        r_max[r_max>ndtr_p4] = ndtr_p4
         r = r_min + (r_max-r_min)*self.rng.random(len(lnM_zeta))
         lnM = erfinv(2*r-1)*SZscatter_lnM*msqrt(2) + lnM_zeta+offset
         lnweights = -.5/SZscatter_lnM**2 * ((lnM-lnM_zeta)**2 - (lnM-(lnM_zeta+offset))**2)
