@@ -3,7 +3,8 @@ import numpy as np
 import scipy.integrate
 
 DIST_H = 2997.92458
-RHOCRIT = 2.77528233987e11
+RHOCRIT = 2.77537e11
+c2_4piG = 1.662919e+18
 
 def Ez(z, cosmology):
     """Return the dimensionless Hubble parameter."""

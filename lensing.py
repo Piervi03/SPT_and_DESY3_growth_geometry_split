@@ -161,7 +161,7 @@ class SPTlensing:
         """Return DES shear model given mass."""
         # Sigma_crit, with c^2/4piG [h Msun/Mpc^2]
         Dl = np.exp(self.lndA_interp(np.log(self.cat_cl['REDSHIFT'])))
-        Sigma_c = 1.6624541593797974e+18/Dl/self.beta_avg
+        Sigma_c = cosmo.c2_4piG/Dl/self.beta_avg
         # NFW halo stuff
         rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.cat_cl['REDSHIFT'], self.cosmology)**2 # [h^2 Msun/Mpc^3]
         r200c = (3*mass/4/np.pi/200/rho_c_z)**(1/3)
@@ -213,7 +213,7 @@ class SPTlensing:
         # Dimensionless radial distance [Radius][Mass]
         x = self.cat_cl['WLdata']['r_deg'][:,None] * Dl * np.pi/180 / r_s[None,:]
         # Sigma_crit, with c^2/4piG [h Msun/Mpc^2]
-        Sigma_c = 1.6624541593797974e+18/Dl/self.beta_avg
+        Sigma_c = cosmo.c2_4piG/Dl/self.beta_avg
         # gamma_t, kappa, g_t [Radius][Mass]
         gamma_2d = get_DeltaSigma(x, r_s, rho_c_z, delta_c) / Sigma_c
         kappa_2d = get_Sigma(x, r_s, rho_c_z, delta_c) / Sigma_c
@@ -253,7 +253,7 @@ class SPTlensing:
         rangeR = range(len(self.cat_cl['WLdata']['r_deg']))
         betaR = np.array([self.beta_avg[self.cat_cl['WLdata']['magbinids'][i]] for i in rangeR])
         beta2R = np.array([self.beta2_avg[self.cat_cl['WLdata']['magbinids'][i]] for i in rangeR])
-        Sigma_c = 1.6624541593797974e+18/Dl/betaR
+        Sigma_c = cosmo.c2_4piG/Dl/betaR
         # gamma_t and kappa [Radius][Mass]
         gamma_2d = get_DeltaSigma(x, r_s, rho_c_z, delta_c) / Sigma_c[:,None]
         kappa_2d = get_Sigma(x, r_s, rho_c_z, delta_c) / Sigma_c[:,None]
