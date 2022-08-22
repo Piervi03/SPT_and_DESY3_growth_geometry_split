@@ -104,11 +104,8 @@ def execute(block, masscalibration):
         scaling[p] = block.get_double_array_nd('mor_parameters', p)
 
     # Halo mass function
-    HMF = {
-        'M_arr': block.get_double_array_1d('HMF', 'M_arr'),
-          'z_arr': block.get_double_array_1d('HMF', 'z_arr'),
-          'dNdlnM': block.get_double_array_nd('HMF', 'dNdlnM')}
-    HMF['len_z'] = len(HMF['z_arr'])
+    z, M, N = block.get_grid('HMF', 'z_arr', 'M_arr', 'dNdlnM')
+    HMF = {'z_arr': z, 'M_arr': M, 'dNdlnM': N}
 
     ##### Compute lensing likelihoods
     if masscalibration.todo['WL']:

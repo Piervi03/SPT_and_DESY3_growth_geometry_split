@@ -28,10 +28,8 @@ def execute(block, marge_mass):
     marge_mass.Csz = block.get_double('mor_parameters', 'Csz')
     marge_mass.Dsz = block.get_double('mor_parameters', 'Dsz')
     # Halo mass function
-    marge_mass.HMF = {'M_arr': block.get_double_array_1d('HMF', 'M_arr'),
-        'z_arr': block.get_double_array_1d('HMF', 'z_arr'),
-        'dNdlnM': block.get_double_array_nd('HMF', 'dNdlnM')}
-    marge_mass.HMF['len_z'] = len(marge_mass.HMF['z_arr'])
+    z, M, N = block.get_grid('HMF', 'z_arr', 'M_arr', 'dNdlnM')
+    marge_mass.HMF = {'z_arr': z, 'M_arr': M, 'dNdlnM': N}
 
     #### Get marginalized mass draws
     mass_arr = marge_mass.do_it()

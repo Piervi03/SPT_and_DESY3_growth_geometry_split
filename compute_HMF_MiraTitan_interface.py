@@ -46,10 +46,8 @@ def execute(block, HMF_calculator):
     if bad:
         return 1
     # Put it into block
-    block.put_double_array_1d('HMF', 'M_arr', HMF_calculator.M_arr)
-    block.put_double_array_1d('HMF', 'z_arr', HMF_calculator.z_arr)
+    block.put_grid('HMF', 'z_arr', HMF_calculator.z_arr, 'M_arr', HMF_calculator.M_arr, 'dNdlnM', HMF_calculator.dNdlnM)
     block.put_double_array_nd('HMF', 'dNdlnM_unitVol', HMF_calculator.dNdlnM_unitVol)
-    block.put_double_array_nd('HMF', 'dNdlnM', HMF_calculator.dNdlnM)
 
     return 0
 
