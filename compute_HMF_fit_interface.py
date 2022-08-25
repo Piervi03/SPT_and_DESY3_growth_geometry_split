@@ -42,11 +42,8 @@ def execute(block, HMF_calculator):
             'h': block.get_double('cosmological_parameters', 'hubble')/100.,
             'w0': block.get_double('cosmological_parameters', 'w'),
             'wa': block.get_double('cosmological_parameters', 'wa')}
-        # Try to get cdm+bar power spectrum (w/o neutrinos), but class does not provide it
-        try:
-            z_arr, k_arr, Pk = block.get_grid('cdm_baryon_power_lin', 'z', 'k_h', 'p_k')
-        except:
-            z_arr, k_arr, Pk = block.get_grid('matter_power_lin', 'z', 'k_h', 'p_k')
+        # cdm+bar power spectrum (w/o neutrinos)
+        z_arr, k_arr, Pk = block.get_grid('cdm_baryon_power_lin', 'z', 'k_h', 'p_k')
         # Compute the HMF
         M_arr, dNdlnM_noVol, dNdlnM = HMF_calculator.compute_HMF(cosmology, z_arr, k_arr, Pk)
         # Put it into block
