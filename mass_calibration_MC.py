@@ -37,7 +37,7 @@ class MassCalibration:
 
     def __init__(self, todo, mcType,
                  surveyCutRedshift, surveyCutRichness, richness_scatter_model,
-                 SPT_survey_fields, SPT_doublecounts, SPTcatalogfile,
+                 SPT_survey_fields, SPTcatalogfile,
                  HSTcalibfile,
                  NPROC,
                  get_stacked_DES=False):
@@ -52,8 +52,6 @@ class MassCalibration:
 
         # Read input files
         self.SPT_survey = Table.read(SPT_survey_fields, format='ascii.commented_header')
-        SPTdata = imp.load_source('SPTdata', SPT_doublecounts)
-        self.SPTdoubleCount = SPTdata.SPTdoubleCount
         self.catalog = Table.read(SPTcatalogfile)
         if self.get_stacked_DES:
             self.catalog['DES_shear_profile_mean'] = [None for i in range(len(self.catalog))]
@@ -140,9 +138,7 @@ class MassCalibration:
         # t0 = time.time()
         name = self.catalog['SPT_ID'][i]
 
-        ##### Do we actually want this guy? (some clusters in SPT-SZ are at field boundaries)
-        if (name,self.catalog['FIELD'][i]) in self.SPTdoubleCount:
-            return 1.
+        ##### Do we actually want this guy?
         if not self.SPT_survey['XI_MIN'][self.SPT_survey['FIELD']==self.catalog['FIELD'][i]]<self.catalog['XI'][i] or not self.surveyCutRedshift[0]<self.catalog['REDSHIFT'][i]<self.surveyCutRedshift[1]:
             return 1.
 

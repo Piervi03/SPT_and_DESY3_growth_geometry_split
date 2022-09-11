@@ -19,8 +19,6 @@ def setup(options):
     NPROC = options.get_int(option_section, 'NPROC')
     # SPT survey
     SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
-    # Double counted clusters
-    SPT_doublecounts = options.get_string(option_section, 'SPT_doublecounts')
     # Cluster catalog
     SPTcatalogfile = options.get_string(option_section, 'SPTcatalogfile')
     ##### Multi-obs HMF convolution names
@@ -30,7 +28,7 @@ def setup(options):
 
     masscalibration = mass_calibration.MassCalibration(todo, mcType,
                                                        surveyCutRedshift, surveyCutLambda,
-                                                       SPT_survey_fields, SPT_doublecounts, SPTcatalogfile,
+                                                       SPT_survey_fields, SPTcatalogfile,
                                                        observable_pairs,
                                                        WLsimcalibfile,
                                                        NPROC)

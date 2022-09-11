@@ -26,8 +26,6 @@ def setup(options):
     NPROC = options.get_int(option_section, 'NPROC')
     # SPT survey
     SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
-    # Double counted clusters
-    SPT_doublecounts = options.get_string(option_section, 'SPT_doublecounts')
     # Cluster catalog
     SPTcatalogfile = options.get_string(option_section, 'SPTcatalogfile')
     # WL param file
@@ -39,7 +37,7 @@ def setup(options):
 
     masscalibration = mass_calibration.MassCalibration(todo, mcType,
                                                        surveyCutRedshift, surveyCutLambda, richness_scatter_model,
-                                                       SPT_survey_fields, SPT_doublecounts, SPTcatalogfile,
+                                                       SPT_survey_fields, SPTcatalogfile,
                                                        HSTcalibfile,
                                                        NPROC, get_stacked_DES=get_stacked_DES)
     masscalibration.YXPARAM = options.get_string(option_section, 'YXPARAM')
