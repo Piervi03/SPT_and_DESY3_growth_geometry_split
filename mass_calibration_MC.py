@@ -139,7 +139,9 @@ class MassCalibration:
         name = self.catalog['SPT_ID'][i]
 
         ##### Do we actually want this guy?
-        if not self.SPT_survey['XI_MIN'][self.SPT_survey['FIELD']==self.catalog['FIELD'][i]]<self.catalog['XI'][i] or not self.surveyCutRedshift[0]<self.catalog['REDSHIFT'][i]<self.surveyCutRedshift[1]:
+        if (self.catalog['XI'][i]<self.SPT_survey['XI_MIN'][self.SPT_survey['FIELD']==self.catalog['FIELD'][i]]):
+            return 1.
+        if not (self.surveyCutRedshift[0]<self.catalog['REDSHIFT'][i]<self.surveyCutRedshift[1]):
             return 1.
 
         ##### Check if follow-up is available
@@ -162,7 +164,7 @@ class MassCalibration:
         if self.todo['Mgas'] and self.catalog['Mg_fid'][i]!=0:
             nobs+= 1
             obsnames.append('Mgas')
-        if self.todo['richness'] and self.catalog['richness'][i]!=0.:
+        if self.todo['richness'] and self.catalog['richness'][i]>0.:
             nobs+= 1
             obsnames.append('richness')
         if nobs==0:
