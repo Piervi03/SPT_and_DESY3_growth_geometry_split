@@ -41,7 +41,7 @@ class ConcentrationConversion:
             L0 = np.log(2 * np.exp(1) + 1.8*q)
             TF = L0 / (L0 + C0 * q**2)
             # We only care about the derivative, not the normalization
-            PK_EHsmooth = k_arr**cosmology['ns']* TF**2
+            PK_EHsmooth = k_arr**cosmology['n_s']* TF**2
             # Interpolation function for EQ 8, DK15
             n_of_k = InterpolatedUnivariateSpline(np.log(k_arr), np.log(PK_EHsmooth))
 

@@ -7,7 +7,7 @@ import importlib
 from scipy.interpolate import interp1d, RectBivariateSpline
 from astropy.table import Table
 
-import compute_HMF_MiraTitan, cosmo, Mconversion_concentration, scaling_relations
+import cosmo, Mconversion_concentration, scaling_relations
 
 ##### Reference cosmology for which Mgas is measured
 cosmologyRef = {'Omega_m':.272, 'Omega_l':.728, 'h':.702, 'w0':-1, 'wa':0}
@@ -28,12 +28,52 @@ def main():
 
     HMF = {'z': np.linspace(0, 2, 21),
            'm': np.logspace(13, 15.5, 251)}
-    MiraTitan_HMF = compute_HMF_MiraTitan.HMFCalculator(200., 'Duffy08', HMF['z'], HMF['m'])
-    bad = MiraTitan_HMF.compute_HMF(cosmology)
-    if bad:
-        print("Could not compute mass function")
-    HMF['dNdlnM'] = MiraTitan_HMF.dNdlnM
-
+    if configMod.HMF=='Mira-Titan':
+        import compute_HMF_MiraTitan
+        MiraTitan_HMF = compute_HMF_MiraTitan.HMFCalculator(200., 'Duffy08', HMF['z'], HMF['m'])
+        bad = MiraTitan_HMF.compute_HMF(cosmology)
+        if bad:
+            print("Could not compute mass function")
+        HMF['dNdlnM'] = MiraTitan_HMF.dNdlnM
+    else:
+        import baccoemu, compute_HMF_Bocquet16, compute_HMF_Tinker08
+        emulator = baccoemu.Matter_powerspectrum()
+        # Call the emulator for P_{CDM+bar}(k)
+        k, Pk = emulator.get_linear_pk(omega_matter=cosmology['Omega_m'],
+                                       omega_baryon=cosmology['Omega_b'],
+                                       hubble=cosmology['h'],
+                                       ns=cosmology['n_s'],
+                                       w0=cosmology['w0'],
+                                       wa=cosmology['wa'],
+                                       neutrino_mass=cosmology['Omnuh2']*94.,
+                                       A_s=1e-10*np.exp(cosmology['ln1e10As']),
+                                       expfactor=1./(1.+HMF['z']),
+                                       cold=True)
+        # Compute sigma_8 for total matter
+        k_, Pk_ = emulator.get_linear_pk(omega_matter=cosmology['Omega_m'],
+                                         omega_baryon=cosmology['Omega_b'],
+                                         hubble=cosmology['h'],
+                                         ns=cosmology['n_s'],
+                                         w0=cosmology['w0'],
+                                         wa=cosmology['wa'],
+                                         neutrino_mass=cosmology['Omnuh2']*94.,
+                                         A_s=1e-10*np.exp(cosmology['ln1e10As']),
+                                         expfactor=1.,
+                                         cold=False)
+        kR = 8.*k_
+        window = 3. * (np.sin(kR)/kR**3 - np.cos(kR)/kR**2)
+        integrand_sigma2 = Pk_ * window**2 * k_**3
+        sigma8_squ = .5/np.pi**2 * np.trapz(integrand_sigma2, np.log(k_))
+        print('sigma_8 %.5f'%np.sqrt(sigma8_squ))
+        # Initialize fitting function
+        if configMod.HMF=='Tinker08':
+            HMF_calculator = compute_HMF_Tinker08.HMFCalculator(200.)
+        elif configMod.HMF=='Bocquet16':
+            HMF_calculator = compute_HMF_Bocquet16.HMFCalculator(200.)
+        # Compute the mass function and volume element
+        M_arr, dNdlnM_noVol, dNdlnM = HMF_calculator.compute_HMF(cosmology, HMF['z'], k, Pk)
+        HMF['m'] = M_arr
+        HMF['dNdlnM'] = dNdlnM
 
     # Set up HMF interpolation
     dlnm = np.log(HMF['m'][1]/HMF['m'][0])

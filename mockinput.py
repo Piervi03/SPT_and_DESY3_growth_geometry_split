@@ -1,17 +1,21 @@
 import numpy as np
 
-SPT_survey = '/home/bocquet/SPT_cluster_data/SPT_SZ_ECS_500d_survey_210529_mix.txt'
-MCMF_lambda_min = '/home/bocquet/SPT_cluster_data/MCMF_lambda_min.txt'
+SPT_survey = '/home/bocquet/SPT_cluster_data/SPT_SZ_ECS_500d_survey_220712.txt'
+MCMF_lambda_min = '/home/bocquet/SPT_cluster_data/MCMF_lambda_min_220730.txt'
 
 random_seed = 0
 
+# Mira-Titan, Bocquet16, Tinker08
+HMF = 'Tinker08'
+
 # We mainly need the cosmology for E(z) and h
 # (and for the DK15 c-M relation)
-cosmology = {'Omega_m': .28, 'Ombh2': .022, 'Omnuh2': 0,
+cosmology = {'Omega_m': .28, 'Ombh2': .022, 'Omnuh2': .0006,
              'h': 0.7,
              'w0': -1., 'wa': 0.,
-             'sigma8': .78, 'ns': .96,}
+             'sigma8': .78, 'n_s': .96, 'ln1e10As': 3.001}
 cosmology['Omega_b'] = cosmology['Ombh2']/cosmology['h']**2
+cosmology['Omega_nu'] = cosmology['Omnuh2']/cosmology['h']**2
 cosmology['Ommh2'] = cosmology['Omega_m']*cosmology['h']**2
 cosmology['Omega_l'] = 1-cosmology['Omega_m']
 
