@@ -105,11 +105,9 @@ def execute(block, masscalibration):
     z, M, N = block.get_grid('HMF', 'z_arr', 'M_arr', 'dNdlnM')
     HMF = {'z_arr': z, 'M_arr': M, 'dNdlnM': N}
 
-    ##### Compute lensing likelihoods
+    ##### Setup lensing likelihoods
     if masscalibration.todo['WL']:
-        masscalibration.WL.lnlike_all(masscalibration.catalog,
-                                      cosmology,
-                                      scaling)
+        masscalibration.WL.setup_one_cluster_mode(cosmology)
 
     ##### Compute likelihood
     lnlike, DES_stack = masscalibration.lnlike(HMF, cosmology, scaling)

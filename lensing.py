@@ -123,6 +123,17 @@ class SPTlensing:
         return 0
 
 
+    def setup_one_cluster_mode(self, cosmology):
+        """Function name says it all. Call this function before calling
+        `one_cluster` directly. Not relevant if you are calling `lnlike_all`."""
+        if self.mcType != 'None':
+            self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, cosmology,
+                                                                           setup_interp=True, interp_massdef=500)
+        self.MCrel_DES = Mconversion_concentration.ConcentrationConversion(3.5)
+        # Pre-compute angular diameter distances
+        self.get_dAs(self.z_cl_min, self.z_cl_max, 5., cosmology)
+
+
     ########################################
 
     def one_cluster(self, data, M_arr=self.M_arr):
