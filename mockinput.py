@@ -1,7 +1,7 @@
 import numpy as np
 
-SPT_survey = '/home/bocquet/SPT_cluster_data/SPT_SZ_ECS_500d_survey_210529_mix.txt'
-MCMF_lambda_min = '/home/bocquet/SPT_cluster_data/MCMF_lambda_min.txt'
+SPT_survey = '/home/bocquet/SPT_cluster_data/SPT_SZ_ECS_500d_survey_220712.txt'
+MCMF_lambda_min = '/home/bocquet/SPT_cluster_data/MCMF_lambda_min_220730.txt'
 
 random_seed = 0
 

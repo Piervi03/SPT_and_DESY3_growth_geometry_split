@@ -12,9 +12,9 @@ DES = {'WL_z_max': .94,
        # Type of M-c scaling relation, 'Duffy08' or 'DK15' or 'Cihld18_obs' or float
        'mcType': 3.5,
        # Boost and miscentering chains
-       'DESboostfile': '/archive1/users/bocquet/DESY3/WL_model/boost_smooth_dnf_SZ.txt',
-       'DESmiscenterfile': '/archive1/users/bocquet/DESY3/WL_model/miscenter_3obs_mask_211020.txt',
-       'DEScentertype': 'SPT',
+       'DESboostfile': '/archive1/users/bocquet/DESY3/WL_model/boost_smooth_dnf_MCMF_220730.txt',
+       'DESmiscenterfile': '/archive1/users/bocquet/DESY3/WL_model/miscenter_SPTopt_220726.txt',
+       'DEScentertype': 'MCMF',
        # DES source photo-z
        'source_Pz_file': "/archive1/users/bocquet/DESY3/2pt_NG_final_2ptunblind_11_13_20_wnz.fits",
        'source_weights_file': "/archive1/users/bocquet/DESY3/WL_model/tomo_weight_hist.txt",
