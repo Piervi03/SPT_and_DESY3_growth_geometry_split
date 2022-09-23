@@ -48,6 +48,10 @@ class SPTlensing:
         self.mcType = mcType
         # Read lensing data
         readdata(catalog, HSTfile, MegacamFile, DESfile, self.save_shear_profiles)
+        # Redshift range of clusters with WL data
+        WL_idx = (catalog['WLdata'] != None).nonzero()[0]
+        self.z_cl_min = np.amin(catalog['REDSHIFT'][WL_idx])
+        self.z_cl_max = np.amax(catalog['REDSHIFT'][WL_idx])
         # DES-specific stuff
         if DESfile != 'None':
             # source redshifts
@@ -92,15 +96,8 @@ class SPTlensing:
                                                                            setup_interp=True, interp_massdef=500)
         self.MCrel_DES = Mconversion_concentration.ConcentrationConversion(3.5)
 
-        # Go through all clusters with WL data
-        WL_idx = (catalog['WLdata'] != None).nonzero()[0]
-
-        # Redshift limits
-        z_cl_min = np.amin(catalog['REDSHIFT'][WL_idx])
-        z_cl_max = np.amax(catalog['REDSHIFT'][WL_idx])
-
         # Pre-compute angular diameter distances
-        self.get_dAs(z_cl_min, z_cl_max, 5., cosmology)
+        self.get_dAs(self.z_cl_min, self.z_cl_max, 5., cosmology)
         # t.append(time.time())
 
         if self.NPROC==0:
@@ -456,7 +453,7 @@ def readdata(catalog, HSTfile, MegacamFile, DESfile, save_shear_profiles):
                         else:
                             p2 = 'xihi'
                         catalog['WLdata'][i]['r_arcmin_stack'] = f['stack_1h_%s%s'%(p1,p2)]['r_arcmin'][:]
-                      
+
 
     ##### Megacam data
     if MegacamFile != 'None':
@@ -487,4 +484,3 @@ def readdata(catalog, HSTfile, MegacamFile, DESfile, save_shear_profiles):
                         catalog['WLdata'][i]['pzs'][dict_key] = f[name]['magbindata'][key]['pzs'][:]
                         catalog['WLdata'][i]['Ntot'][dict_key] = np.sum(catalog['WLdata'][i]['pzs'][dict_key])
                         catalog['WLdata'][i]['magcorr'][dict_key] = f[name]['magbindata'][key]['magnificationcorr'][:]
-
