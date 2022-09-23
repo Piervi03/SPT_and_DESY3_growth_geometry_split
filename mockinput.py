@@ -10,7 +10,7 @@ random_seed = 0
 cosmology = {'Omega_m': .28, 'Ombh2': .022, 'Omnuh2': 0,
              'h': 0.7,
              'w0': -1., 'wa': 0.,
-             'sigma8': .78, 'ns': .96,}
+             'sigma8': .78, 'n_s': .96,}
 cosmology['Omega_b'] = cosmology['Ombh2']/cosmology['h']**2
 cosmology['Ommh2'] = cosmology['Omega_m']*cosmology['h']**2
 cosmology['Omega_l'] = 1-cosmology['Omega_m']
