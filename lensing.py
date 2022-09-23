@@ -126,6 +126,7 @@ class SPTlensing:
     def setup_one_cluster_mode(self, cosmology):
         """Function name says it all. Call this function before calling
         `one_cluster` directly. Not relevant if you are calling `lnlike_all`."""
+        self.cosmology = cosmology
         if self.mcType != 'None':
             self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, cosmology,
                                                                            setup_interp=True, interp_massdef=500)
@@ -136,7 +137,7 @@ class SPTlensing:
 
     ########################################
 
-    def one_cluster(self, data, M_arr=self.M_arr):
+    def one_cluster(self, data, M_arr=None):
         """Process the cluster given by `data`. Return ln-likelihood of shear
         profile, additionally return model shear profiles depending on
         `save_shear_profiles`."""
@@ -144,6 +145,8 @@ class SPTlensing:
         # t.append(time.time())
 
         self.cat_cl = data
+        if M_arr is None:
+            M_arr = self.M_arr
 
         ##### Cosmology and halo stuff, in 1/h units
         self.get_beta(self.cosmology)
