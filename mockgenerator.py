@@ -252,13 +252,15 @@ def main():
                  'M500',
                  'Mwl_DES_200', 'Mwl_HST_200',
                  'richness',
-                 'GAMMA_FIELD']
+                 'GAMMA_FIELD',
+                 'COSMO_SAMPLE']
     data_arr = [names, fieldnames, mock[:,2], theta_core, mock[:,1], np.zeros(nCluster), redshiftLim,
                 Mgas, Xerrarr, Xerrarr,
                 mock[:,0], 1e14*np.ones(nCluster), M500_noh,
                 mock[:,4], mock[:,6],
                 mock[:,5],
-                mock[:,7]]
+                mock[:,7],
+                np.ones(nCluster, dtype=int)]
     # Save to fits
     cat = Table(data_arr, names=names_arr)
     cat.write('mock_%s.fits'%time.strftime("%y%m%d-%H%M%S"))

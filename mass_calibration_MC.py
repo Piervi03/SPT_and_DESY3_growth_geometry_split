@@ -139,6 +139,8 @@ class MassCalibration:
         name = self.catalog['SPT_ID'][i]
 
         ##### Do we actually want this guy?
+        if self.catalog['COSMO_SAMPLE'][i]==0:
+            return 1.
         if (self.catalog['XI'][i]<self.SPT_survey['XI_MIN'][self.SPT_survey['FIELD']==self.catalog['FIELD'][i]]):
             return 1.
         if not (self.surveyCutRedshift[0]<self.catalog['REDSHIFT'][i]<self.surveyCutRedshift[1]):
