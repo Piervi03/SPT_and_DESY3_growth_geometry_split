@@ -356,13 +356,16 @@ class MassCalibration:
             r = r_min + (ndtr_p4-r_min)*self.rng.random(len(obs))
             obs+= erfinv(2*r-1)*std*msqrt(2)
         # Lensing likelihood
-        lnlike = interp1d(self.WL.lnM_arr, self.catalog['lnp_Mwl'][dataID], fill_value='extrapolate')(np.log(obs))
+        lnobs = np.log(obs)
+        lnM_ = np.linspace(np.amin(lnobs), np.amax(lnobs), 32)
+        tmp = self.WL.one_cluster(self.catalog[dataID], np.exp(lnM_))
+        lnlike = interp1d(lnM_, tmp[0])(lnobs)
         # Shear profile for DES stacks
         if self.get_stacked_DES & (obsname=='WLDES'):
-            self.DES_shear_profile_MC = interp1d(self.WL.lnM_arr, self.catalog['model_shear_profile'][dataID], fill_value='extrapolate', axis=0)(np.log(obs))
-            self.DES_DeltaSigma_MC = interp1d(self.WL.lnM_arr, self.catalog['model_DeltaSigma_rescaled'][dataID], fill_value='extrapolate', axis=0)(np.log(obs))
-            self.DES_r_r200c_MC = interp1d(self.WL.lnM_arr, self.catalog['model_r_r200c'][dataID], fill_value='extrapolate', axis=0)(np.log(obs))
-            self.DES_DeltaSigma_data_MC = interp1d(self.WL.lnM_arr, self.catalog['data_DeltaSigma_rescaled'][dataID], fill_value='extrapolate', axis=0)(np.log(obs))
+            self.DES_shear_profile_MC = interp1d(lnM_, tmp[1], axis=0)(lnobs)
+            self.DES_DeltaSigma_MC = interp1d(lnM_, tmp[2], axis=0)(lnobs)
+            self.DES_r_r200c_MC = interp1d(lnM_, tmp[3], axis=0)(lnobs)
+            self.DES_DeltaSigma_data_MC = interp1d(lnM_, tmp[4], axis=0)(lnobs)
         return lnlike, lnM_lensing
 
 
@@ -465,4 +468,3 @@ class MassCalibration:
             self.catalog['DES_DeltaSigma_data_mean'][dataID] = DeltaSigma_interp(lnr_r200c_stack)
 
         return like
-

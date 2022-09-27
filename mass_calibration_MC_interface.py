@@ -66,11 +66,10 @@ def execute(block, masscalibration):
     cosmology = {
         'Omega_l': block.get_double('cosmological_parameters', 'Omega_lambda'),
         'h': block.get_double('cosmological_parameters', 'hubble')/100,
-        'ns': block.get_double('cosmological_parameters', 'n_s'),
         'w0': block.get_double('cosmological_parameters', 'w'),
         'wa': block.get_double('cosmological_parameters', 'wa'),
         'sigma8': block.get_double('cosmological_parameters', 'sigma_8')}
-    for p in ['Omega_m', 'Omega_b', 'wa']:
+    for p in ['Omega_m', 'Omega_b', 'n_s', 'wa']:
         cosmology[p] = block.get_double('cosmological_parameters', p)
 
     scaling = {'YXPARAM': masscalibration.YXPARAM}
@@ -105,11 +104,9 @@ def execute(block, masscalibration):
     z, M, N = block.get_grid('HMF', 'z_arr', 'M_arr', 'dNdlnM')
     HMF = {'z_arr': z, 'M_arr': M, 'dNdlnM': N}
 
-    ##### Compute lensing likelihoods
+    ##### Setup lensing likelihoods
     if masscalibration.todo['WL']:
-        masscalibration.WL.lnlike_all(masscalibration.catalog,
-                                      cosmology,
-                                      scaling)
+        masscalibration.WL.setup_one_cluster_mode(cosmology)
 
     ##### Compute likelihood
     lnlike, DES_stack = masscalibration.lnlike(HMF, cosmology, scaling)

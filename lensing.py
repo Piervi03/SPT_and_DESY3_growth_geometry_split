@@ -41,13 +41,15 @@ class SPTlensing:
         WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
         self.WLcalib = WLsimcalib.WLcalibration
         # Set up more stuff
-        self.lnM_arr = lnM_arr_default
-        self.M_arr = np.exp(self.lnM_arr)
         self.save_shear_profiles = save_shear_profiles
         self.NPROC = NPROC
         self.mcType = mcType
         # Read lensing data
         readdata(catalog, HSTfile, MegacamFile, DESfile, self.save_shear_profiles)
+        # Redshift range of clusters with WL data
+        WL_idx = (catalog['WLdata'] != None).nonzero()[0]
+        self.z_cl_min = np.amin(catalog['REDSHIFT'][WL_idx])
+        self.z_cl_max = np.amax(catalog['REDSHIFT'][WL_idx])
         # DES-specific stuff
         if DESfile != 'None':
             # source redshifts
@@ -91,16 +93,10 @@ class SPTlensing:
             self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, self.cosmology,
                                                                            setup_interp=True, interp_massdef=500)
         self.MCrel_DES = Mconversion_concentration.ConcentrationConversion(3.5)
-
-        # Go through all clusters with WL data
-        WL_idx = (catalog['WLdata'] != None).nonzero()[0]
-
-        # Redshift limits
-        z_cl_min = np.amin(catalog['REDSHIFT'][WL_idx])
-        z_cl_max = np.amax(catalog['REDSHIFT'][WL_idx])
-
+        self.lnM_arr = lnM_arr_default
+        self.M_arr = np.exp(self.lnM_arr)
         # Pre-compute angular diameter distances
-        self.get_dAs(z_cl_min, z_cl_max, 5., cosmology)
+        self.get_dAs(self.z_cl_min, self.z_cl_max, 5., cosmology)
         # t.append(time.time())
 
         if self.NPROC==0:
@@ -127,9 +123,21 @@ class SPTlensing:
         return 0
 
 
+    def setup_one_cluster_mode(self, cosmology):
+        """Function name says it all. Call this function before calling
+        `one_cluster` directly. Not relevant if you are calling `lnlike_all`."""
+        self.cosmology = cosmology
+        if self.mcType != 'None':
+            self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, cosmology,
+                                                                           setup_interp=True, interp_massdef=500)
+        self.MCrel_DES = Mconversion_concentration.ConcentrationConversion(3.5)
+        # Pre-compute angular diameter distances
+        self.get_dAs(self.z_cl_min, self.z_cl_max, 5., cosmology)
+
+
     ########################################
 
-    def one_cluster(self, data):
+    def one_cluster(self, data, M_arr=None):
         """Process the cluster given by `data`. Return ln-likelihood of shear
         profile, additionally return model shear profiles depending on
         `save_shear_profiles`."""
@@ -137,6 +145,8 @@ class SPTlensing:
         # t.append(time.time())
 
         self.cat_cl = data
+        if M_arr is None:
+            M_arr = self.M_arr
 
         ##### Cosmology and halo stuff, in 1/h units
         self.get_beta(self.cosmology)
@@ -144,11 +154,11 @@ class SPTlensing:
 
         ##### Likelihood
         if self.cat_cl['WLdata']['datatype']=='DES':
-            res = self.DES_cluster()
+            res = self.DES_cluster(M_arr)
         elif self.cat_cl['WLdata']['datatype']=='Megacam':
-            res = self.Megacam_cluster()
+            res = self.Megacam_cluster(M_arr)
         elif self.cat_cl['WLdata']['datatype']=='HST':
-            res = self.HST_cluster()
+            res = self.HST_cluster(M_arr)
         # t.append(time.time())
         # t = np.array(t)
         # print('done', t[-1]-t[0], np.diff(t))
@@ -184,10 +194,10 @@ class SPTlensing:
         return reduced_shear_cont, DeltaSigma_mis/r200c[:,None]/rho_c_z, r_Mpch[None,:]/r200c[:,None], DeltaSigma_data
 
 
-    def DES_cluster(self):
+    def DES_cluster(self, M_arr):
         """Return array lnP(DES data|Mwl) and optionally the model shear profiles."""
         # Model
-        reduced_shear_cont, DeltaSigma_mis_rescaled, r_r200c, DeltaSigma_data_rescaled = self.shear_model_DES(self.M_arr)
+        reduced_shear_cont, DeltaSigma_mis_rescaled, r_r200c, DeltaSigma_data_rescaled = self.shear_model_DES(M_arr)
         # Likelihood
         diffs = reduced_shear_cont - self.cat_cl['WLdata']['shear']
         chi2 = (diffs/self.cat_cl['WLdata']['shear_err'])**2
@@ -221,10 +231,10 @@ class SPTlensing:
         return g_2d
 
 
-    def Megacam_cluster(self):
+    def Megacam_cluster(self, M_arr):
         """Return array lnP(Megacam data|Mwl) and optionally the model shear profiles."""
         # Model
-        g_2d = self.shear_model_Megacam(self.M_arr)
+        g_2d = self.shear_model_Megacam(M_arr)
         # Likelihood
         diff = g_2d - self.cat_cl['WLdata']['shear'][:,None]
         chi2 = (diff/self.cat_cl['WLdata']['shearerr'][:,None])**2
@@ -271,7 +281,7 @@ class SPTlensing:
         return g_2d
 
 
-    def HST_cluster(self):
+    def HST_cluster(self, M_arr):
         """Return array lnP(HST data|Mwl) and optionally the model shear profiles."""
         # Only consider 500<r/kpc/1500 in reference cosmology
         cosmoRef = {'Omega_m':.3, 'Omega_l':.7, 'h':.7, 'w0':-1., 'wa':0}
@@ -279,7 +289,7 @@ class SPTlensing:
         rPhysRef = self.cat_cl['WLdata']['r_deg'] * DlRef * np.pi/180 /cosmoRef['h']
         rInclude = np.where((rPhysRef>.5)&(rPhysRef<1.5))[0]
         # Model
-        g_2d = self.shear_model_HST(self.M_arr)
+        g_2d = self.shear_model_HST(M_arr)
         # Likelihood
         diff = g_2d[rInclude,:] - self.cat_cl['WLdata']['shear'][rInclude,None]
         chi2 = (diff/self.cat_cl['WLdata']['shearerr'][rInclude,None])**2
@@ -487,4 +497,3 @@ def readdata(catalog, HSTfile, MegacamFile, DESfile, save_shear_profiles):
                         catalog['WLdata'][i]['pzs'][dict_key] = f[name]['magbindata'][key]['pzs'][:]
                         catalog['WLdata'][i]['Ntot'][dict_key] = np.sum(catalog['WLdata'][i]['pzs'][dict_key])
                         catalog['WLdata'][i]['magcorr'][dict_key] = f[name]['magbindata'][key]['magnificationcorr'][:]
-
