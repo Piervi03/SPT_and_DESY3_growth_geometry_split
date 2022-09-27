@@ -1,0 +1,21 @@
+name: py39_cosmosis
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - astropy>=5
+  - cosmosis>=2
+  - cosmosis-build-standard-library>=1.1
+  - cython>=0.29
+  - matplotlib>=3.5
+  - numpy>=1.23
+  - pip>=22
+  - python=3.9
+  - scikit-learn>=1
+  - scipy>=1.9
+  - tensorflow>=2
+  - xarray
+  - pip:
+    - baccoemu
+    - colossus
+    - MiraTitanHMFemulator  

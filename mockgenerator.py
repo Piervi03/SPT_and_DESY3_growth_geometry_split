@@ -26,15 +26,19 @@ def main():
     scaling = configMod.scaling
     rng = np.random.default_rng(configMod.random_seed)
 
-    HMF = {'z': np.linspace(0, 2, 21),
-           'm': np.logspace(13, 15.5, 251)}
+    # Set up HMF
+    M_arr =  np.logspace(13, 16, 301)
+    dlnm = np.log(M_arr[1]/M_arr[0])
+    dz_ = .01
+    z_arr = np.linspace(configMod.surveyCutRedshift[0], configMod.surveyCutRedshift[1], int((configMod.surveyCutRedshift[1]-configMod.surveyCutRedshift[0])/dz_) + 1)
+    dz = z_arr[1]-z_arr[0]
     if configMod.HMF=='Mira-Titan':
         import compute_HMF_MiraTitan
-        MiraTitan_HMF = compute_HMF_MiraTitan.HMFCalculator(200., 'Duffy08', HMF['z'], HMF['m'])
+        MiraTitan_HMF = compute_HMF_MiraTitan.HMFCalculator(200., 'Duffy08', z_arr, M_arr)
         bad = MiraTitan_HMF.compute_HMF(cosmology)
         if bad:
             print("Could not compute mass function")
-        HMF['dNdlnM'] = MiraTitan_HMF.dNdlnM
+        dNdlnM = MiraTitan_HMF.dNdlnM
     else:
         import baccoemu, compute_HMF_Bocquet16, compute_HMF_Tinker08
         emulator = baccoemu.Matter_powerspectrum()
@@ -47,7 +51,7 @@ def main():
                                        wa=cosmology['wa'],
                                        neutrino_mass=cosmology['Omnuh2']*94.,
                                        A_s=1e-10*np.exp(cosmology['ln1e10As']),
-                                       expfactor=1./(1.+HMF['z']),
+                                       expfactor=1./(1.+z_arr),
                                        cold=True)
         # Compute sigma_8 for total matter
         k_, Pk_ = emulator.get_linear_pk(omega_matter=cosmology['Omega_m'],
@@ -67,25 +71,20 @@ def main():
         print('sigma_8 %.5f'%np.sqrt(sigma8_squ))
         # Initialize fitting function
         if configMod.HMF=='Tinker08':
-            HMF_calculator = compute_HMF_Tinker08.HMFCalculator(200.)
+            HMF_calculator = compute_HMF_Tinker08.HMFCalculator(200., z_arr, M_arr)
         elif configMod.HMF=='Bocquet16':
-            HMF_calculator = compute_HMF_Bocquet16.HMFCalculator(200.)
+            HMF_calculator = compute_HMF_Bocquet16.HMFCalculator(200., z_arr, M_arr)
         # Compute the mass function and volume element
-        M_arr, dNdlnM_noVol, dNdlnM = HMF_calculator.compute_HMF(cosmology, HMF['z'], k, Pk)
-        HMF['m'] = M_arr
-        HMF['dNdlnM'] = dNdlnM
-
-    # Set up HMF interpolation
-    dlnm = np.log(HMF['m'][1]/HMF['m'][0])
-    HMF_dNdM_V = RectBivariateSpline(np.log(HMF['z'][1:]), np.log(HMF['m']), np.log(HMF['dNdlnM'][1:,:]*dlnm*(np.pi/180)**2), kx=1, ky=1)
-    dz = .01
-    z_arr = np.linspace(configMod.surveyCutRedshift[0], configMod.surveyCutRedshift[1], int((configMod.surveyCutRedshift[1]-configMod.surveyCutRedshift[0])/dz) + 1)
-    dz = z_arr[1]-z_arr[0]
+        dNdlnM_noVol, dNdlnM = HMF_calculator.compute_HMF(cosmology, z_arr, k, Pk)
+    HMF_dNdM_V = dNdlnM * dz*dlnm*(np.pi/180)**2
+    # First and last redshift bins are only half in the sample
+    HMF_dNdM_V[0,:]*= .5
+    HMF_dNdM_V[-1,:]*= .5
 
     # [DES WL, X-ray, SZ, richness, HST WL]
-    covs = np.empty((len(z_arr), len(HMF['m']), 5, 5))
+    covs = np.empty((len(z_arr), len(M_arr), 5, 5))
     for i, z in enumerate(z_arr):
-        for j, M in enumerate(HMF['m']):
+        for j, M in enumerate(M_arr):
             scaling['DWL_DES'] = scaling_relations.WLscatter('main', M, z, scaling)
             covs[i,j,:,:] = [[scaling['DWL_DES']**2, scaling['rhoWLX']*scaling['DWL_DES']*scaling['Dx'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_DES'], scaling['rhoWLrichness']*scaling['DWL_DES']*scaling['Drichness'], 0],
                              [scaling['rhoWLX']*scaling['DWL_DES']*scaling['Dx'], scaling['Dx']**2, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['rhoXrichness']*scaling['Dx']*scaling['Drichness'], scaling['rhoWLX']*scaling['DWL_HST']*scaling['Dx']],
@@ -104,14 +103,13 @@ def main():
 
     for fieldidx,field in enumerate(SPT_survey['FIELD']):
         print(field, fieldidx, 'out of %d'%len(SPT_survey['FIELD']))
-        massfunc = np.exp(HMF_dNdM_V(np.log(z_arr), np.log(HMF['m']))) * SPT_survey['AREA'][fieldidx] * dz
 
         # Poisson realization
-        N = rng.poisson(massfunc)
+        N = rng.poisson(HMF_dNdM_V*SPT_survey['AREA'][fieldidx])
 
-        obs_0 = np.array([scaling_relations.mass2obs(name, HMF['m'][None,:], z_arr[:,None], scaling, cosmology)
+        obs_0 = np.array([scaling_relations.mass2obs(name, M_arr[None,:], z_arr[:,None], scaling, cosmology)
                           for name in ('WLDES', configMod.Xray_obs, 'zeta', 'richness',)])
-        obs_0 = np.concatenate((obs_0, HMF['m']*np.ones((len(z_arr), len(HMF['m'])))[None,:]))
+        obs_0 = np.concatenate((obs_0, M_arr*np.ones((len(z_arr), len(M_arr)))[None,:]))
 
         # Field depth
         obs_0[2,:]*= SPT_survey['GAMMA'][fieldidx]
@@ -124,7 +122,7 @@ def main():
                 lambda_min = surveyCutLambda['shallow'](z)
             else:
                 lambda_min = 0.
-            for j, M in enumerate(HMF['m']):
+            for j, M in enumerate(M_arr):
                 if N[i,j]==0:
                     continue
 
@@ -254,13 +252,15 @@ def main():
                  'M500',
                  'Mwl_DES_200', 'Mwl_HST_200',
                  'richness',
-                 'GAMMA_FIELD']
+                 'GAMMA_FIELD',
+                 'COSMO_SAMPLE']
     data_arr = [names, fieldnames, mock[:,2], theta_core, mock[:,1], np.zeros(nCluster), redshiftLim,
                 Mgas, Xerrarr, Xerrarr,
                 mock[:,0], 1e14*np.ones(nCluster), M500_noh,
                 mock[:,4], mock[:,6],
                 mock[:,5],
-                mock[:,7]]
+                mock[:,7],
+                np.ones(nCluster, dtype=int)]
     # Save to fits
     cat = Table(data_arr, names=names_arr)
     cat.write('mock_%s.fits'%time.strftime("%y%m%d-%H%M%S"))

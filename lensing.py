@@ -465,7 +465,7 @@ def readdata(catalog, HSTfile, MegacamFile, DESfile, save_shear_profiles):
                             p2 = 'xilo'
                         else:
                             p2 = 'xihi'
-                        catalog['WLdata'][i]['r_arcmin_stack'] = f['stack_1h_%s%s'%(p1,p2)]['r_arcmin'][:]
+                        catalog['WLdata'][i]['r_arcmin_stack'] = f['stack_%s%s'%(p1,p2)]['r_arcmin'][:]
 
 
     ##### Megacam data

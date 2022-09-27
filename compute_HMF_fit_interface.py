@@ -16,15 +16,19 @@ def setup(options):
     os.system("git --git-dir=%s/.git --work-tree=%s status"%(path_to_repo, path_to_repo))
     os.system("git --git-dir=%s/.git --work-tree=%s "%(path_to_repo, path_to_repo)+"show -s --format=%h")
     # Proceed with actual setup
+    tmp = options.get_double_array_1d(option_section, 'z_arr')
+    z_arr = np.linspace(tmp[0], tmp[1], int(tmp[2]))
+    tmp = options.get_double_array_1d(option_section, 'M_arr')
+    M_arr = np.logspace(tmp[0], tmp[1], int(tmp[2]))
     fitting_function = options.get_string(option_section, 'fitting_function')
     recalc_HMF = options.get_bool(option_section, 'recalc_HMF', default=True)
     save_HMF_to_disk = options.get_bool(option_section, 'save_HMF_to_disk', default=False)
     Deltacrit = options.get_double(option_section, 'Deltacrit', default=500.)
     if recalc_HMF:
         if fitting_function=='Tinker08':
-            HMF_calculator = compute_HMF_Tinker08.HMFCalculator(Deltacrit)
+            HMF_calculator = compute_HMF_Tinker08.HMFCalculator(Deltacrit, z_arr, M_arr)
         elif fitting_function=='Bocquet16':
-            HMF_calculator = compute_HMF_Bocquet16.HMFCalculator(Deltacrit)
+            HMF_calculator = compute_HMF_Bocquet16.HMFCalculator(Deltacrit, z_arr, M_arr)
     else:
         HMF_calculator = EmptyClass()
         HMF_calculator.HMF = xr.open_dataset('HMF.nc')
@@ -43,11 +47,11 @@ def execute(block, HMF_calculator):
             'w0': block.get_double('cosmological_parameters', 'w'),
             'wa': block.get_double('cosmological_parameters', 'wa')}
         # cdm+bar power spectrum (w/o neutrinos)
-        z_arr, k_arr, Pk = block.get_grid('cdm_baryon_power_lin', 'z', 'k_h', 'p_k')
+        z, k, Pk = block.get_grid('cdm_baryon_power_lin', 'z', 'k_h', 'p_k')
         # Compute the HMF
-        M_arr, dNdlnM_noVol, dNdlnM = HMF_calculator.compute_HMF(cosmology, z_arr, k_arr, Pk)
+        dNdlnM_noVol, dNdlnM = HMF_calculator.compute_HMF(cosmology, z, k, Pk)
         # Put it into block
-        block.put_grid('HMF', 'z_arr', z_arr, 'M_arr', M_arr, 'dNdlnM', dNdlnM)
+        block.put_grid('HMF', 'z_arr', HMF_calculator.z_arr, 'M_arr', HMF_calculator.M_arr, 'dNdlnM', dNdlnM)
         block.put_double_array_nd('HMF', 'dNdlnM_unitVol', dNdlnM_noVol)
         if HMF_calculator.save_HMF_to_disk:
             HMF = xr.DataArray(block.get_double_array_nd('HMF', 'dNdlnM'),
