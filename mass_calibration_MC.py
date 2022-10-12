@@ -178,7 +178,8 @@ class MassCalibration:
             self.thisSPTfield_gamma*= self.scaling['SPECS_calib']
 
         ##### Set up random number generator and get likelihood
-        self.rng = np.random.default_rng(np.abs(hash(i+np.sum([self.scaling[key] for key in ['Asz', 'Bsz', 'Csz', 'Dsz']]))))
+        seed = np.abs(int(123456.*i*np.prod([self.scaling[key] for key in ['Asz', 'Bsz', 'Csz', 'Dsz']])))
+        self.rng = np.random.default_rng(seed)
         probability = self.get_P_obs_xi_zetadraw(obsnames, i)
 
         if (probability<0) | np.isnan(probability) | np.isinf(probability):
