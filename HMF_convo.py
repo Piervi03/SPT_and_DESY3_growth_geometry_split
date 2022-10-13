@@ -8,6 +8,9 @@ from scipy.stats import norm
 from scipy.ndimage import gaussian_filter1d
 from scipy.special import ndtr
 
+from colossus.cosmology import cosmology as colossus_cosmology
+from colossus.lss import bias
+
 import multivariate_normal as cy_multivariate_normal
 import convolution, scaling_relations
 
@@ -35,9 +38,6 @@ class MultiObsConvolution:
         self.richness_scatter_model = richness_scatter_model
         # Multiply mass function with halo bias
         self.do_bias = do_bias
-        if do_bias:
-            from colossus.cosmology import cosmology as colossus_cosmology
-            from colossus.lss import bias
 
         self.other_pairnames = ['SZ', 'SZ_lambdacut_shallow', 'SZ_lambdacut_deep', 'DES_SZ_lambdacut']
         self.pairnames_2d = ['Yx_SZ', 'Mgas_SZ', 'Megacam_SZ', 'richness_SZ']

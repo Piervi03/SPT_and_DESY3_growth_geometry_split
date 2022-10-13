@@ -47,9 +47,9 @@ class SPTlensing:
         # Read lensing data
         readdata(catalog, HSTfile, MegacamFile, DESfile, self.save_shear_profiles)
         # Redshift range of clusters with WL data
-        WL_idx = (catalog['WLdata'] != None).nonzero()[0]
-        self.z_cl_min = np.amin(catalog['REDSHIFT'][WL_idx])
-        self.z_cl_max = np.amax(catalog['REDSHIFT'][WL_idx])
+        self.WL_idx = (catalog['WLdata'] != None).nonzero()[0]
+        self.z_cl_min = np.amin(catalog['REDSHIFT'][self.WL_idx])
+        self.z_cl_max = np.amax(catalog['REDSHIFT'][self.WL_idx])
         # DES-specific stuff
         if DESfile != 'None':
             # source redshifts
@@ -100,23 +100,23 @@ class SPTlensing:
         # t.append(time.time())
 
         if self.NPROC==0:
-            res = [self.one_cluster(catalog[i]) for i in WL_idx]
+            res = [self.one_cluster(catalog[i]) for i in self.WL_idx]
         else:
             with Pool(processes=self.NPROC) as pool:
-                argin = zip([self]*len(WL_idx), catalog[WL_idx])
+                argin = zip([self]*len(self.WL_idx), catalog[self.WL_idx])
                 res = pool.map(unwrap_self_one_cluster, argin)
 
         catalog['lnp_Mwl'] = [None]*len(catalog)
-        catalog['lnp_Mwl'][WL_idx] = [r[0] for r in res]
+        catalog['lnp_Mwl'][self.WL_idx] = [r[0] for r in res]
         if self.save_shear_profiles:
             catalog['model_shear_profile'] = [None]*len(catalog)
-            catalog['model_shear_profile'][WL_idx] = [r[1] for r in res]
+            catalog['model_shear_profile'][self.WL_idx] = [r[1] for r in res]
             catalog['model_DeltaSigma_rescaled'] = [None]*len(catalog)
-            catalog['model_DeltaSigma_rescaled'][WL_idx] = [r[2] for r in res]
+            catalog['model_DeltaSigma_rescaled'][self.WL_idx] = [r[2] for r in res]
             catalog['model_r_r200c'] = [None]*len(catalog)
-            catalog['model_r_r200c'][WL_idx] = [r[3] for r in res]
+            catalog['model_r_r200c'][self.WL_idx] = [r[3] for r in res]
             catalog['data_DeltaSigma_rescaled'] = [None]*len(catalog)
-            catalog['data_DeltaSigma_rescaled'][WL_idx] = [r[4] for r in res]
+            catalog['data_DeltaSigma_rescaled'][self.WL_idx] = [r[4] for r in res]
         # t.append(time.time())
         # print("lensing done", t[-1]-t[0])
 
