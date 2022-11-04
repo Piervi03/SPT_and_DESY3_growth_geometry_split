@@ -21,8 +21,8 @@ class MarginalizeMass:
         """Return ln-likelihood for SPT cluster abundance."""
         ##### Set up interpolation for HMF
         with np.errstate(divide='ignore'):
-            lnHMF_in = np.log(self.HMF['dNdlnM'][1:,:])
-        HMF_interp = RectBivariateSpline(np.log(self.HMF['z_arr'][1:]), np.log(self.HMF['M_arr']), lnHMF_in, kx=1, ky=1)
+            lnHMF_in = np.log(self.HMF['dNdlnM'])
+        HMF_interp = RectBivariateSpline(self.HMF['z_arr'], np.log(self.HMF['M_arr']), lnHMF_in, kx=1, ky=1)
 
         ##### Now go through cluster catalog
         M500, M200, weight = [], [], []
@@ -33,7 +33,7 @@ class MarginalizeMass:
                 continue
 
             # Normalized HMF
-            lnHMF_z_ = HMF_interp(np.log(self.catalog['REDSHIFT'][i]), np.log(self.HMF['M_arr']))[0]
+            lnHMF_z_ = HMF_interp(self.catalog['REDSHIFT'][i], np.log(self.HMF['M_arr']))[0]
             Ntot_ = np.sum(np.diff(self.HMF['M_arr']) * np.exp(.5*(lnHMF_z_[1:]+lnHMF_z_[:-1])))
 
             xi = 0
@@ -49,7 +49,7 @@ class MarginalizeMass:
             M500_ = self.zeta2mass(zeta_true, self.catalog['REDSHIFT'][i], field_factor)
             M200_ = self.MCrel.MDelta_to_M200(M500_, 500., self.catalog['REDSHIFT'][i])
             # P(M,z) a.k.a. the halo mass function
-            weight_ = np.exp(HMF_interp(np.log(self.catalog['REDSHIFT'][i]), np.log(M500_)))[0,0] / Ntot_
+            weight_ = np.exp(HMF_interp(self.catalog['REDSHIFT'][i], np.log(M500_)))[0,0] / Ntot_
 
             M500.append(M500_)
             M200.append(M200_)

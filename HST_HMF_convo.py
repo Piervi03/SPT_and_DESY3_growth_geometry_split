@@ -45,8 +45,8 @@ class MultiObsConvolution:
     def execute(self):
         ##### Set up interpolation for HMF
         with np.errstate(divide='ignore'):
-            lnHMF_in = np.log(self.HMF['dNdlnM'][1:,:])
-        self.HMF_interp = RectBivariateSpline(np.log(self.HMF['z_arr'][1:]), np.log(self.HMF['M_arr']), lnHMF_in, kx=1, ky=1)
+            lnHMF_in = np.log(self.HMF['dNdlnM'])
+        self.HMF_interp = RectBivariateSpline(self.HMF['z_arr'], np.log(self.HMF['M_arr']), lnHMF_in, kx=1, ky=1)
         self.Delta_lnM = np.log(self.HMF['M_arr'][1]/self.HMF['M_arr'][0])
 
         ##### Pre-compute the intrinsic scatter convolutions
@@ -87,7 +87,7 @@ class MultiObsConvolution:
     def get_P_2obs_z(self, obsname, covmat, z): 
         """Return P(obs, zeta | M, z(z_id), p) for constant correlated
         scatter."""
-        dN_dlnM, = np.exp(self.HMF_interp(np.log(z), np.log(self.HMF['M_arr'])))
+        dN_dlnM, = np.exp(self.HMF_interp(z, np.log(self.HMF['M_arr'])))
 
         # Convert observable covmat into covmat in mass
         dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
@@ -121,7 +121,7 @@ class MultiObsConvolution:
     def get_P_3obs_z(self, obsnames, covmat, z): 
         """Return P(obs0, obs1, zeta | M, z(z_id), p) for constant correlated
         scatter."""
-        dN_dlnM, = np.exp(self.HMF_interp(np.log(z), np.log(self.HMF['M_arr'])))
+        dN_dlnM, = np.exp(self.HMF_interp(z, np.log(self.HMF['M_arr'])))
 
         # Convert observable covmat into covmat in mass
         dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)

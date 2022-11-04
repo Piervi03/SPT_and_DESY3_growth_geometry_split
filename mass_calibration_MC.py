@@ -71,11 +71,11 @@ class MassCalibration:
         self.xi_min = scaling_relations.zeta2xi(self.scaling['zeta_min'])
 
         ##### Set up interpolation for HMF
-        HMF_in = HMF['dNdlnM'][1:,:]
+        HMF_in = HMF['dNdlnM']
         if np.any(HMF_in==0):
             HMF_in[np.where(HMF_in==0)] = np.nextafter(0, 1)
         self.lnM_arr = np.log(HMF['M_arr'])
-        self.HMF_interp = RectBivariateSpline(np.log(HMF['z_arr'][1:]), self.lnM_arr, np.log(HMF_in), kx=1, ky=1)
+        self.HMF_interp = RectBivariateSpline(HMF['z_arr'], self.lnM_arr, np.log(HMF_in), kx=1, ky=1)
 
         ##### Initialize mass-concentration relation class (for WL and dispersions)
         if self.todo['veldisp']:
@@ -236,7 +236,7 @@ class MassCalibration:
         # Scipy.RectBivariateSpline only accepts sorted inputs
         idx = np.argsort(lnM)
         mass_lnweights = np.zeros(len(lnM))
-        mass_lnweights[idx] = self.HMF_interp(np.log(z), lnM[idx])
+        mass_lnweights[idx] = self.HMF_interp(z, lnM[idx])
         mass_lnweights-= np.amax(mass_lnweights)
         return mass_lnweights
 
