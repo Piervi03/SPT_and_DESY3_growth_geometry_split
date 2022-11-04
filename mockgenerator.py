@@ -12,10 +12,10 @@ import cosmo, Mconversion_concentration, scaling_relations
 ##### Reference cosmology for which Mgas is measured
 cosmologyRef = {'Omega_m':.272, 'Omega_l':.728, 'h':.702, 'w0':-1, 'wa':0}
 
-def main():
+def main(configMod_file, catalog_name):
     ##### General setup
     # Input parameters and settings
-    configMod = importlib.import_module(sys.argv[1][:-3])
+    configMod = importlib.import_module(configMod_file[:-3])
     # SPT survey information
     SPT_survey = Table.read(configMod.SPT_survey, format='ascii.commented_header')
     tmp = np.loadtxt(configMod.MCMF_lambda_min, unpack=True)
@@ -116,7 +116,7 @@ def main():
 
 
         for i, z in enumerate(z_arr):
-            if field=='SPTPOL_500d':
+            if SPT_survey['SURVEY'][fieldidx]=='SPTPOL_500d':
                 lambda_min = surveyCutLambda['deep'](z)
             elif SPT_survey['SURVEY'][fieldidx]=='SZ':
                 lambda_min = surveyCutLambda['shallow'](z)
@@ -263,9 +263,15 @@ def main():
                 np.ones(nCluster, dtype=int)]
     # Save to fits
     cat = Table(data_arr, names=names_arr)
-    cat.write('mock_%s.fits'%time.strftime("%y%m%d-%H%M%S"))
+    if catalog_name is None:
+        catalog_name = 'mock_%s.fits'%time.strftime("%y%m%d-%H%M%S")
+    cat.write(catalog_name)
 
 
 
 if __name__ == '__main__':
-    main()
+    if len(sys.argv)==2:
+        tmp = None
+    else:
+        tmp = sys.argv[2]
+    main(sys.argv[1], tmp)
