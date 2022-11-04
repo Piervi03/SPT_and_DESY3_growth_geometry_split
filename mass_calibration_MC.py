@@ -6,7 +6,7 @@ import warnings
 from math import sqrt as msqrt
 from multiprocessing import Pool
 from astropy.table import Table
-from scipy.special import erfinv, ndtr
+from scipy.special import erfinv, log_ndtr, ndtr
 from scipy import integrate, signal
 from scipy.interpolate import interp1d, RectBivariateSpline
 import cosmo, Mconversion_concentration, scaling_relations
@@ -16,6 +16,7 @@ GETPULL = False
 Ndraw = 8192
 ndtr_m5 = ndtr(-5)
 ndtr_p4 = ndtr(4)
+ln2pi = np.log(2.*np.pi)
 
 # Limits for stack
 z_mid = .55
@@ -70,11 +71,11 @@ class MassCalibration:
         self.xi_min = scaling_relations.zeta2xi(self.scaling['zeta_min'])
 
         ##### Set up interpolation for HMF
-        HMF_in = HMF['dNdlnM'][1:,:]
+        HMF_in = HMF['dNdlnM']
         if np.any(HMF_in==0):
             HMF_in[np.where(HMF_in==0)] = np.nextafter(0, 1)
         self.lnM_arr = np.log(HMF['M_arr'])
-        self.HMF_interp = RectBivariateSpline(np.log(HMF['z_arr'][1:]), self.lnM_arr, np.log(HMF_in), kx=1, ky=1)
+        self.HMF_interp = RectBivariateSpline(HMF['z_arr'], self.lnM_arr, np.log(HMF_in), kx=1, ky=1)
 
         ##### Initialize mass-concentration relation class (for WL and dispersions)
         if self.todo['veldisp']:
@@ -211,9 +212,9 @@ class MassCalibration:
 
 
     def get_zeta_draws(self, xi):
-        """Draw zetas from `xi`. In practice, draw from N(xi-1, 1) so that
-        there are more low-mass samples which will later be up-weighted by the
-        mass function. Return zeta and weights."""
+        """Draw zetas from `xi`. In practice, draw from offset distribution,
+        N(xi+offset, 1) so that there are more low-mass samples which will later
+        be up-weighted by the mass function. Return zeta and weights."""
         xi_offset = -3/xi**2
         # xi_draw > xi_min, xi_draw > xi-5, xi_draw < xi+4
         r_min = ndtr(self.xi_min-(xi+xi_offset))
@@ -222,34 +223,37 @@ class MassCalibration:
         r = r_min + (ndtr_p4-r_min)*self.rng.random(Ndraw)
         # Percent point function (scipy stats is too slow)
         xi0 = erfinv(2*r-1)*msqrt(2) + xi+xi_offset
+        # Probability of draws and probability of xi
+        draw_lnweights = -.5 * (xi0-(xi+xi_offset))**2 - ln2pi - log_ndtr(xi+xi_offset-self.xi_min)
+        xi_lnweights = -.5 * (xi0-xi)**2 - ln2pi - log_ndtr(xi0-self.xi_min)
         zeta = scaling_relations.xi2zeta(xi0)
-        # Ratio of normals
-        zeta_lnweights = -.5 * ((xi0-xi)**2 - (xi0-(xi+xi_offset))**2)
-        return zeta, zeta_lnweights
+        return zeta, draw_lnweights, xi_lnweights
 
 
     def get_mass_function_lnweights(self, z, lnM):
         """Return log-probability of halo mass function
-        ln(P(M)) = ln(dN/dlnM /M) at given `z` and array `lnM`."""
+        ln(P(lnM)) = ln(dN/dlnM) at given `z` and array `lnM`."""
         # Scipy.RectBivariateSpline only accepts sorted inputs
         idx = np.argsort(lnM)
         mass_lnweights = np.zeros(len(lnM))
-        mass_lnweights[idx] = self.HMF_interp(np.log(z), lnM[idx])-lnM[idx]
+        mass_lnweights[idx] = self.HMF_interp(z, lnM[idx])
         mass_lnweights-= np.amax(mass_lnweights)
         return mass_lnweights
 
 
     def draw_lnm_given_lnzeta(self, lnM_zeta, SZscatter_lnM):
-        """Return draws of ln(mass) given ln(zeta)."""
+        """Return draws of ln(mass) given mass(zeta)."""
         offset = -3*SZscatter_lnM**2
         r_min = ndtr((self.lnM_arr[0]-(lnM_zeta+offset))/SZscatter_lnM)
-        r_max = ndtr((self.lnM_arr[-1]-lnM_zeta)/SZscatter_lnM)
+        r_max = ndtr((self.lnM_arr[-1]-(lnM_zeta+offset))/SZscatter_lnM)
         r_min[r_min<ndtr_m5] = ndtr_m5
         r_max[r_max>ndtr_p4] = ndtr_p4
         r = r_min + (r_max-r_min)*self.rng.random(len(lnM_zeta))
         lnM = erfinv(2*r-1)*SZscatter_lnM*msqrt(2) + lnM_zeta+offset
-        lnweights = -.5/SZscatter_lnM**2 * ((lnM-lnM_zeta)**2 - (lnM-(lnM_zeta+offset))**2)
-        return lnM, lnweights
+        # Probability of lnM draws and probability of zeta
+        draw_lnweights = -.5/SZscatter_lnM**2 * (lnM-(lnM_zeta+offset))**2 - np.log(SZscatter_lnM) - .5*ln2pi
+        zeta_lnweights = -.5/SZscatter_lnM**2 * (lnM-lnM_zeta)**2 - np.log(SZscatter_lnM) - lnM_zeta - .5*ln2pi
+        return lnM, draw_lnweights, zeta_lnweights
 
 
     def get_covmat_obs(self, obsnames):
@@ -266,10 +270,10 @@ class MassCalibration:
 
     def get_lnM_zeta_given_xi(self, dataID):
         """Returns mass draws given xi."""
-        zeta, lnweights = self.get_zeta_draws(self.catalog['XI'][dataID])
+        zeta, draw_lnweights, lnweights = self.get_zeta_draws(self.catalog['XI'][dataID])
         zeta/= self.thisSPTfield_gamma
         lnM = np.log(scaling_relations.obs2mass('zeta', zeta, self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology))
-        return lnM, lnweights
+        return lnM, draw_lnweights, lnweights
 
 
     def get_conditional(self, lnM, lnM_meas, covmat_lnM, obsname_meas, all_obsnames):
@@ -306,19 +310,22 @@ class MassCalibration:
         ln(M_richness)."""
         # Compute lambda_min
         if self.todo['lambda_min']:
-            if self.catalog['FIELD'][dataID]=='SPTPOL_500d':
+            this_survey = self.SPT_survey['SURVEY'][self.SPT_survey['FIELD']==self.catalog['FIELD'][dataID]]
+            if this_survey=='SPTPOL_500d':
                 lambda_min = self.surveyCutRichness['deep'](self.catalog['REDSHIFT'][dataID])
-            else:
+            elif this_survey=='SZ':
                 lambda_min = self.surveyCutRichness['shallow'](self.catalog['REDSHIFT'][dataID])
+            else:
+                lambda_min = 0.
         # Lognormal scatter
         if self.richness_scatter_model=='lognormal':
             lnM_richness = np.log(scaling_relations.obs2mass('richness', self.catalog['richness'][dataID], self.catalog['REDSHIFT'][dataID], self.scaling))
             lnrichness_std = richness_std_lnM/scaling_relations.dlnM_dlnobs('richness', self.scaling)
             richness = scaling_relations.mass2obs('richness', np.exp(lnM), self.catalog['REDSHIFT'][dataID], self.scaling)
-            lnlike = -.5*np.log(self.catalog['richness'][dataID]/richness)**2/lnrichness_std**2 - np.log(self.catalog['richness'][dataID]*lnrichness_std) - .5*np.log(2*np.pi)
+            lnlike = -.5*np.log(self.catalog['richness'][dataID]/richness)**2/lnrichness_std**2 - np.log(self.catalog['richness'][dataID]*lnrichness_std) - .5*ln2pi
             if self.todo['lambda_min']:
                 with np.errstate(all='ignore'):
-                    lnP_lambda_gtr_lambda_min = np.log(ndtr(np.log(richness/lambda_min)/lnrichness_std))
+                    lnP_lambda_gtr_lambda_min = log_ndtr(np.log(richness/lambda_min)/lnrichness_std)
                 lnlike-= lnP_lambda_gtr_lambda_min
         # In all other cases we need to draw richness
         elif self.richness_scatter_model in ['lognormalrelPoisson', 'lognormalGaussPoisson']:
@@ -328,14 +335,14 @@ class MassCalibration:
             if self.richness_scatter_model=='lognormalrelPoisson':
                 lnlike = -.5*np.log(self.catalog['richness'][dataID]/richness)**2*richness - np.log(self.catalog['richness'][dataID]*np.sqrt(2*np.pi/richness))
                 if self.todo['lambda_min']:
-                    lnP_lambda_gtr_lambda_min = np.log(ndtr(np.log(richness/lambda_min)*np.sqrt(richness)))
+                    lnP_lambda_gtr_lambda_min = log_ndtr(np.log(richness/lambda_min)*np.sqrt(richness))
                     lnlike-= lnP_lambda_gtr_lambda_min
             # Convolve lognormal scatter with Gaussian of width sqrt(richness)
             elif self.richness_scatter_model=='lognormalGaussPoisson':
                 lnlike = -.5*(self.catalog['richness'][dataID]-richness)**2/richness - .5*np.log(2*np.pi*richness)
                 if self.todo['lambda_min']:
                     with np.errstate(all='ignore'):
-                        lnP_lambda_gtr_lambda_min = np.log(ndtr((richness-lambda_min)/np.sqrt(richness)))
+                        lnP_lambda_gtr_lambda_min = log_ndtr((richness-lambda_min)/np.sqrt(richness))
                     lnlike-= lnP_lambda_gtr_lambda_min
         # No valid option
         else:
@@ -378,9 +385,9 @@ class MassCalibration:
         z_cluster = self.catalog['REDSHIFT'][dataID]
         dlnM_dlnobs = np.array([scaling_relations.dlnM_dlnobs(obs, self.scaling) for obs in obsnames])
         # Mass given zeta
-        lnM_zeta, xi_lnweights = self.get_lnM_zeta_given_xi(dataID)
+        lnM_zeta, xi_draw_lnweights, xi_lnweights = self.get_lnM_zeta_given_xi(dataID)
         SZscatter_lnM = self.scaling['Dsz'] * dlnM_dlnobs[obsnames.index('zeta')]
-        lnM, zeta_lnweights = self.draw_lnm_given_lnzeta(lnM_zeta, SZscatter_lnM)
+        lnM, zeta_draw_lnweights, zeta_lnweights = self.draw_lnm_given_lnzeta(lnM_zeta, SZscatter_lnM)
         # Sometimes there are failures when mean obs is very unlikely
         if np.all(np.isinf(lnM)):
             return 0.
@@ -393,7 +400,7 @@ class MassCalibration:
         # Weight with mass function
         mass_lnweights = self.get_mass_function_lnweights(z_cluster, lnM)
         # Normalization P(xi)
-        Pxi = np.mean(np.exp(xi_lnweights + zeta_lnweights + mass_lnweights))
+        Pxi = np.mean(np.exp(-xi_draw_lnweights + xi_lnweights - zeta_draw_lnweights + zeta_lnweights + mass_lnweights))
         # Covariance matrix in ln-mass [draw, N_obs, N_obs]
         covmat = self.get_covmat_obs(obsnames)
         Jacobian = dlnM_dlnobs[:,None]*dlnM_dlnobs[None,:]
@@ -423,7 +430,7 @@ class MassCalibration:
             else:
                 break
         # Final likelihood
-        lnweights = xi_lnweights + zeta_lnweights + mass_lnweights + np.sum(lnlike_obs, axis=0)
+        lnweights = -xi_draw_lnweights + xi_lnweights - zeta_draw_lnweights + zeta_lnweights + mass_lnweights + np.sum(lnlike_obs, axis=0)
         # Let's accept a few invalid draws (and discard them)
         lnweights = lnweights[np.isfinite(lnweights)]
         if len(lnweights)<Ndraw-32:
