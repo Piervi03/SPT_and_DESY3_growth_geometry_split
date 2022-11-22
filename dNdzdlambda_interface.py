@@ -42,6 +42,7 @@ def execute(block, computer):
     HMF = {'M_arr': block.get_double_array_1d('dN_dmultiobs', 'M_arr'),
            'z_arr': block.get_double_array_1d('dN_dmultiobs', 'richness_SZ_z'),
            'dNdlnM': block.get_double_array_nd('dN_dmultiobs', 'richness_SZ')}
+    HMF['len_z'] = len(HMF['z_arr'])
     # Compute
     dN_dz, dN_dlambda = computer.run(HMF, cosmology, scaling)
     #for i,n in enumerate(dN_dz):

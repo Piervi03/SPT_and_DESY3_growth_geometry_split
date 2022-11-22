@@ -62,8 +62,8 @@ class NumberCount:
         self.dlnzeta_dxi_arr = scaling_relations.dlnzeta_dxi_given_xi(self.xi_bins)
 
         self.dN_dlnzeta_unitSolidAng = {}
-        for tmp in ['shallow', 'deep']:
-            self.dN_dlnzeta_unitSolidAng[tmp] = scaling_relations.dlnM_dlnobs('zeta', self.scaling) * np.exp(self.HMF['SZ_lambdacut_%s_dNdlnM'%tmp])
+        for tmp in ['SZ_lambdacut_shallow', 'SZ_lambdacut_deep', 'SZ']:
+            self.dN_dlnzeta_unitSolidAng[tmp] = scaling_relations.dlnM_dlnobs('zeta', self.scaling) * np.exp(self.HMF['%s_dNdlnM'%tmp])
 
         # zeta[z,M]
         self.zeta_m = scaling_relations.mass2obs('zeta', self.HMF['M_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling, self.cosmology)
@@ -77,19 +77,17 @@ class NumberCount:
                 argin = zip([self]*num_fields, range(num_fields))
                 field_results = pool.map(unwrap_self_f, argin)
         N_bins = np.array([field_results[i][0] for i in range(num_fields)])
-        dN_dz = np.array([field_results[i][1] for i in range(num_fields)])
-        dN_dxi = np.array([field_results[i][2] for i in range(num_fields)]).sum(axis=0)
-        dN_dxi_survey = np.array([field_results[i][3] for i in range(num_fields)])
-        subsurveys = np.array([field_results[i][4] for i in range(num_fields)])
-
         N_total = np.sum(N_bins)
-        dN_dz_total = dN_dz.sum(axis=0)
-        dN_dz_500d = dN_dz[subsurveys=='SPTPOL_500d',:].sum(axis=0)
-        dN_dz_SZ = dN_dz[subsurveys=='SZ',:].sum(axis=0)
-        dN_dz_SPECS = dN_dz[subsurveys=='SPECS',:].sum(axis=0)
-        dN_dxi_500d = dN_dxi_survey[subsurveys=='SPTPOL_500d',:].sum(axis=0)
-        dN_dxi_SZ = dN_dxi_survey[subsurveys=='SZ',:].sum(axis=0)
-        dN_dxi_SPECS = dN_dxi_survey[subsurveys=='SPECS',:].sum(axis=0)
+        dN_dz = np.array([field_results[i][1] for i in range(num_fields)]).sum(axis=0)
+        dN_dxi = np.array([field_results[i][2] for i in range(num_fields)]).sum(axis=0)
+        # dN_dxi_survey = np.array([field_results[i][3] for i in range(num_fields)])
+        # subsurveys = np.array([field_results[i][4] for i in range(num_fields)])
+        # dN_dz_500d = dN_dz[subsurveys=='SPTPOL_500d',:].sum(axis=0)
+        # dN_dz_SZ = dN_dz[subsurveys=='SZ',:].sum(axis=0)
+        # dN_dz_SPECS = dN_dz[subsurveys=='SPECS',:].sum(axis=0)
+        # dN_dxi_500d = dN_dxi_survey[subsurveys=='SPTPOL_500d',:].sum(axis=0)
+        # dN_dxi_SZ = dN_dxi_survey[subsurveys=='SZ',:].sum(axis=0)
+        # dN_dxi_SPECS = dN_dxi_survey[subsurveys=='SPECS',:].sum(axis=0)
 
         #for n,name in enumerate(subsurveys):
         #    if name=='SPTPOL_500d':
@@ -101,24 +99,26 @@ class NumberCount:
         chi2 = np.dot(diff, np.linalg.solve(covmat, diff))
         lnlike = -.5*np.log(np.linalg.det(2*np.pi*covmat)) - .5*chi2
 
-        return lnlike, dN_dz_total, dN_dz_500d, dN_dz_SZ, dN_dz_SPECS, dN_dxi, dN_dxi_500d, dN_dxi_SZ, dN_dxi_SPECS, N_total
+        return lnlike, dN_dz, dN_dxi, N_total
 
 
     ##########
     def process_field(self, fieldidx):
         """Returns (ln-likelihood, Ntotal) for a given SPT field (index)."""
         # dN/dln(zeta)
-        if self.SPT_survey['FIELD'][fieldidx]=='SPTPOL_500d':
-            tmp = 'deep'
+        if self.SPT_survey['FIELD'][fieldidx]=='sptpol_500d_MCMF':
+            tmp = 'SZ_lambdacut_deep'
+        elif '_MCMF' in self.SPT_survey['FIELD'][fieldidx]:
+            tmp = 'SZ_lambdacut_shallow'
         else:
-            tmp = 'shallow'
+            tmp = 'SZ'
         dN_dlnzeta = self.dN_dlnzeta_unitSolidAng[tmp] * self.SPT_survey['AREA'][fieldidx] * (np.pi/180)**2
         with np.errstate(divide='ignore'):
             lndN_dlnzeta = np.log(dN_dlnzeta)
 
         # Apply field scaling factor
         this_zeta_m = self.zeta_m * self.SPT_survey['GAMMA'][fieldidx]
-        if self.SPT_survey['SURVEY'][fieldidx]=='SPECS':
+        if '_sptpol' in self.SPT_survey['FIELD'][fieldidx]:
             this_zeta_m*= self.scaling['SPECS_calib']
 
         # dN/dxi = dN/dlnzeta dlnzeta/dxi (unconvolved)
@@ -170,5 +170,5 @@ class NumberCount:
                 integrand = np.exp(.5*(lndNdxi(np.log(z_arr), np.log(xi_arr[1:])) + lndNdxi(np.log(z_arr), np.log(xi_arr[:-1])))) * (xi_arr[1:]-xi_arr[:-1])
                 N_bins[i,j] = np.trapz(np.sum(integrand, axis=1), z_arr)
 
-        return N_bins, dN_dz_out, dN_dxi_out, dN_dxi_out_survey, self.SPT_survey['SURVEY'][fieldidx]
+        return N_bins, dN_dz_out, dN_dxi_out, dN_dxi_out_survey, self.SPT_survey['FIELD'][fieldidx]
 

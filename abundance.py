@@ -56,8 +56,8 @@ class NumberCount:
         self.dlnzeta_dxi_arr = scaling_relations.dlnzeta_dxi_given_xi(self.xi_bins)
 
         self.dN_dlnzeta_unitSolidAng = {}
-        for tmp in ['shallow', 'deep']:
-            self.dN_dlnzeta_unitSolidAng[tmp] = scaling_relations.dlnM_dlnobs('zeta', self.scaling) * np.exp(self.HMF['SZ_lambdacut_%s_dNdlnM'%tmp])
+        for tmp in ['SZ_lambdacut_shallow', 'SZ_lambdacut_deep', 'SZ']:
+            self.dN_dlnzeta_unitSolidAng[tmp] = scaling_relations.dlnM_dlnobs('zeta', self.scaling) * np.exp(self.HMF['%s_dNdlnM'%tmp])
 
         # zeta[z,M]
         self.zeta_m = scaling_relations.mass2obs('zeta', self.HMF['M_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling, self.cosmology)
@@ -72,38 +72,39 @@ class NumberCount:
                 field_results = pool.map(unwrap_self_f, argin)
         lnlike = np.sum([field_results[i][0] for i in range(num_fields)])
         Ntotal = np.sum([field_results[i][1] for i in range(num_fields)])
-        dN_dz = np.array([field_results[i][2] for i in range(num_fields)])
+        dN_dz = np.array([field_results[i][2] for i in range(num_fields)]).sum(axis=0)
         dN_dxi = np.array([field_results[i][3] for i in range(num_fields)]).sum(axis=0)
-        dN_dxi_survey = np.array([field_results[i][4] for i in range(num_fields)])
-        subsurveys = np.array([field_results[i][5] for i in range(num_fields)])
-        dN_dz_total = dN_dz.sum(axis=0)
-        dN_dz_500d = dN_dz[subsurveys=='SPTPOL_500d',:].sum(axis=0)
-        dN_dz_SZ = dN_dz[subsurveys=='SZ',:].sum(axis=0)
-        dN_dz_SPECS = dN_dz[subsurveys=='SPECS',:].sum(axis=0)
-        dN_dxi_500d = dN_dxi_survey[subsurveys=='SPTPOL_500d',:].sum(axis=0)
-        dN_dxi_SZ = dN_dxi_survey[subsurveys=='SZ',:].sum(axis=0)
-        dN_dxi_SPECS = dN_dxi_survey[subsurveys=='SPECS',:].sum(axis=0)
+        # dN_dxi_survey = np.array([field_results[i][4] for i in range(num_fields)])
+        # subsurveys = np.array([field_results[i][5] for i in range(num_fields)])
+        # dN_dz_500d = dN_dz[subsurveys=='SPTPOL_500d',:].sum(axis=0)
+        # dN_dz_SZ = dN_dz[subsurveys=='SZ',:].sum(axis=0)
+        # dN_dz_SPECS = dN_dz[subsurveys=='SPECS',:].sum(axis=0)
+        # dN_dxi_500d = dN_dxi_survey[subsurveys=='SPTPOL_500d',:].sum(axis=0)
+        # dN_dxi_SZ = dN_dxi_survey[subsurveys=='SZ',:].sum(axis=0)
+        # dN_dxi_SPECS = dN_dxi_survey[subsurveys=='SPECS',:].sum(axis=0)
 
         # print 'abundance lnlike %.3f, Ntotal %.2f'%(lnlike, Ntotal)
 
-        return lnlike, dN_dz_total, dN_dz_500d, dN_dz_SZ, dN_dz_SPECS, dN_dxi, dN_dxi_500d, dN_dxi_SZ, dN_dxi_SPECS, Ntotal
+        return lnlike, dN_dz, dN_dxi, Ntotal
 
 
     ##########
     def lnlike_field(self, fieldidx):
         """Returns (ln-likelihood, Ntotal) for a given SPT field (index)."""
         # dN/dln(zeta)
-        if self.SPT_survey['FIELD'][fieldidx]=='SPTPOL_500d':
-            tmp = 'deep'
+        if self.SPT_survey['FIELD'][fieldidx]=='sptpol_500d_MCMF':
+            tmp = 'SZ_lambdacut_deep'
+        elif '_MCMF' in self.SPT_survey['FIELD'][fieldidx]:
+            tmp = 'SZ_lambdacut_shallow'
         else:
-            tmp = 'shallow'
+            tmp = 'SZ'
         dN_dlnzeta = self.dN_dlnzeta_unitSolidAng[tmp] * self.SPT_survey['AREA'][fieldidx] * (np.pi/180)**2
         with np.errstate(divide='ignore'):
             lndN_dlnzeta = np.log(dN_dlnzeta)
 
         # Apply field scaling factor
         this_zeta_m = self.zeta_m * self.SPT_survey['GAMMA'][fieldidx]
-        if self.SPT_survey['SURVEY'][fieldidx]=='SPECS':
+        if '_sptpol' in self.SPT_survey['FIELD'][fieldidx]:
             this_zeta_m*= self.scaling['SPECS_calib']
 
         # dN/dxi = dN/dlnzeta dlnzeta/dxi (unconvolved)
@@ -159,18 +160,4 @@ class NumberCount:
                 this_lnlike = np.log(np.trapz(integrand, zarr))
                 lnlike_this_field+= this_lnlike
 
-        ##### unconfirmed candidates
-        thisfield_unconf = np.where((self.catalog['FIELD']==self.SPT_survey['FIELD'][fieldidx])
-            & (self.catalog['REDSHIFT']==0.) & (self.catalog['REDSHIFT_LIMIT']<=self.surveyCutRedshift[1]))[0]
-        for i in thisfield_unconf:
-            # If it's a false detection, it's drawn from dN_false/dxi
-            dNdxifalse = self.SPT_survey['BETA'][fieldidx] * self.SPT_survey['AREA'][fieldidx]/2500 * self.SPT_survey['ALPHA'][fieldidx]\
-                * np.exp(-self.SPT_survey['BETA'][fieldidx]*(self.catalog['XI'][i]-5.))
-            # If it's a true, unconfirmed cluster, it's drawn from \int_redshift_lim^inf dz dN/dxi/dz
-            zarr = np.linspace(self.catalog['REDSHIFT_LIMIT'][i], self.HMF['z_arr'][-1], 25)
-            dNdxitrue = np.trapz(np.exp(lndNdxi(np.log(zarr), np.log(self.catalog['XI'][i])))[:,0], zarr)
-            # Either way, it's drawn from one of these
-            this_lnlike = np.log(dNdxifalse + dNdxitrue)
-            lnlike_this_field+= this_lnlike
-
-        return lnlike_this_field, Ntotal, dN_dz_out, dN_dxi_out, dN_dxi_out_survey, self.SPT_survey['SURVEY'][fieldidx]
+        return lnlike_this_field, Ntotal, dN_dz_out, dN_dxi_out, dN_dxi_out_survey, self.SPT_survey['FIELD'][fieldidx]

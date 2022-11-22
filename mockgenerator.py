@@ -116,12 +116,13 @@ def main(configMod_file, catalog_name):
 
 
         for i, z in enumerate(z_arr):
-            if SPT_survey['SURVEY'][fieldidx]=='SPTPOL_500d':
+            if SPT_survey['FIELD'][fieldidx]=='sptpol_500d_MCMF':
                 lambda_min = surveyCutLambda['deep'](z)
-            elif SPT_survey['SURVEY'][fieldidx]=='SZ':
+            elif '_MCMF' in SPT_survey['FIELD'][fieldidx]:
                 lambda_min = surveyCutLambda['shallow'](z)
             else:
                 lambda_min = 0.
+
             for j, M in enumerate(M_arr):
                 if N[i,j]==0:
                     continue

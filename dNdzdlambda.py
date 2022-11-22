@@ -61,7 +61,7 @@ class DistCompute:
         dN_dz_dlnobs = self.dN_dlnobs_deg2 * self.SPT_survey['AREA'][fieldidx]
         # xi|M
         this_zeta_m = self.zeta_m * self.SPT_survey['GAMMA'][fieldidx]
-        if self.SPT_survey['SURVEY'][fieldidx]=='SPECS':
+        if '_sptpol' in self.SPT_survey['FIELD'][fieldidx]:
             this_zeta_m*= self.scaling['SPECS_calib']
         this_xi_m = scaling_relations.zeta2xi(this_zeta_m)
         # Cut in zeta
@@ -71,10 +71,12 @@ class DistCompute:
         # Integrate out zeta [z,lambda]
         dN_dz_dlnrichness = np.sum(.5*(dN_dz_dlnobs[:,:,1:]+dN_dz_dlnobs[:,:,:-1])*(np.log(this_zeta_m[:,1:]/this_zeta_m[:,:-1]))[:,None,:], axis=2)
         # Cut in lambda
-        if self.SPT_survey['FIELD'][fieldidx]=='SPTPOL_500d':
+        if self.SPT_survey['FIELD'][fieldidx]=='sptpol_500d_MCMF':
             lambda_min = self.surveyCutRichness['deep'](self.HMF['z_arr'])
-        else:
+        elif '_MCMF' in self.SPT_survey['FIELD'][fieldidx]:
             lambda_min = self.surveyCutRichness['shallow'](self.HMF['z_arr'])
+        else:
+            lambda_min = np.zeros(self.HMF['len_z'])
         dN_dz_dlnrichness[self.richness_m<lambda_min[:,None]] = 0.
         with np.errstate(all='ignore'):
             lndN_dz_dlnrichness = np.log(dN_dz_dlnrichness)

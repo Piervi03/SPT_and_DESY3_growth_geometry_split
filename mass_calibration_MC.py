@@ -175,7 +175,7 @@ class MassCalibration:
 
         ##### Set SPT field scaling factor
         self.thisSPTfield_gamma = float(self.SPT_survey['GAMMA'][self.SPT_survey['FIELD']==self.catalog['FIELD'][i]])
-        if self.SPT_survey['SURVEY'][self.SPT_survey['FIELD']==self.catalog['FIELD'][i]]=='SPECS':
+        if '_sptpol' in self.catalog['FIELD'][i]:
             self.thisSPTfield_gamma*= self.scaling['SPECS_calib']
 
         ##### Set up random number generator and get likelihood
@@ -310,10 +310,9 @@ class MassCalibration:
         ln(M_richness)."""
         # Compute lambda_min
         if self.todo['lambda_min']:
-            this_survey = self.SPT_survey['SURVEY'][self.SPT_survey['FIELD']==self.catalog['FIELD'][dataID]]
-            if this_survey=='SPTPOL_500d':
+            if self.catalog['FIELD'][dataID]=='sptpol_500d_MCMF':
                 lambda_min = self.surveyCutRichness['deep'](self.catalog['REDSHIFT'][dataID])
-            elif this_survey=='SZ':
+            elif '_MCMF' in self.catalog['FIELD'][dataID]:
                 lambda_min = self.surveyCutRichness['shallow'](self.catalog['REDSHIFT'][dataID])
             else:
                 lambda_min = 0.

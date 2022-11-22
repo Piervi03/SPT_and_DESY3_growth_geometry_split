@@ -133,7 +133,7 @@ class MassCalibration:
 
         ##### Set SPT field scaling factor
         self.thisSPTfield_gamma = float(self.SPT_survey['GAMMA'][self.SPT_survey['FIELD']==self.catalog['FIELD'][i]])
-        if self.SPT_survey['SURVEY'][self.SPT_survey['FIELD']==self.catalog['FIELD'][i]]=='SPECS':
+        if '_sptpol' in self.catalog['FIELD'][i]:
             self.thisSPTfield_gamma*= self.scaling['SPECS_calib']
 
         #####
