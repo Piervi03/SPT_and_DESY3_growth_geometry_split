@@ -143,7 +143,8 @@ class NumberCount:
         lnlike_this_field = -Ntotal
 
         ##### confirmed clusters
-        thisfield_conf = np.where((self.catalog['FIELD']==self.SPT_survey['FIELD'][fieldidx])
+        thisfield_conf = np.nonzero((self.catalog['FIELD']==self.SPT_survey['FIELD'][fieldidx])
+            & (self.catalog['COSMO_SAMPLE']==1)
             & (self.catalog['XI']>=self.SPT_survey['XI_MIN'][fieldidx]) & (self.catalog['XI']<=self.surveyCutSZmax)
             & (self.catalog['REDSHIFT']>=self.surveyCutRedshift[0]) & (self.catalog['REDSHIFT']<=self.surveyCutRedshift[1]))[0]
         for i in thisfield_conf:

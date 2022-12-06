@@ -1,7 +1,7 @@
 import numpy as np
 
-SPT_survey = '/home/bocquet/SPT_cluster_data/SPT_SZ_ECS_500d_survey_220712.txt'
-MCMF_lambda_min = '/home/bocquet/SPT_cluster_data/MCMF_lambda_min_220730.txt'
+SPT_survey = 'data/SPT_SZ_ECS_500d_survey.txt'
+MCMF_lambda_min = 'data/MCMF_lambda_min.txt'
 
 random_seed = 0
 
@@ -44,7 +44,7 @@ scaling = {'Asz': .96, 'Bsz': 1.5, 'Csz': .5, 'Dsz': .2, 'zeta_min': 1.,
            'richmPivot': 3e14,
             'YXPARAM': 'SPT_XVP',
            }
-tmp = np.loadtxt('/archive2/users/grandis/DES-Y3-SPT/SZ-dnf/_18-25_metapost_')
+tmp = np.loadtxt('data/MCMF_dnf_500.txt')
 scaling['DESwl_z'] = [.252, .470, .783,]
 scaling['DESwl_bias_mean'] = np.mean(tmp[:,:3], axis=0)
 scaling['DESwl_bias_m_mean'] = np.mean(tmp[:,3])
