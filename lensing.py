@@ -15,8 +15,8 @@ import cosmo, Mconversion_concentration, miscentering, scaling_relations
 ########################################
 
 # Limits for stack
-z_mid = .55
-xi_mid = 5.5
+z_lims = [.25, .4, .6, .95]
+xi_lims = [4.25, 5.5, 1e10]
 
 # Mass [Msun/h]
 grid_lgM_min = 12.5
@@ -457,15 +457,13 @@ def readdata(catalog, HSTfile, MegacamFile, DESfile, save_shear_profiles):
                                             'tomo_weights': f['clusters'][name]['tomo_weights_R'][:][:,1:],
                                             }
                     if save_shear_profiles:
-                        if catalog['REDSHIFT'][i]<z_mid:
-                            p1 = 'zlo'
-                        else:
-                            p1 = 'zhi'
-                        if catalog['XI'][i]<xi_mid:
-                            p2 = 'xilo'
-                        else:
-                            p2 = 'xihi'
-                        catalog['WLdata'][i]['r_arcmin_stack'] = f['stack_%s%s'%(p1,p2)]['r_arcmin'][:]
+                        tmp  = ['zlo', 'zmid', 'zhi']
+                        idx = np.digitize(catalog['REDSHIFT'][i], z_lims)-1
+                        zname = tmp[idx]
+                        tmp = ['xilo', 'xihi']
+                        idx = np.digitize(catalog['REDSHIFT'][i], xi_lims)-1
+                        xiname = tmp[idx]
+                        catalog['WLdata'][i]['r_arcmin_stack'] = f['stack_%s%s'%(zname, xiname)]['r_arcmin'][:]
 
 
     ##### Megacam data
