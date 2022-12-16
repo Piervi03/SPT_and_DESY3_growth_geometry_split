@@ -39,7 +39,7 @@ class MisCentering(object):
     def get_mean_Rmis_SPT(self, cluster, cosmology):
         """Mean miscentering, accounting for SPT positional uncertainty and
         intrinsic SZ miscentering."""
-        sigma_obs_arcmin = np.sqrt(1.3**2 + self.opt['kappa_SPT']**2 * cluster['THETA_CORE']**2)/cluster['XI']
+        sigma_obs_arcmin = np.sqrt((1.3**2 + self.opt['kappa_SPT']**2 * cluster['THETA_CORE']**2)/cluster['XI']**2 + (5./60)**2)
         sigma_obs_Mpch = sigma_obs_arcmin / 60 * np.pi/180 * cosmo.dA(cluster['REDSHIFT'], cosmology)
         rho, sigma_0, sigma_1 = generic_miscenter(self.opt, cluster['richness'], cluster['REDSHIFT'])
         sigma_0 = np.sqrt(sigma_0**2 + sigma_obs_Mpch**2)
