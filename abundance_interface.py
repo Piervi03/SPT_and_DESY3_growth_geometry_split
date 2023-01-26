@@ -7,6 +7,7 @@ from cosmosis.datablock import option_section
 import abundance as abundance_poisson
 import abundance_covmat
 
+
 def setup(options):
     ##### Global variables
     do_lambda_min = options.get_bool(option_section, 'lambda_min')
@@ -33,6 +34,7 @@ def setup(options):
                                                      NPROC)
     return number_count, do_lambda_min
 
+
 def execute(block, stuff):
     number_count, do_lambda_min = stuff
     # Only need cosmo for E(z)-type stuff
@@ -46,7 +48,7 @@ def execute(block, stuff):
     for p in ['Asz', 'Bsz', 'Csz', 'Dsz', 'Esz', 'SPECS_calib', 'SZmPivot', 'zeta_min']:
         scaling[p] = block.get_double('mor_parameters', p)
     # Convolved halo mass function
-    HMF = {'M_arr': block.get_double_array_1d('dN_dmultiobs', 'M_arr')}
+    HMF = {'lnM_arr': block.get_double_array_1d('dN_dmultiobs', 'lnM_arr')}
     if do_lambda_min:
         z = {}
         for tmp in ['SZ_lambdacut_shallow', 'SZ_lambdacut_deep', 'SZ']:
@@ -69,6 +71,7 @@ def execute(block, stuff):
         block.put_double('dN', 'dN_dxi_%d'%i, n)
     block.put_double('likelihoods', 'ABUNDANCE_LIKE', lnlike)
     return 0
+
 
 def cleanup(config):
     pass

@@ -7,6 +7,7 @@ from cosmosis.datablock import option_section
 
 import dNdzdlambda
 
+
 def setup(options):
     ##### Global variables
     NPROC = options.get_int(option_section, 'NPROC')
@@ -26,6 +27,7 @@ def setup(options):
                                        NPROC)
     return computer
 
+
 def execute(block, computer):
     # Only need cosmo for E(z)-type stuff
     cosmology = {
@@ -39,7 +41,7 @@ def execute(block, computer):
               'Arichness', 'Brichness', 'Crichness', 'richmPivot']:
         scaling[p] = block.get_double('mor_parameters', p)
     # Convolved halo mass function
-    HMF = {'M_arr': block.get_double_array_1d('dN_dmultiobs', 'M_arr'),
+    HMF = {'lnM_arr': block.get_double_array_1d('dN_dmultiobs', 'lnM_arr'),
            'z_arr': block.get_double_array_1d('dN_dmultiobs', 'richness_SZ_z'),
            'dNdlnM': block.get_double_array_nd('dN_dmultiobs', 'richness_SZ')}
     HMF['len_z'] = len(HMF['z_arr'])
@@ -50,6 +52,7 @@ def execute(block, computer):
     for i,n in enumerate(dN_dlambda):
         block.put_double('dN', 'dN_dlambda_%d'%i, n)
     return 0
+
 
 def cleanup(config):
     pass

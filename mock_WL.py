@@ -4,13 +4,12 @@ import time
 import fitsio
 import h5py
 import numpy as np
-from numpy.lib import scimath as sm
-from scipy import stats
 import importlib
 from astropy.table import Table
-from scipy.interpolate import interp1d, InterpolatedUnivariateSpline
+from scipy.interpolate import interp1d
 
 import cosmo, lensing, Mconversion_concentration, miscentering
+
 
 # Syntax
 # python mock_WL.py WLconfig mockconfig catalog.fits
@@ -74,14 +73,14 @@ class MockUpDESWL:
         # Read boost chain
         with open(self.config_mod.DES['DESboostfile'], 'r') as f:
             tmp = f.readline().split()[1:]
-        dat = np.median(np.loadtxt(self.config_mod.DES['DESboostfile']), axis=0)
+        dat = np.mean(np.loadtxt(self.config_mod.DES['DESboostfile']), axis=0)
         self.boost_dict = {'z_arr': np.linspace(.2, .9, 10)}
         for n,name in enumerate(tmp):
             self.boost_dict[name] = dat[n]
         # Initialize miscentering
         with open(self.config_mod.DES['DESmiscenterfile'], 'r') as f:
             tmp = f.readline().split()[1:]
-        dat = np.median(np.loadtxt(self.config_mod.DES['DESmiscenterfile']), axis=0)
+        dat = np.mean(np.loadtxt(self.config_mod.DES['DESmiscenterfile']), axis=0)
         miscenter_dict = {}
         for n,name in enumerate(tmp):
             miscenter_dict[name] = dat[n]
@@ -105,12 +104,12 @@ class MockUpDESWL:
         self.source_weights_mean = np.average(self.source_weights[0]*np.ones(self.source_weights[1:].shape), weights=self.source_weights[1:], axis=1)
         self.source_weights_cum = np.cumsum(self.source_weights[1:], axis=1)
         self.source_weights_cum/= self.source_weights_cum[:,-1][:,None]
-        # DES Y3 tomo bin weights
-        weights = np.load(self.config_mod.DES['tomo_bin_weight_file'])
-        self.w_interp = interp1d(weights[0], weights[1:])
+        # DES Y3 tomo bin Sigma_crit
+        tmp = np.load(self.config_mod.DES['Sigmacrit_file'])
+        self.invSigmacrit_interp = interp1d(tmp[0], tmp[1:])
 
 
-    def get_gt(self, z, beta_avg):
+    def get_gt(self, z, beta_bin, w_r_bin):
         """Return the predicted radial shear profile for a given mass, redshift,
         and betas."""
         ##### M200 and scale radius, wrt critical density, everything in h units
@@ -119,16 +118,18 @@ class MockUpDESWL:
         rs = self.r_Delta/c
         x = self.r_arr / rs
         # Sigma_crit, with c^2/4piG [h Msun/Mpc^2]
-        Sigma_c = 1.6624541593797974e+18/self.Dl/beta_avg
-        # Centered shear profile for reference
+        invSigma_c = self.Dl*beta_bin/cosmo.c2_4piG
+        # Centered shear profiles for reference
         Sigma_NFW = lensing.get_Sigma(x, rs, self.rho_c_z, delta_c)
         DeltaSigma_NFW = lensing.get_DeltaSigma(x, rs, self.rho_c_z, delta_c)
-        g_t_cen = DeltaSigma_NFW/Sigma_c / (1-Sigma_NFW/Sigma_c)
-        # Miscentered profile
+        g_t_cen = DeltaSigma_NFW[:,None]*invSigma_c[None,:] / (1-Sigma_NFW[:,None]*invSigma_c[None,:])
+        g_t_cen = np.sum(g_t_cen*w_r_bin[:,1:]*self.tomo_rescale[None,1:], axis=1)/np.sum(w_r_bin[:,1:], axis=1)
+        # Miscentered profiles
         R_mis = self.miscenterer.get_mean_Rmis(self.cat, self.cosmology)
         Sigma_mis = lensing.get_Sigma_mis(self.r_arr, rs, self.rho_c_z, delta_c, R_mis)
         DeltaSigma_mis = lensing.get_DeltaSigma_mis(self.r_arr, rs, self.rho_c_z, delta_c, R_mis)
-        g_t_mis = DeltaSigma_mis/Sigma_c / (1-Sigma_mis/Sigma_c)
+        g_t_mis = DeltaSigma_mis[:,None]*invSigma_c[None,:] / (1-Sigma_mis[:,None]*invSigma_c[None,:])
+        g_t_mis = np.sum(g_t_mis*w_r_bin[:,1:]*self.tomo_rescale[None,1:], axis=1)/np.sum(w_r_bin[:,1:], axis=1)
 
         return g_t_mis, g_t_cen, R_mis
 
@@ -144,28 +145,25 @@ class MockUpDESWL:
         """Return stochastic realization of source galaxy redshifts and weights for each radial bin.
         Assume equal number of sources in all tomographic bins."""
         area_bin_arcmin = np.pi * (self.r_arcmin_edges[1:]**2 - self.r_arcmin_edges[:-1]**2)
-        z_dist_r = np.empty((len(area_bin_arcmin), len(self.source_z['z'])))
         w_dist_b = 3*[None]
         N_r = np.zeros(len(area_bin_arcmin))
+        sum_w = np.zeros((len(area_bin_arcmin),4))
         for i in range(len(area_bin_arcmin)):
             # Each tomo bin gets N/3 sources with weights w_dist_b
             for b in range(3):
                 this_N = self.rng.poisson(area_bin_arcmin[i] * self.config_mod.DES['source_p_arcmin2'] /3)
                 N_r[i]+= this_N
                 w_dist_b[b] = self.draw_source_weight(b+2, this_N)
-            sum_w = self.tomo_weights[1:] * [np.sum(w_dist_b[b]) for b in range(3)]
-            z_dist_r[i] = np.sum(self.source_z['allbins']*sum_w[:,None], axis=0)/np.sum(sum_w)
-        z_dist = np.average(self.source_z['allbins'], weights=self.tomo_weights[1:]*self.source_weights_mean, axis=0)
-        return z_dist_r, z_dist, N_r
+            sum_w[i,1:] = [np.sum(w_dist_b[b]) for b in range(3)]
+        return N_r, sum_w
 
 
-    def get_beta(self, z_cl, z_dist):
-        """Return `<beta>` and `<beta**2>` given a redshift distribution."""
+    def get_beta(self, z_cl):
+        """Return `<beta>` and `<beta**2>` for the Y3 redshift distributions."""
         beta = np.array([cosmo.dA_two_z(z_cl, z, self.cosmology)/cosmo.dA(z, self.cosmology) for z in self.source_z['z']])
         beta[self.source_z['z']<=z_cl] = 0
-        beta_2d = beta * np.ones(z_dist.shape)
-        beta_avg = np.average(beta_2d, weights=z_dist, axis=1)
-        return beta_avg
+        beta_bin = np.sum(self.source_z['allbins']*beta[None,:], axis=1)/np.sum(self.source_z['allbins'], axis=1)
+        return beta_bin
 
 
     def apply_cl_mem_contamination(self, z, Rmis, g_t):
@@ -179,25 +177,29 @@ class MockUpDESWL:
         self.cat = cat
         z_cl = cat['REDSHIFT']
         self.M_Delta = cat['Mwl_DES_200']
-        self.tomo_weights = self.w_interp(z_cl)
         self.rho_c_z = cosmo.RHOCRIT * cosmo.Ez(z_cl, self.cosmology)**2
         self.Dl = cosmo.dA(z_cl, self.cosmology)
         self.r_Delta = (3*self.M_Delta/4/np.pi/self.Delta_crit/self.rho_c_z)**(1/3)
+        # Source bin scaling and weighting
+        invSigmacrit = self.invSigmacrit_interp(z_cl)
+        with np.errstate(all='ignore'):
+            self.tomo_rescale = invSigmacrit[3]/invSigmacrit[:]
+        self.tomo_weights = 1/self.tomo_rescale**2
+        self.tomo_rescale[np.isinf(self.tomo_rescale)] = 0.
         # Radii
         r_min = .5
         r_max = 3.2 / (1+z_cl)
-        all_edges = np.logspace(-1, 1, 21)*self.cosmology['h']
+        all_edges = np.linspace(.5,2.6,8)
         good_idx = ((r_min<=all_edges)&(all_edges<=r_max)).nonzero()[0]
         these_edges = all_edges[good_idx]
-        these_edges = np.append(np.insert(these_edges, 0, r_min), r_max)
         self.r_arr = 2/3 * (these_edges[1:]**3-these_edges[:-1]**3)/(these_edges[1:]**2-these_edges[:-1]**2)
         self.r_arcmin = self.r_arr / self.Dl * 60*180/np.pi
         self.r_arcmin_edges = these_edges / self.Dl * 60*180/np.pi
         # Source redshift distributions and shear profiles
-        source_dist_r, source_dist, N_r = self.get_source_gals(z_cl)
-        beta_avg = self.get_beta(z_cl, source_dist_r)
-        beta_fid = self.get_beta(z_cl, source_dist[None,:])
-        g_t_mis, g_t_cen, R_mis = self.get_gt(z_cl, beta_avg)
+        N_r, w_r_bin = self.get_source_gals(z_cl)
+        beta_bin = self.get_beta(z_cl)
+        w_r_bin*= self.tomo_weights
+        g_t_mis, g_t_cen, R_mis = self.get_gt(z_cl, beta_bin, w_r_bin)
         g_t_cont = self.apply_cl_mem_contamination(z_cl, R_mis, g_t_mis)
         # Error on shear is shape_noise / sqrt(N(r))
         good_idx = (np.isfinite(g_t_cont)&(N_r>4)).nonzero()[0]
@@ -213,12 +215,9 @@ class MockUpDESWL:
                     'shear_noerr': g_t_cont[good_idx],
                     'shear': g_t,
                     'shear_err': g_t_err,
-                    'source_dist': source_dist,
-                    'source_dist_r': source_dist_r,
-                    'beta': beta_avg[good_idx],
-                    'beta_fid': beta_fid,
-                    'tomo_weights': self.tomo_weights,
-                    'tomo_weights_R': self.tomo_weights*np.ones((len(good_idx), 4))
+                    'beta': beta_bin,
+                    'tomo_weights_R': w_r_bin[good_idx],
+                    'tomo_rescale': self.tomo_rescale,
                    }
         return res_dict
 

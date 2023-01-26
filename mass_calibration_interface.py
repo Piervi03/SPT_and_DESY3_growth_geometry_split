@@ -1,9 +1,9 @@
 from __future__ import division
 import numpy as np
 from scipy.interpolate import interp1d
-from astropy.table import Table
 from cosmosis.datablock import option_section
 import mass_calibration, lensing
+
 
 def setup(options):
     ##### Config parameters
@@ -66,7 +66,7 @@ def execute(block, masscalibration):
               'Ax', 'Bx', 'Cx', 'Ex', 'dlnMg_dlnr', 'XraymPivot',
               'DES_b_dev_0', 'DES_b_dev_1', 'DES_b_dev_2',
               'DES_b_m', 'DES_m_piv',
-              'HSTscatterLSS', 'MegacamScatterLSS', 
+              'HSTscatterLSS', 'MegacamScatterLSS',
               'Arichness', 'Brichness', 'Crichness', 'richmPivot',
               'Adisp', 'Bdisp', 'Cdisp',]:
         scaling[p] = block.get_double('mor_parameters', p)
@@ -79,7 +79,7 @@ def execute(block, masscalibration):
 
     # Get multi-obs HMF convolutions
     HMF_convos = {}
-    HMF_convos['M_arr'] = block.get_double_array_1d('dN_dmultiobs', 'M_arr')
+    HMF_convos['lnM_arr'] = block.get_double_array_1d('dN_dmultiobs', 'lnM_arr')
     for pair_name in masscalibration.observable_pairs:
         if pair_name[:3]=='HST':
             HMF_convos[pair_name] = {}
@@ -100,6 +100,7 @@ def execute(block, masscalibration):
     block.put_double('likelihoods', 'MASS_CALIBRATION_LIKE', lnlike)
 
     return 0
+
 
 def cleanup(config):
     pass

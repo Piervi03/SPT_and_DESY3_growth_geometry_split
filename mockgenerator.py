@@ -1,10 +1,9 @@
 from __future__ import division, print_function
 import numpy as np
-import os
 import sys
 import time
 import importlib
-from scipy.interpolate import interp1d, RectBivariateSpline
+from scipy.interpolate import interp1d
 from astropy.table import Table
 
 import cosmo, Mconversion_concentration, scaling_relations
@@ -28,6 +27,7 @@ def main(configMod_file, catalog_name):
 
     # Set up HMF
     M_arr =  np.logspace(13, 16, 301)
+    lnM_arr = np.log(M_arr)
     dlnm = np.log(M_arr[1]/M_arr[0])
     dz_ = .01
     z_arr = np.linspace(configMod.surveyCutRedshift[0], configMod.surveyCutRedshift[1], int((configMod.surveyCutRedshift[1]-configMod.surveyCutRedshift[0])/dz_) + 1)
@@ -85,7 +85,7 @@ def main(configMod_file, catalog_name):
     covs = np.empty((len(z_arr), len(M_arr), 5, 5))
     for i, z in enumerate(z_arr):
         for j, M in enumerate(M_arr):
-            scaling['DWL_DES'] = scaling_relations.WLscatter('main', M, z, scaling)
+            scaling['DWL_DES'] = scaling_relations.WLscatter('main', np.log(M), z, scaling)
             covs[i,j,:,:] = [[scaling['DWL_DES']**2, scaling['rhoWLX']*scaling['DWL_DES']*scaling['Dx'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_DES'], scaling['rhoWLrichness']*scaling['DWL_DES']*scaling['Drichness'], 0],
                              [scaling['rhoWLX']*scaling['DWL_DES']*scaling['Dx'], scaling['Dx']**2, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['rhoXrichness']*scaling['Dx']*scaling['Drichness'], scaling['rhoWLX']*scaling['DWL_HST']*scaling['Dx']],
                              [scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_DES'], scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2, scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_HST']],
@@ -107,7 +107,7 @@ def main(configMod_file, catalog_name):
         # Poisson realization
         N = rng.poisson(HMF_dNdM_V*SPT_survey['AREA'][fieldidx])
 
-        obs_0 = np.array([scaling_relations.mass2obs(name, M_arr[None,:], z_arr[:,None], scaling, cosmology)
+        obs_0 = np.array([np.exp(scaling_relations.lnmass2lnobs(name, lnM_arr[None,:], z_arr[:,None], scaling, cosmology))
                           for name in ('WLDES', configMod.Xray_obs, 'zeta', 'richness',)])
         obs_0 = np.concatenate((obs_0, M_arr*np.ones((len(z_arr), len(M_arr)))[None,:]))
 
@@ -138,17 +138,21 @@ def main(configMod_file, catalog_name):
                         Mg = rng.lognormal(np.log(obs[k,1]), sigma=configMod.Xerr)
 
                         # Observed richness
-                        if configMod.richness_scatter_model=='lognormal':
-                            richness_obs = obs[k,3]
-                        elif configMod.richness_scatter_model=='lognormalrelPoisson':
-                            richness_obs = np.exp(rng.normal(np.log(obs[k,3]), scale=1/np.sqrt(obs[k,3])))
-                        elif configMod.richness_scatter_model=='lognormalGaussPoisson':
-                            richness_obs = rng.normal(obs[k,3], scale=np.sqrt(obs[k,3]))
+                        if lambda_min==0.:
+                            # No measurement here
+                            richness_obs = 0.
                         else:
-                            raise ValueError("Unknown value for richness_scatter_model")
-                        # Cut in richness
-                        if richness_obs<lambda_min:
-                            continue
+                            if configMod.richness_scatter_model=='lognormal':
+                                richness_obs = obs[k,3]
+                            elif configMod.richness_scatter_model=='lognormalrelPoisson':
+                                richness_obs = np.exp(rng.normal(np.log(obs[k,3]), scale=1/np.sqrt(obs[k,3])))
+                            elif configMod.richness_scatter_model=='lognormalGaussPoisson':
+                                richness_obs = rng.normal(obs[k,3], scale=np.sqrt(obs[k,3]))
+                            else:
+                                raise ValueError("Unknown value for richness_scatter_model")
+                            # Cut in richness
+                            if richness_obs<lambda_min:
+                                continue
                             
                         mock.append((M, z, xi, Mg, obs[k,0], richness_obs, obs[k,4], SPT_survey['GAMMA'][fieldidx]))
                         fieldnames.append(field)

@@ -64,11 +64,11 @@ def execute(block, multi_obs_convolution):
         covmat[c] = block.get_double_array_nd('mor_parameters', c)
     # Halo mass function
     z, M, N = block.get_grid('HMF', 'z_arr', 'M_arr', 'dNdlnM')
-    HMF = {'z_arr': z, 'M_arr': M, 'dNdlnM': N}
+    HMF = {'z_arr': z, 'lnM_arr': np.log(M), 'dNdlnM': N}
 
     ##### Compute the convolutions
     dN_dmultiobs_dict = multi_obs_convolution.execute(HMF, scaling, covmat, cosmology)
-    block.put_double_array_1d('dN_dmultiobs', 'M_arr', dN_dmultiobs_dict['M_arr'])
+    block.put_double_array_1d('dN_dmultiobs', 'lnM_arr', dN_dmultiobs_dict['lnM_arr'])
     for pair_name in multi_obs_convolution.observable_pairs:
         block.put_double_array_nd('dN_dmultiobs', pair_name, dN_dmultiobs_dict[pair_name])
         block.put_double_array_1d('dN_dmultiobs', '%s_z'%pair_name, dN_dmultiobs_dict['%s_z'%pair_name])

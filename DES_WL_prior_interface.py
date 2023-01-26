@@ -4,6 +4,7 @@ import scipy.linalg as LA
 
 from cosmosis.datablock import option_section
 
+
 def setup(options):
     # Posterior distribution file from Grandis&Bocquet et al. (2021)
     DES_WL_priors_file = options.get_string(option_section, 'DES_WL_priors_file')
@@ -17,7 +18,7 @@ def setup(options):
     DES_WL_prior['cov'][3,3]+= hydro_corr['b_M']**2
     DES_WL_prior['cov'][4:7,4:7]+= hydro_corr['s']**2 * np.eye(3)
     DES_WL_prior['cov'][7,7]+= hydro_corr['s_M']**2
-    
+
     # Individual components for ease of use
     DES_WL_prior['DESwl_bias_mean'] = DES_WL_prior['mean'][:3]
     DES_WL_prior['DESwl_bias_m_mean'] = DES_WL_prior['mean'][3]
@@ -43,7 +44,7 @@ def execute(block, DES_WL_prior):
 
     # Likelihood
     resi = np.array(p) - DES_WL_prior['mean']
-    chi2 = np.dot(resi, LA.solve(DES_WL_prior['cov'], resi).T )
+    chi2 = np.dot(resi, LA.solve(DES_WL_prior['cov'], resi).T)
     lnlike = -.5*chi2
     block.put_double('likelihoods', 'DES_WL_PRIOR_LIKE', lnlike)
 

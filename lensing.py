@@ -1,16 +1,13 @@
 from __future__ import division, print_function
 import numpy as np
 from numpy.lib import scimath as sm
-from scipy.interpolate import interp1d, InterpolatedUnivariateSpline, RectBivariateSpline
-from scipy.stats import norm
 from scipy.interpolate import InterpolatedUnivariateSpline, RectBivariateSpline
 from multiprocessing import Pool
 
 import h5py
 import imp
-import time
 
-import cosmo, Mconversion_concentration, miscentering, scaling_relations
+import cosmo, Mconversion_concentration, miscentering
 
 ########################################
 
@@ -24,9 +21,11 @@ grid_lgM_max = 16.
 grid_lgM_N = 32
 lnM_arr_default = np.log(10.)*np.linspace(grid_lgM_min, grid_lgM_max, grid_lgM_N)
 
+
 def unwrap_self_one_cluster(arg):
     """Wrapper function needed to make multiprocessing work within a class"""
     return SPTlensing.one_cluster(*arg)
+
 
 ##### This class reads and stores shear data and calculates ln P(shear|P(M))
 
@@ -59,14 +58,14 @@ class SPTlensing:
             # Read boost chain
             with open(DESboostfile, 'r') as f:
                 tmp = f.readline().split()[1:]
-            dat = np.median(np.loadtxt(DESboostfile), axis=0)
+            dat = np.mean(np.loadtxt(DESboostfile), axis=0)
             self.boost_dict = {'z_arr': np.linspace(.2, .9, 10)}
             for n,name in enumerate(tmp):
                 self.boost_dict[name] = dat[n]
             # Initialize miscentering
             with open(DESmiscenterfile, 'r') as f:
                 tmp = f.readline().split()[1:]
-            dat = np.median(np.loadtxt(DESmiscenterfile), axis=0)
+            dat = np.mean(np.loadtxt(DESmiscenterfile), axis=0)
             miscenter_dict = {}
             for n,name in enumerate(tmp):
                 miscenter_dict[name] = dat[n]
@@ -122,7 +121,6 @@ class SPTlensing:
 
         return 0
 
-
     def setup_one_cluster_mode(self, cosmology):
         """Function name says it all. Call this function before calling
         `one_cluster` directly. Not relevant if you are calling `lnlike_all`."""
@@ -133,7 +131,6 @@ class SPTlensing:
         self.MCrel_DES = Mconversion_concentration.ConcentrationConversion(3.5)
         # Pre-compute angular diameter distances
         self.get_dAs(self.z_cl_min, self.z_cl_max, 5., cosmology)
-
 
     ########################################
 
@@ -164,16 +161,15 @@ class SPTlensing:
         # print('done', t[-1]-t[0], np.diff(t))
         return res
 
-
     ########################################
 
     def shear_model_DES(self, mass):
         """Return DES shear model given mass."""
-        # Sigma_crit, with c^2/4piG [h Msun/Mpc^2]
+        # Sigma_crit in each source bin, with c^2/4piG [h Msun/Mpc^2]
         Dl = np.exp(self.lndA_interp(np.log(self.cat_cl['REDSHIFT'])))
-        Sigma_c = cosmo.c2_4piG/Dl/self.beta_avg
+        invSigma_c = Dl*self.beta_avg/cosmo.c2_4piG
         # NFW halo stuff
-        rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.cat_cl['REDSHIFT'], self.cosmology)**2 # [h^2 Msun/Mpc^3]
+        rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.cat_cl['REDSHIFT'], self.cosmology)**2
         r200c = (3*mass/4/np.pi/200/rho_c_z)**(1/3)
         c200c = self.MCrel_DES.calC200(mass, self.cat_cl['REDSHIFT']) * np.ones(len(mass))
         delta_c = 200/3 * c200c**3 / (np.log(1+c200c) - c200c/(1+c200c))
@@ -184,13 +180,15 @@ class SPTlensing:
         r_Mpch = self.cat_cl['WLdata']['r_arcmin'] * Dl * np.pi/60/180
         Sigma_mis = get_Sigma_mis(r_Mpch[None,:], r_s[:,None], rho_c_z, delta_c[:,None], R_mis)
         DeltaSigma_mis = get_DeltaSigma_mis(r_Mpch[None,:], r_s[:,None], rho_c_z, delta_c[:,None], R_mis)
-        # Reduced shear profile [mass][radius]
-        reduced_shear = DeltaSigma_mis/Sigma_c / (1 - Sigma_mis/Sigma_c)
+        # Reduced shear profile [mass][radius][bin]
+        reduced_shear_bins = DeltaSigma_mis[:,:,None]*invSigma_c[None,None,:] / (1 - Sigma_mis[:,:,None]*invSigma_c[None,None,:])
+        # Rescaled averaging [mass][radius]
+        reduced_shear = np.sum(self.cat_cl['WLdata']['tomo_rescale'][None,None,:]*self.cat_cl['WLdata']['tomo_weights'][None,:,:]*reduced_shear_bins, axis=2)/np.sum(self.cat_cl['WLdata']['tomo_weights'], axis=1)
         # Cluster member contamination
         A = boost_get_A(self.boost_dict, 'Gausssmooth', self.boost_dict['z_arr'], self.cat_cl['REDSHIFT'], self.cat_cl['richness'], r_Mpch, R_mis)
         reduced_shear_cont = 1/(1+A) * reduced_shear
         # Model data back to DeltaSigma
-        DeltaSigma_data = (self.cat_cl['WLdata']['shear']*Sigma_c*(1+A))[None,:]/r200c[:,None]/rho_c_z
+        DeltaSigma_data = (self.cat_cl['WLdata']['shear']/invSigma_c[-1]*(1+A))[None,:]/r200c[:,None]/rho_c_z
         return reduced_shear_cont, DeltaSigma_mis/r200c[:,None]/rho_c_z, r_Mpch[None,:]/r200c[:,None], DeltaSigma_data
 
 
@@ -214,7 +212,7 @@ class SPTlensing:
         """Return Megacam shear model given mass."""
         Dl = np.exp(self.lndA_interp(np.log(self.cat_cl['REDSHIFT'])))
         # NFW halo stuff
-        rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.cat_cl['REDSHIFT'], self.cosmology)**2 # [h^2 Msun/Mpc^3]
+        rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.cat_cl['REDSHIFT'], self.cosmology)**2  # [h^2 Msun/Mpc^3]
         M200c = np.exp(self.MCrel.lnM_to_lnM200(self.cat_cl['REDSHIFT'], np.log(mass)))[0]
         r200c = (3*M200c/4/np.pi/200/rho_c_z)**(1/3)
         c200c = self.MCrel.calC200(M200c, self.cat_cl['REDSHIFT'])
@@ -230,7 +228,6 @@ class SPTlensing:
         g_2d = gamma_2d/(1-kappa_2d) * (1 + kappa_2d*(self.beta2_avg/self.beta_avg**2-1))
         return g_2d
 
-
     def Megacam_cluster(self, M_arr):
         """Return array lnP(Megacam data|Mwl) and optionally the model shear profiles."""
         # Model
@@ -243,7 +240,6 @@ class SPTlensing:
             return lnpOfMass, g_2d
         else:
             return lnpOfMass, None
-
 
     ########################################
 
@@ -279,7 +275,6 @@ class SPTlensing:
         # Reduced shear g_t [Radius][Mass]
         g_2d = np.array(magcorr) * gamma_2d/(1-kappa_2d) * betaCorr
         return g_2d
-
 
     def HST_cluster(self, M_arr):
         """Return array lnP(HST data|Mwl) and optionally the model shear profiles."""
@@ -325,17 +320,14 @@ class SPTlensing:
             self.get_beta_HST_Megacam(cosmology)
         return 0
 
-
     def get_beta_DES(self, cosmology):
-        """Return mean(beta) for DES clusters."""
+        """Return mean(beta) for each DES tomo bin."""
         beta = np.zeros(len(self.SOM_Z_MID))
         bgIdx = (self.SOM_Z_MID>self.cat_cl['REDSHIFT']).nonzero()[0]
         beta[bgIdx] = self.dA_twoz_interp(np.log(self.cat_cl['REDSHIFT']), np.log(self.SOM_Z_MID[bgIdx]))
         beta[bgIdx]/= np.exp(self.lndA_interp(np.log(self.SOM_Z_MID[bgIdx])))
-        weights = np.sum(self.cat_cl['WLdata']['tomo_weights'][:,:,None]*self.SOM_BINs[None,:,:], axis=1)
-        self.beta_avg = np.sum(beta*weights, axis=1)/np.sum(weights, axis=1)
+        self.beta_avg = np.sum(self.SOM_BINs*beta[None,:], axis=1)/np.sum(self.SOM_BINs, axis=1)
         return 0
-
 
     def get_beta_HST_Megacam(self, cosmology):
         """Compute <beta> and <beta^2> from distribution of redshift galaxies."""
@@ -371,6 +363,7 @@ def arcsec(z):
     val = 1j * np.log(val2 + val1)
     return .5 * np.pi + val
 
+
 def get_DeltaSigma(x, r_s, rho_c_z, delta_c):
     """Return Delta Sigma = Sigma - Sigma_mean"""
     fac = 2 * r_s * rho_c_z * delta_c
@@ -381,12 +374,14 @@ def get_DeltaSigma(x, r_s, rho_c_z, delta_c):
     val3 = 2 * np.log(x / 2) / x**2
     return fac * (val1+val2+val3)
 
+
 def get_Sigma(x, r_s, rho_c_z, delta_c):
     """Return Sigma_NFW"""
     fac = 2 * r_s * rho_c_z * delta_c
     val1 = 1 / (x**2 - 1)
     val2 = (arcsec(x) / (sm.sqrt(x**2 - 1))**3).real
     return fac * (val1-val2)
+
 
 def get_Sigma_mis(r_Mpch, r_s, rho_c_z, delta_c, R_mis):
     """Return Sigma(r) for an NFW profile but where Sigma is constant within
@@ -399,23 +394,22 @@ def get_Sigma_mis(r_Mpch, r_s, rho_c_z, delta_c, R_mis):
     Sigma[const_idx] = (Sigma_NFW_at_Rmis*ones)[const_idx]
     return Sigma
 
+
 def get_DeltaSigma_mis(r_Mpch, r_s, rho_c_z, delta_c, R_mis):
     """Return DeltaSigma(r) for an NFW profile but where Sigma is constant
     within `R_mis`. `r_Mpch` and `r_s` can be arrays (if `r_s` is array then
     `delta_c` should have same size), `R_mis` must be scalar."""
     # NFW Sigma and DeltaSigma
     x = r_Mpch/r_s
-    Sigma_NFW = get_Sigma(x, r_s, rho_c_z, delta_c)
     DeltaSigma_NFW = get_DeltaSigma(x, r_s, rho_c_z, delta_c)
-    Sigma_NFW_mean = Sigma_NFW - DeltaSigma_NFW
     # NFW Sigma and DeltaSigma at Rmis
     x_Rmis = R_mis/r_s
     DeltaSigma_NFW_at_Rmis = get_DeltaSigma(x_Rmis, r_s, rho_c_z, delta_c)
     # Miscentered DeltaSigma
-    ones = np.ones(Sigma_NFW.shape)
     DeltaSigma = DeltaSigma_NFW - (R_mis/r_Mpch)**2 * DeltaSigma_NFW_at_Rmis
     DeltaSigma[r_Mpch*np.ones(DeltaSigma.shape)<R_mis] = 0.
     return DeltaSigma
+
 
 def boost_get_A(params, method, z_arr, z, lam, r_Mpc_over_h, Rmis):
     """Compute A(z, lambda, r) where fcl = A/(1+A)."""
@@ -438,6 +432,7 @@ def boost_get_A(params, method, z_arr, z, lam, r_Mpc_over_h, Rmis):
     A = A_z*A_lambda*P_r
     return A
 
+
 ################################################################################
 def readdata(catalog, HSTfile, MegacamFile, DESfile, save_shear_profiles):
     """Read and load weak-lensing data into `WLdata` field in `catalog` if
@@ -453,8 +448,9 @@ def readdata(catalog, HSTfile, MegacamFile, DESfile, save_shear_profiles):
                     catalog['WLdata'][i] = {'datatype':'DES',
                                             'r_arcmin': f['clusters'][name]['r_arcmin'][:],
                                             'shear': f['clusters'][name]['shear'][:],
-                                            'shear_err': .3/np.sqrt(f['clusters'][name]['N_source'][:]),
+                                            'shear_err': f['clusters'][name]['shear_err'][:],
                                             'tomo_weights': f['clusters'][name]['tomo_weights_R'][:][:,1:],
+                                            'tomo_rescale': f['clusters'][name]['tomo_rescale'][1:],
                                             }
                     if save_shear_profiles:
                         tmp  = ['zlo', 'zmid', 'zhi']
@@ -465,15 +461,17 @@ def readdata(catalog, HSTfile, MegacamFile, DESfile, save_shear_profiles):
                         xiname = tmp[idx]
                         catalog['WLdata'][i]['r_arcmin_stack'] = f['stack_%s%s'%(zname, xiname)]['r_arcmin'][:]
 
-
     ##### Megacam data
     if MegacamFile != 'None':
         with h5py.File(MegacamFile, 'r') as f:
             for i,name in enumerate(catalog['SPT_ID']):
                 if name in f.keys():
                     catalog['WLdata'][i] = {'datatype':'Megacam',
-                        'r_deg':f[name]['shear_profile'][0], 'shear':f[name]['shear_profile'][1], 'shearerr':f[name]['shear_profile'][2],
-                        'redshifts':f[name]['Nz'][0], 'Nz':f[name]['Nz'][1], 'Ntot':np.sum(f[name]['Nz'][1]),}
+                                            'r_deg':f[name]['shear_profile'][0],
+                                            'shear':f[name]['shear_profile'][1],
+                                            'shearerr':f[name]['shear_profile'][2],
+                                            'redshifts':f[name]['Nz'][0],
+                                            'Nz':f[name]['Nz'][1], 'Ntot':np.sum(f[name]['Nz'][1]),}
 
     ##### Check for HST data
     if HSTfile != 'None':

@@ -1,6 +1,5 @@
 from __future__ import division
 import numpy as np
-import xarray as xr
 import os
 
 from cosmosis.datablock import option_section

@@ -1,9 +1,8 @@
 from __future__ import division
 import numpy as np
-import imp
 from scipy.interpolate import interp1d, RectBivariateSpline
-import scipy.integrate
 import cosmo
+
 
 class HMFCalculator:
     def __init__(self, Deltacrit, z_arr, M_arr):
@@ -21,7 +20,6 @@ class HMFCalculator:
         self.interp_b = interp1d(x, y, kind='cubic')
         y = (1.193958e+00, 1.270316e+00, 1.335191e+00, 1.446266e+00, 1.581345e+00, 1.795050e+00, 1.965613e+00, 2.237466e+00, 2.439729e+00)
         self.interp_c = interp1d(x, y, kind='cubic')
-
 
     def compute_HMF(self, cosmology, z, k, Pk):
         """Compute Tinker HMF and apply redshift volume."""

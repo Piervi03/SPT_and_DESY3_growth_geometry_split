@@ -2,6 +2,7 @@ from __future__ import division
 from cosmosis.datablock import option_section
 import HST_HMF_convo
 
+
 def setup(options):
     # WL simulation calibration data
     HSTcalibfile = options.get_string(option_section, 'HSTcalibfile')
@@ -19,6 +20,7 @@ def setup(options):
                                                               pairs_zmin, pairs_zmax, pairs_Nz)
 
     return multi_obs_convolution
+
 
 def execute(block, multi_obs_convolution):
     ##### Extract from datablock
@@ -49,6 +51,7 @@ def execute(block, multi_obs_convolution):
             block.put_double_array_nd('dN_dmultiobs', '%s_%s'%(pair_name, name), HST_convo_dict[pair_name][name])
 
     return 0
+
 
 def cleanup(config):
     pass

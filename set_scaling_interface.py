@@ -4,11 +4,13 @@ from cosmosis.datablock import option_section
 
 import set_scaling
 
+
 def setup(options):
     WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
     HSTcalibfile = options.get_string(option_section, 'HSTcalibfile')
     scaling_setter = set_scaling.SetScaling(WLsimcalibfile, HSTcalibfile)
     return scaling_setter
+
 
 def execute(block, scaling_setter):
     # Read scaling relation parameters from block
@@ -41,6 +43,7 @@ def execute(block, scaling_setter):
         return 0
     else:
         return 1
+
 
 def cleanup(config):
     pass

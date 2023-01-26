@@ -1,10 +1,10 @@
 from __future__ import division
 import numpy as np
 from scipy.interpolate import interp1d
-from astropy.table import Table
 from cosmosis.datablock import option_section
 import mass_calibration_MC as mass_calibration
 import lensing
+
 
 def setup(options):
     ##### Config parameters
@@ -102,7 +102,7 @@ def execute(block, masscalibration):
 
     # Halo mass function
     z, M, N = block.get_grid('HMF', 'z_arr', 'M_arr', 'dNdlnM')
-    HMF = {'z_arr': z, 'M_arr': M, 'dNdlnM': N}
+    HMF = {'z_arr': z, 'lnM_arr': np.log(M), 'dNdlnM': N}
 
     ##### Setup lensing likelihoods
     if masscalibration.todo['WL']:
@@ -114,15 +114,16 @@ def execute(block, masscalibration):
         block.put_double('likelihoods', 'MASS_CALIBRATION_LIKE', lnlike)
         if masscalibration.get_stacked_DES:
             for name in ['zloxilo', 'zloxihi', 'zhixilo', 'zhixihi']:
-               for i,n in enumerate(DES_stack['shear_%s'%name]):
+                for i,n in enumerate(DES_stack['shear_%s'%name]):
                     block.put_double('DES_stack', 'shear_%s_%d'%(name,i), n)
-               for i,n in enumerate(DES_stack['DeltaSigma_%s'%name]):
+                for i,n in enumerate(DES_stack['DeltaSigma_%s'%name]):
                     block.put_double('DES_stack', 'DeltaSigma_%s_%d'%(name,i), n)
-               for i,n in enumerate(DES_stack['DeltaSigma_data_%s'%name]):
+                for i,n in enumerate(DES_stack['DeltaSigma_data_%s'%name]):
                     block.put_double('DES_stack', 'DeltaSigma_data_%s_%d'%(name,i), n)
         return 0
     else:
         return 1
+
 
 def cleanup(config):
     pass

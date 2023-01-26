@@ -8,6 +8,7 @@ import scaling_relations
 
 THRESHOLD = 1e-8
 
+
 class SetScaling:
 
     def __init__(self, WLsimcalibfile, HSTcalibfile):
@@ -69,21 +70,21 @@ class SetScaling:
 
         # X-ray
         cov = [[scaling['Dx']**2, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx']],
-        [scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2]]
+               [scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2]]
         if np.linalg.det(cov) < THRESHOLD:
             return False
         scaling['cov_X_SZ'] = np.array(cov)
 
         # Richness
         cov = [[scaling['Drichness']**2, scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness']],
-            [scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness'], scaling['Dsz']**2]]
+               [scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness'], scaling['Dsz']**2]]
         if np.linalg.det(cov) < THRESHOLD:
             return False
         scaling['cov_richness_SZ'] = np.array(cov)
 
         # WL: Megacam
         cov = [[scaling['DWL_Megacam']**2, scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_Megacam']],
-            [scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_Megacam'], scaling['Dsz']**2]]
+               [scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_Megacam'], scaling['Dsz']**2]]
         if np.linalg.det(cov) < THRESHOLD:
             return False
         scaling['cov_Megacam_SZ'] = np.array(cov)
@@ -92,7 +93,7 @@ class SetScaling:
         if 'DES_m_piv' in scaling.keys():
             z = np.array([.25, .25, .85, .85])
             M = np.array([1e13, 1e16, 1e13, 1e16])
-            DES_scatter = scaling_relations.WLscatter('main', M, z, scaling)
+            DES_scatter = scaling_relations.WLscatter('main', np.log(M), z, scaling)
             dets = [np.linalg.det([[DES_scatter[i]**2, scaling['rhoSZWL']*scaling['Dsz']*DES_scatter[i]],
                                    [scaling['rhoSZWL']*scaling['Dsz']*DES_scatter[i], scaling['Dsz']**2]])
                     for i in range(4)]
@@ -102,8 +103,8 @@ class SetScaling:
 
         # X-ray and WL: Megacam
         cov = [[scaling['DWL_Megacam']**2, scaling['rhoWLX']*scaling['DWL_Megacam']*scaling['Dx'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_Megacam']],
-            [scaling['rhoWLX']*scaling['DWL_Megacam']*scaling['Dx'], scaling['Dx']**2, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx']],
-            [scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_Megacam'], scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2]]
+               [scaling['rhoWLX']*scaling['DWL_Megacam']*scaling['Dx'], scaling['Dx']**2, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx']],
+               [scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_Megacam'], scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2]]
         if np.linalg.det(cov) < THRESHOLD:
             return False
         scaling['cov_Megacam_X_SZ'] = np.array(cov)
@@ -112,13 +113,12 @@ class SetScaling:
         if 'DES_m_piv' in scaling.keys():
             z = np.array([.25, .25, .85, .85])
             M = np.array([1e13, 1e16, 1e13, 1e16])
-            DES_scatter = scaling_relations.WLscatter('main', M, z, scaling)
+            DES_scatter = scaling_relations.WLscatter('main', np.log(M), z, scaling)
             dets = [np.linalg.det([[DES_scatter[i]**2, scaling['rhoWLrichness']*DES_scatter[i]*scaling['Drichness'], scaling['rhoSZWL']*DES_scatter[i]*scaling['Dsz']],
                                    [scaling['rhoWLrichness']*DES_scatter[i]*scaling['Drichness'], scaling['Drichness']**2, scaling['rhoSZrichness']*scaling['Drichness']*scaling['Dsz']],
                                    [scaling['rhoSZWL']*DES_scatter[i]*scaling['Dsz'], scaling['rhoSZrichness']*scaling['Drichness']*scaling['Dsz'], scaling['Dsz']**2]])
                     for i in range(4)]
             if np.any(np.array(dets)<THRESHOLD):
                 return False
-
 
         return True

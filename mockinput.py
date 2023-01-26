@@ -42,7 +42,7 @@ scaling = {'Asz': .96, 'Bsz': 1.5, 'Csz': .5, 'Dsz': .2, 'zeta_min': 1.,
            'SZmPivot': 3e14,
            'XraymPivot': 5e14,
            'richmPivot': 3e14,
-            'YXPARAM': 'SPT_XVP',
+           'YXPARAM': 'SPT_XVP',
            }
 tmp = np.loadtxt('data/MCMF_dnf_500.txt')
 scaling['DESwl_z'] = [.252, .470, .783,]

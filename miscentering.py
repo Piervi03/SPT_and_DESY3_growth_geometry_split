@@ -3,13 +3,15 @@ import numpy as np
 
 import cosmo
 
-def generic_miscenter(params, lam, z): 
+
+def generic_miscenter(params, lam, z):
     """Return parameters of generic intrinsic miscentering in units [Mpc/h]."""
     alpha = params['alpha_0'] * ((1+z)/1.5)**params['alpha_z'] * (lam/60)**params['alpha_lam']
     mis_phys_0 = params['comp0_0'] * ((1+z)/1.5)**params['comp0_z'] * (lam/60)**params['comp0_lam']
     Delta_mis_phys = params['comp1_0'] * ((1+z)/1.5)**params['comp1_z'] * (lam/60)**params['comp1_lam']
     mis_phys_1 = mis_phys_0 + Delta_mis_phys
     return alpha, mis_phys_0, mis_phys_1
+
 
 class MisCentering(object):
 

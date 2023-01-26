@@ -14,11 +14,13 @@ from colossus.lss import bias
 import multivariate_normal as cy_multivariate_normal
 import convolution, scaling_relations
 
+
 # Because multiprocessing within classes doesn't really work...
 def unwrap_self_f(arg):
     return MultiObsConvolution.get_P_multiobs_z(*arg)
 
 ################################################################################
+
 class MultiObsConvolution:
 
     def __init__(self, observable_pairs,
@@ -72,6 +74,7 @@ class MultiObsConvolution:
 
 
     ############################################################################
+
     def execute(self, HMF, scaling, covmat, cosmology=None):
         """Return dict with multi-obs mass functions for each pair of
         observables."""
@@ -81,10 +84,11 @@ class MultiObsConvolution:
         # Set up interpolation for HMF
         with np.errstate(divide='ignore'):
             lnHMF_in = np.log(self.HMF['dNdlnM'])
-        self.HMF_interp = RectBivariateSpline(self.HMF['z_arr'], np.log(self.HMF['M_arr']), lnHMF_in, kx=1, ky=1)
-        self.Delta_lnM = np.log(HMF['M_arr'][1]/self.HMF['M_arr'][0])
+        self.HMF_interp = RectBivariateSpline(self.HMF['z_arr'], self.HMF['lnM_arr'], lnHMF_in, kx=1, ky=1)
+        self.Delta_lnM = HMF['lnM_arr'][1]-self.HMF['lnM_arr'][0]
         # Check length of HMF mass array for compression factor
-        assert (len(HMF['M_arr'])-1)%self.compression==0, "HMF has non-standard shape"
+        self.HMF['len_M'] = len(self.HMF['lnM_arr'])
+        assert (self.HMF['len_M']-1)%self.compression==0, "HMF has non-standard shape"
         # Needed for halo bias
         if self.do_bias:
             colossus_params = {'flat': True,
@@ -95,7 +99,7 @@ class MultiObsConvolution:
                                'ns': cosmology['n_s']}
             this_colossus_cosmo = colossus_cosmology.setCosmology('myCosmo', colossus_params)
         # Pre-compute the intrinsic scatter convolutions
-        output_dict = {'M_arr': HMF['M_arr'][::self.compression]}
+        output_dict = {'lnM_arr': HMF['lnM_arr'][::self.compression]}
         for pair_idx,pair_name in enumerate(self.observable_pairs):
             z_arr = np.linspace(self.pairs_zmin[pair_idx], self.pairs_zmax[pair_idx], self.pairs_Nz[pair_idx])
             if (pair_name in ['SZ', 'DES_SZ_lambdacut']) | (pair_name in self.pairnames_2d_DES) | (pair_name in self.pairnames_3d_DES):
@@ -111,7 +115,6 @@ class MultiObsConvolution:
                                                               z_arr=z_arr)
             output_dict['%s_z'%pair_name] = z_arr
         return output_dict
-
 
     def get_P_multiobs_allz(self, obsname, pairname, pair_covmat, z_arr):
         """Return P(obs, xi | M, z, p) for each redshift in z_arr. Optional
@@ -130,7 +133,6 @@ class MultiObsConvolution:
                 argin = zip([self]*len(z_arr), z_arr)
                 P_obs_grid = np.array(pool.map(unwrap_self_f, argin))
         return P_obs_grid
-
 
     def get_P_multiobs_z(self, z):
         """Decide whether it's a 2D or 3D observable array or whether it's the
@@ -167,7 +169,6 @@ class MultiObsConvolution:
         elif pairname=='DES_SZ_lambdacut':
             return self.get_P_2obs_DES_lambdaconf_z(z)
 
-
     def get_Nbins_array(self, std):
         """Return number of bins and array that satisfy that std/Delta_lnM is
         covered self.N_sigma times. 0 is Nbins_hilo[1] first element."""
@@ -179,7 +180,6 @@ class MultiObsConvolution:
         lnobs_arr = self.Delta_lnM * np.linspace(-Nbins_hilo[0], Nbins_hilo[1], Nbins_hilo[0]+Nbins_hilo[1]+1)
         return Nbins_hilo, lnobs_arr
 
-
     def get_Nbins_array_vec(self, std):
         """Return number of bins and array that satisfy that std/Delta_lnM is
         covered self.N_sigma times. This is same as `get_Nbins_array` but for
@@ -190,10 +190,9 @@ class MultiObsConvolution:
         lnobs_arr = [self.Delta_lnM * np.linspace(-Nbins_hilo[i,0], Nbins_hilo[i,1], Nbins_hilo[i,0]+Nbins_hilo[i,1]+1) for i in range(len(Nbins_hilo))]
         return Nbins_hilo, lnobs_arr
 
-
     def get_P_zeta_z(self, z):
         """Return dN/dlnzeta."""
-        dN_dlnM, = np.exp(self.HMF_interp(z, np.log(self.HMF['M_arr'])))
+        dN_dlnM, = np.exp(self.HMF_interp(z, self.HMF['lnM_arr']))
         dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
         Nbin = self.scaling['Dsz'] * dlnM_dlnzeta / self.Delta_lnM
         HMF_1d = gaussian_filter1d(dN_dlnM, Nbin, mode='constant')
@@ -204,13 +203,12 @@ class MultiObsConvolution:
             lnHMF_1d = np.log(HMF_1d)
         return lnHMF_1d
 
-
     def get_P_zeta_lambdacut_lognormal_z(self, covmat, z, SZsurvey):
         """Return dN/dlnzeta accounting for richness confirmation."""
-        dN_dlnM, = np.exp(self.HMF_interp(z, np.log(self.HMF['M_arr'])))
+        dN_dlnM, = np.exp(self.HMF_interp(z, self.HMF['lnM_arr']))
         # Halo bias
         if self.do_bias:
-            Tinker_bias = bias.haloBias(self.HMF['M_arr'], model='tinker10', z=z, mdef='200c')
+            Tinker_bias = bias.haloBias(np.exp(self.HMF['lnM_arr']), model='tinker10', z=z, mdef='200c')
             dN_dlnM*= Tinker_bias
         # Convert observable covmat into covmat in mass
         dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
@@ -220,9 +218,9 @@ class MultiObsConvolution:
         covmat_lnM = covmat * Jacobian
         # Number of bins and arrays for each observable
         Nbins_zeta, lnzeta_arr = self.get_Nbins_array(msqrt(covmat_lnM[1,1]))
-        Nbins_zeta = np.ones((len(self.HMF['M_arr']), 2), dtype=int) * Nbins_zeta[None,:]
-        lnmass_lambda_mean = np.log(self.HMF['M_arr'])[:,None] + covmat_lnM[0,1]/covmat_lnM[1,1]*lnzeta_arr[None,:]
-        lnlambda_mean = np.log(scaling_relations.mass2obs('richness', np.exp(lnmass_lambda_mean), z, self.scaling))
+        Nbins_zeta = np.ones((self.HMF['len_M'], 2), dtype=int) * Nbins_zeta[None,:]
+        lnmass_lambda_mean = self.HMF['lnM_arr'][:,None] + covmat_lnM[0,1]/covmat_lnM[1,1]*lnzeta_arr[None,:]
+        lnlambda_mean = scaling_relations.lnmass2lnobs('richness', lnmass_lambda_mean, z, self.scaling)
         lnmass_lambda_std = msqrt(covmat_lnM[0,0] - covmat_lnM[0,1]**2/covmat_lnM[1,1])
         lnlambda_std = lnmass_lambda_std/dlnM_dlnobs
         # Cumulative Gaussian
@@ -237,12 +235,11 @@ class MultiObsConvolution:
             lnHMF_1d = np.log(HMF_1d)
         return lnHMF_1d
 
-
     def get_P_zeta_lambdacut_lognormalrelPoisson_z(self, z, SZsurvey):
         """Return dN/dlnzeta accounting for richness confirmation. Lognormal
         scatter in richness is increased by 1/sqrt(lambda) to mimic relative
         increase due to Poisson shot noise."""
-        dN_dlnM, = np.exp(self.HMF_interp(z, np.log(self.HMF['M_arr'])))
+        dN_dlnM, = np.exp(self.HMF_interp(z, self.HMF['lnM_arr']))
         # Convert observable covmat into covmat in mass
         dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
         dlnM_dlnobs = scaling_relations.dlnM_dlnobs('richness', self.scaling)
@@ -250,17 +247,17 @@ class MultiObsConvolution:
                              [dlnM_dlnobs*dlnM_dlnzeta, dlnM_dlnzeta**2]])
         covmat_base = np.array([[self.scaling['Drichness']**2, self.scaling['rhoSZrichness']*self.scaling['Drichness']*self.scaling['Dsz']],
                                 [self.scaling['rhoSZrichness']*self.scaling['Drichness']*self.scaling['Dsz'], self.scaling['Dsz']**2]])
-        richness = scaling_relations.mass2obs('richness', self.HMF['M_arr'], z, self.scaling)
+        richness = np.exp(scaling_relations.lnmass2lnobs('richness', self.HMF['lnM_arr'], z, self.scaling))
         covmat = covmat_base[None,:,:] + 1/richness[:,None,None]*np.array([[1, 0], [0, 0]])[None,:,:]
         covmat_lnM = covmat * Jacobian[None,:,:]
         # Number of bins and arrays for each observable
         Nbins_zeta, lnzeta_arr = self.get_Nbins_array(msqrt(np.amax(covmat_lnM[:,1,1])))
-        Nbins_zeta = Nbins_zeta[None,:] * np.ones((len(self.HMF['M_arr']),2), dtype=int)
-        lnmass_lambda_mean = np.log(self.HMF['M_arr'])[:,None] + (covmat_lnM[:,0,1]/covmat_lnM[:,1,1])[:,None]*lnzeta_arr
-        lambda_mean = scaling_relations.mass2obs('richness', np.exp(lnmass_lambda_mean), z, self.scaling)
+        Nbins_zeta = Nbins_zeta[None,:] * np.ones((self.HMF['len_M'],2), dtype=int)
+        lnmass_lambda_mean = self.HMF['lnM_arr'][:,None] + (covmat_lnM[:,0,1]/covmat_lnM[:,1,1])[:,None]*lnzeta_arr
+        lnlambda_mean = scaling_relations.lnmass2lnobs('richness', lnmass_lambda_mean, z, self.scaling)
         lnmass_lambda_std = np.sqrt(covmat_lnM[:,0,0] - covmat_lnM[:,0,1]**2/covmat_lnM[:,1,1])
         lnlambda_std = lnmass_lambda_std/dlnM_dlnobs
-        P_lambda_gtr_cut = ndtr(np.log(lambda_mean/self.lambda_cut[SZsurvey](z))/lnlambda_std[:,None])
+        P_lambda_gtr_cut = ndtr((lnlambda_mean-np.log(self.lambda_cut[SZsurvey](z)))/lnlambda_std[:,None])
         kernels = P_lambda_gtr_cut * norm.pdf(lnzeta_arr, 0, np.sqrt(covmat_lnM[:,1,1])[:,None])
         # Convolution
         HMF_1d = convolution.convolve_HMF_1obs_varkernel(dN_dlnM, self.Delta_lnM, kernels, Nbins_zeta)
@@ -271,12 +268,11 @@ class MultiObsConvolution:
             lnHMF_1d = np.log(HMF_1d)
         return lnHMF_1d
 
-
     def get_P_zeta_lambdacut_lognormalGaussPoisson_z(self, covmat, z, SZsurvey):
         """Return dN/dlnzeta accounting for richness confirmation. Lognormal
         scatter in richness is convolved by Gaussian of width 1/sqrt(lambda) to
         mimic Poisson shot noise in Gaussian limit."""
-        dN_dlnM, = np.exp(self.HMF_interp(z, np.log(self.HMF['M_arr'])))
+        dN_dlnM, = np.exp(self.HMF_interp(z, self.HMF['lnM_arr']))
         # Convert observable covmat into covmat in mass
         dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
         dlnM_dlnobs = scaling_relations.dlnM_dlnobs('richness', self.scaling)
@@ -285,15 +281,15 @@ class MultiObsConvolution:
         covmat_lnM = covmat * Jacobian
         # Number of bins and arrays for each observable
         Nbins_zeta, lnzeta_arr = self.get_Nbins_array(msqrt(covmat_lnM[1,1]))
-        Nbins_zeta = Nbins_zeta[None,:] * np.ones((len(self.HMF['M_arr']), 2), dtype=int)
+        Nbins_zeta = Nbins_zeta[None,:] * np.ones((self.HMF['len_M'], 2), dtype=int)
         # Conditional P(lambda|mass, zeta)
-        lnmass_lambda_mean = np.log(self.HMF['M_arr'])[:,None] + covmat_lnM[0,1]/covmat_lnM[1,1]*lnzeta_arr
-        lambda_mean = scaling_relations.mass2obs('richness', np.exp(lnmass_lambda_mean), z, self.scaling)
-        lnlambda_mean = np.log(lambda_mean)
+        lnmass_lambda_mean = self.HMF['lnM_arr'][:,None] + covmat_lnM[0,1]/covmat_lnM[1,1]*lnzeta_arr
+        lnlambda_mean = scaling_relations.lnmass2lnobs('richness', lnmass_lambda_mean, z, self.scaling)
         lnmass_lambda_std = msqrt(covmat_lnM[0,0] - covmat_lnM[0,1]**2/covmat_lnM[1,1])
         lnlambda_std = lnmass_lambda_std/dlnM_dlnobs
-        lambda_arr = np.exp(np.linspace(lnlambda_mean-3*lnlambda_std, lnlambda_mean+3*lnlambda_std, 32))
-        P_lambda_intrinsic = np.exp(-.5*np.log(lambda_arr/lambda_mean)**2/lnlambda_std**2) / (msqrt(2*np.pi)*lambda_arr*lnlambda_std)
+        lnlambda_arr = np.linspace(lnlambda_mean-3*lnlambda_std, lnlambda_mean+3*lnlambda_std, 32)
+        lambda_arr = np.exp(lnlambda_arr)
+        P_lambda_intrinsic = np.exp(-.5*(lnlambda_arr-lnlambda_mean)**2/lnlambda_std**2) / (msqrt(2*np.pi)*lambda_arr*lnlambda_std)
         # Cumulative Gaussian
         P_lambda_gtr_cut = ndtr((lambda_arr-self.lambda_cut[SZsurvey](z))/np.sqrt(lambda_arr))
         P_lambda = np.trapz(P_lambda_gtr_cut*P_lambda_intrinsic, lambda_arr, axis=0)
@@ -307,11 +303,10 @@ class MultiObsConvolution:
             lnHMF_1d = np.log(HMF_1d)
         return lnHMF_1d
 
-
     def get_P_2obs_z(self, obsname, covmat, z):
         """Return P(obs, zeta | M, z[z_id], p) for constant correlated
         scatter."""
-        dN_dlnM, = np.exp(self.HMF_interp(z, np.log(self.HMF['M_arr'])))
+        dN_dlnM, = np.exp(self.HMF_interp(z, self.HMF['lnM_arr']))
         # Convert observable covmat into covmat in mass
         dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
         dlnM_dlnobs = scaling_relations.dlnM_dlnobs(obsname, self.scaling)
@@ -332,20 +327,19 @@ class MultiObsConvolution:
             lnHMF_2d = np.log(HMF_2d)
         return lnHMF_2d
 
-
     def get_P_2obs_DES_z(self, obsname, z):
         """Return P(DES_WL, zeta | M, z, p) with correlated scatter."""
-        dN_dlnM, = np.exp(self.HMF_interp(z, np.log(self.HMF['M_arr'])))
+        dN_dlnM, = np.exp(self.HMF_interp(z, self.HMF['lnM_arr']))
         # (Mass-dependent) covariance matrices
         # Main component
         cov_base = np.array([[1, self.scaling['rhoSZWL']*self.scaling['Dsz']],
                              [self.scaling['rhoSZWL']*self.scaling['Dsz'], self.scaling['Dsz']**2]])
-        DES_scatter = scaling_relations.WLscatter('main', self.HMF['M_arr'], z, self.scaling)
+        DES_scatter = scaling_relations.WLscatter('main', self.HMF['lnM_arr'], z, self.scaling)
         covmat_main = cov_base * np.array([DES_scatter**2, DES_scatter, DES_scatter, np.ones(len(DES_scatter))]).T.reshape(len(DES_scatter),2,2)
         # Wide component
-        # DES_scatter = scaling_relations.WLscatter('wide', self.HMF['M_arr'], z, self.scaling)
+        # DES_scatter = scaling_relations.WLscatter('wide', self.HMF['lnM_arr'], z, self.scaling)
         # covmat_wide = cov_base * np.array([DES_scatter**2, DES_scatter, DES_scatter, 1]).T.reshape(len(DES_scatter),2,2)
-        covmat = covmat_main # + covmat_wide
+        covmat = covmat_main  # + covmat_wide
         # Convert observable covmat into covmat in mass
         dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
         dlnM_dlnobs = scaling_relations.dlnM_dlnobs(obsname, self.scaling)
@@ -353,10 +347,10 @@ class MultiObsConvolution:
                              [dlnM_dlnobs*dlnM_dlnzeta, dlnM_dlnzeta**2]])
         covmat_lnM = covmat * Jacobian
         # Scatter kernels [lnobs, lnzeta]
-        kernels = [None]*len(self.HMF['M_arr'])
-        Nbins_obs = np.empty((len(self.HMF['M_arr']), 2), dtype=int)
-        Nbins_zeta = np.empty((len(self.HMF['M_arr']), 2), dtype=int)
-        for i in range(len(self.HMF['M_arr'])):
+        kernels = [None]*self.HMF['len_M']
+        Nbins_obs = np.empty((self.HMF['len_M'], 2), dtype=int)
+        Nbins_zeta = np.empty((self.HMF['len_M'], 2), dtype=int)
+        for i in range(self.HMF['len_M']):
             # Number of bins and arrays for each observable
             Nbins_obs[i], lnobs_arr = self.get_Nbins_array(msqrt(covmat_lnM[i,0,0]))
             Nbins_zeta[i], lnzeta_arr = self.get_Nbins_array(msqrt(covmat_lnM[i,1,1]))
@@ -371,17 +365,16 @@ class MultiObsConvolution:
             lnHMF_2d = np.log(HMF_2d)
         return lnHMF_2d
 
-
     def get_P_2obs_DES_lambdaconf_z(self, z):
         """Return P(DES_WL, zeta | M, z, p) with correlated scatter accounting
         for optical confirmation."""
         # Mass function at this redshift
-        dN_dlnM, = np.exp(self.HMF_interp(z, np.log(self.HMF['M_arr'])))
+        dN_dlnM, = np.exp(self.HMF_interp(z, self.HMF['lnM_arr']))
         # (Mass-dependent) covariance matrices
         cov_base = np.array([[1, self.scaling['rhoWLrichness']*self.scaling['Drichness'], self.scaling['rhoSZWL']*self.scaling['Dsz']],
                              [self.scaling['rhoWLrichness']*self.scaling['Drichness'], self.scaling['Drichness']**2, self.scaling['rhoSZrichness']*self.scaling['Dsz']*self.scaling['Drichness']],
                              [self.scaling['rhoSZWL']*self.scaling['Dsz'], self.scaling['rhoSZrichness']*self.scaling['Dsz']*self.scaling['Drichness'], self.scaling['Dsz']**2]])
-        DES_scatter = scaling_relations.WLscatter('main', self.HMF['M_arr'], z, self.scaling)
+        DES_scatter = scaling_relations.WLscatter('main', self.HMF['lnM_arr'], z, self.scaling)
         covmat = cov_base * np.array([DES_scatter**2, DES_scatter, DES_scatter,
                                       DES_scatter, np.ones(len(DES_scatter)), np.ones(len(DES_scatter)),
                                       DES_scatter, np.ones(len(DES_scatter)), np.ones(len(DES_scatter))]).T.reshape(len(DES_scatter),3,3)
@@ -393,10 +386,10 @@ class MultiObsConvolution:
                              [dlnM_dlnobs[0]*dlnM_dlnzeta,   dlnM_dlnobs[1]*dlnM_dlnzeta,   dlnM_dlnzeta**2]])
         covmat_lnM = covmat * Jacobian
         # Scatter kernels [lnWL, lnobs, lnzeta]
-        kernels = [None]*len(self.HMF['M_arr'])
-        Nbins_DES = np.empty((len(self.HMF['M_arr']), 2), dtype=int)
-        Nbins_zeta = np.empty((len(self.HMF['M_arr']), 2), dtype=int)
-        for i in range(len(self.HMF['M_arr'])):
+        kernels = [None]*self.HMF['len_M']
+        Nbins_DES = np.empty((self.HMF['len_M'], 2), dtype=int)
+        Nbins_zeta = np.empty((self.HMF['len_M'], 2), dtype=int)
+        for i in range(self.HMF['len_M']):
             # Number of bins and arrays for each observable
             Nbins_DES[i], lnDES_arr = self.get_Nbins_array(msqrt(covmat_lnM[i,0,0]))
             Nbins_zeta[i], lnzeta_arr = self.get_Nbins_array(msqrt(covmat_lnM[i,2,2]))
@@ -404,8 +397,8 @@ class MultiObsConvolution:
             inv_cov = np.linalg.inv(covmat_lnM[i,[0,2],:][:,[0,2]])
             pos = np.empty((len(lnDES_arr), len(lnzeta_arr), 2))
             pos[:,:,0], pos[:,:,1] = np.meshgrid(lnDES_arr, lnzeta_arr, indexing='ij', sparse=True)
-            lnmass_lambda_mean = np.log(self.HMF['M_arr'][i]) + (covmat_lnM[i,1,0]*np.sum(inv_cov[0,:]*pos, axis=2) + covmat_lnM[i,1,2]*np.sum(inv_cov[1,:]*pos, axis=2))
-            lnlambda_mean = np.log(scaling_relations.mass2obs('richness', np.exp(lnmass_lambda_mean), z, self.scaling))
+            lnmass_lambda_mean = self.HMF['lnM_arr'][i] + (covmat_lnM[i,1,0]*np.sum(inv_cov[0,:]*pos, axis=2) + covmat_lnM[i,1,2]*np.sum(inv_cov[1,:]*pos, axis=2))
+            lnlambda_mean = scaling_relations.lnmass2lnobs('richness', lnmass_lambda_mean, z, self.scaling)
             lnmass_lambda_std = msqrt(covmat_lnM[i,1,1] - np.dot(covmat_lnM[i,1,[0,2]], np.dot(inv_cov, covmat_lnM[i,[0,2],1])))
             lnlambda_std = lnmass_lambda_std/dlnM_dlnobs[1]
             P_lambda_gtr_cut = norm.cdf(lnlambda_mean, np.log(self.lambda_cut(z)), lnlambda_std)
@@ -421,17 +414,16 @@ class MultiObsConvolution:
             lnHMF_2d = np.log(HMF_2d)
         return lnHMF_2d
 
-
     def get_P_3obs_DES_z(self, obsnames, z):
         """Return P(DES_WL, obs_1, zeta | M, z, p) with correlated scatter."""
         # Mass function at this redshift
-        dN_dlnM, = np.exp(self.HMF_interp(z, np.log(self.HMF['M_arr'])))
+        dN_dlnM, = np.exp(self.HMF_interp(z, self.HMF['lnM_arr']))
         # (Mass-dependent) covariance matrices
         if obsnames[1]=='richness':
             cov_base = np.array([[1, self.scaling['rhoWLrichness']*self.scaling['Drichness'], self.scaling['rhoSZWL']*self.scaling['Dsz']],
                                  [self.scaling['rhoWLrichness']*self.scaling['Drichness'], self.scaling['Drichness']**2, self.scaling['rhoSZrichness']*self.scaling['Dsz']*self.scaling['Drichness']],
                                  [self.scaling['rhoSZWL']*self.scaling['Dsz'], self.scaling['rhoSZrichness']*self.scaling['Dsz']*self.scaling['Drichness'], self.scaling['Dsz']**2]])
-        DES_scatter = scaling_relations.WLscatter('main', self.HMF['M_arr'], z, self.scaling)
+        DES_scatter = scaling_relations.WLscatter('main', self.HMF['lnM_arr'], z, self.scaling)
         covmat = cov_base * np.array([DES_scatter**2, DES_scatter, DES_scatter,
                                       DES_scatter, np.ones(len(DES_scatter)), np.ones(len(DES_scatter)),
                                       DES_scatter, np.ones(len(DES_scatter)), np.ones(len(DES_scatter))]).T.reshape(len(DES_scatter),3,3)
@@ -443,11 +435,11 @@ class MultiObsConvolution:
                              [dlnM_dlnobs[0]*dlnM_dlnzeta,   dlnM_dlnobs[1]*dlnM_dlnzeta,   dlnM_dlnzeta**2]])
         covmat_lnM = covmat * Jacobian
         # Scatter kernels [lnWL, lnobs, lnzeta]
-        kernels = [None]*len(self.HMF['M_arr'])
-        Nbins_obs0 = np.empty((len(self.HMF['M_arr']), 2), dtype=int)
-        Nbins_obs1 = np.empty((len(self.HMF['M_arr']), 2), dtype=int)
-        Nbins_zeta = np.empty((len(self.HMF['M_arr']), 2), dtype=int)
-        for i in range(len(self.HMF['M_arr'])):
+        kernels = [None]*self.HMF['len_M']
+        Nbins_obs0 = np.empty((self.HMF['len_M'], 2), dtype=int)
+        Nbins_obs1 = np.empty((self.HMF['len_M'], 2), dtype=int)
+        Nbins_zeta = np.empty((self.HMF['len_M'], 2), dtype=int)
+        for i in range(self.HMF['len_M']):
             # Number of bins and arrays for each observable
             Nbins_obs0[i], lnobs0_arr = self.get_Nbins_array(msqrt(covmat_lnM[i,0,0]))
             Nbins_obs1[i], lnobs1_arr = self.get_Nbins_array(msqrt(covmat_lnM[i,1,1]))
@@ -463,11 +455,10 @@ class MultiObsConvolution:
             lnHMF_3d = np.log(HMF_3d)
         return lnHMF_3d
 
-
     def get_P_3obs_z(self, obsnames, covmat, z):
         """Return P(obs0, obs1, zeta | M, z(z_id), p) for constant correlated
         scatter."""
-        dN_dlnM, = np.exp(self.HMF_interp(z, np.log(self.HMF['M_arr'])))
+        dN_dlnM, = np.exp(self.HMF_interp(z, self.HMF['lnM_arr']))
         # Convert observable covmat into covmat in mass
         dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
         dlnM_dlnobs = [scaling_relations.dlnM_dlnobs(obs, self.scaling) for obs in obsnames]

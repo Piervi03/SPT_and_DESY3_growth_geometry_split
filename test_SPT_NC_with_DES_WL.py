@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 from scipy.interpolate import interp1d
 from astropy.table import Table
 
@@ -9,6 +8,7 @@ def test_mockgenerator(tmp_path_factory):
     import mockgenerator
     f_name = tmp_path_factory.mktemp('data') / "mock.fits"
     mockgenerator.main('mockinput.py', f_name)
+
 
 class TestClass:
     """Default parameters"""
@@ -36,12 +36,13 @@ class TestClass:
                'XraymPivot': 5e14,
                'richmPivot': 3e14,
                'YXPARAM': 'SPT_XVP',
-              }
+               }
     # Arrays for mass function
     z_arr_pk = np.linspace(0,2,21)
     Deltacrit = 200.
     z_arr = np.linspace(0,2,201)
     M_arr = np.logspace(13,16,301)
+    lnM_arr = np.log(M_arr)
     # Observables for multi-obs convolutions
     observable_pairs = ['SZ_lambdacut_shallow', 'SZ_lambdacut_deep', 'SZ']
     pairs_zmin = [.25, .25, .25]
@@ -52,7 +53,6 @@ class TestClass:
     surveyCutLambda = {'shallow': interp1d(tmp[0], tmp[1], kind='linear'),
                        'deep': interp1d(tmp[0], tmp[2], kind='linear')}
     richness_scatter_model = 'lognormal'
-
 
     def test_scaling(self):
         """Check and set scaling relation parameters and covariance matrices."""
@@ -96,7 +96,7 @@ class TestClass:
                                                               NPROC=0)
         scaling = self.test_scaling()
         dNdlnM = self.test_compute_HMF_Tinker08()
-        HMF = {'z_arr': self.z_arr, 'M_arr': self.M_arr, 'dNdlnM': dNdlnM}
+        HMF = {'z_arr': self.z_arr, 'lnM_arr': self.lnM_arr, 'dNdlnM': dNdlnM}
         dN_dmultiobs_dict = multi_obs_convolution.execute(HMF, scaling, scaling, self.cosmology)
         return dN_dmultiobs_dict
 
@@ -104,13 +104,13 @@ class TestClass:
         """Poisson abundance likelihood."""
         import abundance
         SPT_survey = Table.read('data/SPT_SZ_ECS_500d_survey.txt', format='ascii.commented_header')
-        f_name = tmp_path_factory.getbasetemp() / 'data0' /  'mock.fits'
+        f_name = tmp_path_factory.getbasetemp() / 'data0' / 'mock.fits'
         catalog = Table.read(f_name)
         number_count = abundance.NumberCount(catalog, SPT_survey,
                                              60., [.25, 1.78],
                                              NPROC=0)
         dN_dmultiobs_dict = self.test_HMF_convo()
-        HMF = {'M_arr': dN_dmultiobs_dict['M_arr']}
+        HMF = {'lnM_arr': dN_dmultiobs_dict['lnM_arr']}
         z = {}
         for tmp in ['SZ_lambdacut_shallow', 'SZ_lambdacut_deep', 'SZ']:
             z['%s_z'%tmp] = dN_dmultiobs_dict['%s_z'%tmp]

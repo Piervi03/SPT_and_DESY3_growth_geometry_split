@@ -1,15 +1,14 @@
 from __future__ import division, print_function
 import numpy as np
-import os
 import imp
 from multiprocessing import Pool
 from astropy.table import Table
 # import time
 
 import scipy.special as ss
-from scipy import integrate, signal
-from scipy.interpolate import interp1d, InterpolatedUnivariateSpline, RectBivariateSpline
-from scipy.stats import norm, lognorm, multivariate_normal
+from scipy import integrate
+from scipy.interpolate import interp1d, InterpolatedUnivariateSpline
+from scipy.stats import norm, lognorm
 
 import cosmo, Mconversion_concentration, scaling_relations
 
@@ -264,7 +263,7 @@ class MassCalibration:
                                                  lnHMF=self.HMF_convos[pairname])
 
         ##### Observable array
-        obsArr = scaling_relations.mass2obs(obsname, self.HMF_convos['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, self.catalog['SPT_ID'][dataID])
+        obsArr = np.exp(scaling_relations.lnmass2lnobs(obsname, self.HMF_convos['lnM_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, self.catalog['SPT_ID'][dataID]))
         # Account for radial dependence for X-ray observables
         if obsname in ('Mgas', 'Yx'):
             correction = self.conversion_factor_Xray_obs_r500ref(dataID)
@@ -283,7 +282,7 @@ class MassCalibration:
         lnobsArr = np.log(obsArr)
 
         ##### SZ array
-        zeta_arr = self.thisSPTfield_gamma * scaling_relations.mass2obs('zeta', self.HMF_convos['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
+        zeta_arr = self.thisSPTfield_gamma * np.exp(scaling_relations.lnmass2lnobs('zeta', self.HMF_convos['lnM_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology))
         lnzeta_arr = np.log(zeta_arr)
         xi_arr = scaling_relations.zeta2xi(zeta_arr)
         if (xi_arr[0]>2.7)|(self.catalog['XI'][dataID]>xi_arr[-1]-2):
@@ -374,7 +373,7 @@ class MassCalibration:
                 LSSnoise = self.WLcalib['HSTsim'][self.catalog['SPT_ID'][dataID]]['obs_scatter']
             elif obsnames[i]=='WLDES':
                 LSSnoise = 0.
-            obsArrTemp = scaling_relations.mass2obs(obsnames[i], self.HMF_convos['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
+            obsArrTemp = np.exp(scaling_relations.lnmass2lnobs(obsnames[i], self.HMF_convos['lnM_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology))
 
             # Account for radial dependence for X-ray observables
             if obsnames[i] in ('Mgas', 'Yx'):
@@ -405,7 +404,7 @@ class MassCalibration:
             lnobsArr.append( np.log(obsArrTemp) )
 
         ##### SZ arrays
-        zeta_arr = self.thisSPTfield_gamma * scaling_relations.mass2obs('zeta', self.HMF_convos['M_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
+        zeta_arr = self.thisSPTfield_gamma * np.exp(scaling_relations.lnmass2lnobs('zeta', self.HMF_convos['lnM_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology))
         lnzeta_arr = np.log(zeta_arr)
         xi_arr = scaling_relations.zeta2xi(zeta_arr)
         if (xi_arr[0]>2.7)|(self.catalog['XI'][dataID]>xi_arr[-1]-2):

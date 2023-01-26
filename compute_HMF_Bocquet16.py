@@ -1,9 +1,8 @@
 from __future__ import division
 import numpy as np
-import imp
-from scipy.interpolate import interp1d, RectBivariateSpline
-import scipy.integrate
+from scipy.interpolate import RectBivariateSpline
 import cosmo
+
 
 class HMFCalculator:
     def __init__(self, Deltacrit, z_arr, M_arr):
@@ -11,7 +10,6 @@ class HMFCalculator:
         self.Deltacrit = Deltacrit
         self.z_arr = z_arr
         self.M_arr = M_arr
-
 
     def get_factors(self, Omega_m, z):
         """Return the universality correction factors."""
@@ -32,7 +30,6 @@ class HMFCalculator:
             beta = -1.7e-2 + 3.74e-3*Omega_m
         return alpha, beta
 
-
     def get_params(self, z):
         """Return the mass function parameters as function of redshift."""
         if self.Deltacrit==200.:
@@ -42,7 +39,6 @@ class HMFCalculator:
             z0params = np.array([.241, 2.18, 2.35, 2.02])
             zparams = np.array([.370, .251, -.698, -.310])
         return z0params[:,None] * (1+z[None,:])**zparams[:,None]
-
 
     def compute_HMF(self, cosmology, z, k, Pk):
         """Compute Bocquet et al. (2016) HMF and apply redshift volume."""

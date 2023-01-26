@@ -6,11 +6,13 @@ from scipy.interpolate import interp1d, RectBivariateSpline
 from scipy.ndimage import gaussian_filter1d
 import scaling_relations
 
+
 # Because multiprocessing within classes doesn't really work...
 def unwrap_self_f(arg):
     return NumberCount.lnlike_field(*arg)
 
 ################################################################################
+
 class NumberCount:
 
     def __init__(self, catalog, SPT_survey,
@@ -40,7 +42,6 @@ class NumberCount:
                                'SPECS': np.logspace(np.log10(5), np.log10(self.surveyCutSZmax), 11)}
 
 
-
     def lnlike(self, HMF, cosmology, scaling):
         """Return ln-likelihood for SPT cluster abundance."""
         self.HMF = HMF
@@ -60,7 +61,7 @@ class NumberCount:
             self.dN_dlnzeta_unitSolidAng[tmp] = scaling_relations.dlnM_dlnobs('zeta', self.scaling) * np.exp(self.HMF['%s_dNdlnM'%tmp])
 
         # zeta[z,M]
-        self.zeta_m = scaling_relations.mass2obs('zeta', self.HMF['M_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling, self.cosmology)
+        self.lnzeta_m = scaling_relations.lnmass2lnobs('zeta', self.HMF['lnM_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling, self.cosmology)
 
         ##### Evaluate (log)-likelihood for each SPT field (optional multiprocessing)
         num_fields = len(self.SPT_survey)
@@ -87,8 +88,8 @@ class NumberCount:
 
         return lnlike, dN_dz, dN_dxi, Ntotal
 
-
     ##########
+
     def lnlike_field(self, fieldidx):
         """Returns (ln-likelihood, Ntotal) for a given SPT field (index)."""
         # dN/dln(zeta)
@@ -103,17 +104,17 @@ class NumberCount:
             lndN_dlnzeta = np.log(dN_dlnzeta)
 
         # Apply field scaling factor
-        this_zeta_m = self.zeta_m * self.SPT_survey['GAMMA'][fieldidx]
+        this_lnzeta_m = self.lnzeta_m + np.log(self.SPT_survey['GAMMA'][fieldidx])
         if '_sptpol' in self.SPT_survey['FIELD'][fieldidx]:
-            this_zeta_m*= self.scaling['SPECS_calib']
+            this_lnzeta_m+= np.log(self.scaling['SPECS_calib'])
 
         # dN/dxi = dN/dlnzeta dlnzeta/dxi (unconvolved)
         # Unfortunately, the zeta_m table is not regular
         # and repeated spline interp is way too slow (1.6sec per field)
         # So we do linear interpolation (in ln(M), and for ln(dN/dlnzeta))
-        dN_dxi = self.dlnzeta_dxi_arr\
-            * np.exp(np.array([np.interp(self.ln_zeta_xi_arr, np.log(this_zeta_m[i]), lndN_dlnzeta[i])
-            for i in range(self.HMF['len_z'])]))
+        dN_dxi = (self.dlnzeta_dxi_arr
+                  * np.exp(np.array([np.interp(self.ln_zeta_xi_arr, this_lnzeta_m[i], lndN_dlnzeta[i])
+                                     for i in range(self.HMF['len_z'])])))
 
         # Convolve with unit scatter (measurement uncertainty)
         dN_dxi = gaussian_filter1d(dN_dxi, 1/self.dxi, axis=1, mode='constant')
@@ -126,8 +127,8 @@ class NumberCount:
         # Ntotal (trapz except that we sum in log-space)
         Nxi = int(np.log10(self.surveyCutSZmax/self.SPT_survey['XI_MIN'][fieldidx])/.005 + 1)
         self.xi_arr = np.logspace(np.log10(self.SPT_survey['XI_MIN'][fieldidx]), np.log10(self.surveyCutSZmax), Nxi)
-        integrand = np.exp(.5*(lndNdxi(np.log(self.z_arr), np.log(self.xi_arr[1:])) + lndNdxi(np.log(self.z_arr), np.log(self.xi_arr[:-1]))))\
-             * (self.xi_arr[1:]-self.xi_arr[:-1])
+        integrand = (np.exp(.5*(lndNdxi(np.log(self.z_arr), np.log(self.xi_arr[1:])) + lndNdxi(np.log(self.z_arr), np.log(self.xi_arr[:-1]))))
+                     * (self.xi_arr[1:]-self.xi_arr[:-1]))
         dNdz = np.sum(integrand, axis=1)
         Ntotal = np.trapz(dNdz, self.z_arr)
 

@@ -6,6 +6,7 @@ from scipy.interpolate import RectBivariateSpline
 from scipy import integrate
 import cosmo
 
+
 class ConcentrationConversion:
 
     def __init__(self, MCrelation, cosmology=None, setup_interp=False, interp_massdef=500):
@@ -82,7 +83,6 @@ class ConcentrationConversion:
         else:
             raise ValueError('Unknown mass-concentration relation:', MCrelation)
 
-
         if setup_interp:
             Min = np.logspace(13,16,8)
             z_arr = np.linspace(0,2,10)
@@ -92,15 +92,13 @@ class ConcentrationConversion:
             #MDelta = np.array([np.array([self.M200_to_MDelta(m, interp_massdef, z) for m in Min]) for z in z_arr])
             #self.lnM200_to_lnM = RectBivariateSpline(z_arr, np.log(Min), np.log(MDelta))
 
-
-
     def calC200(self, m, z):
         """Return concentration c_200c. Input mass M200c [Msun/h]."""
         if self.MCrelation=='Duffy08':
             m = np.atleast_1d(m)
             m[np.where(m<1e9)] = 1e9
-            #return 6.71*(m/2.e12)**(-0.091)*(1.+z)**(-0.44) # relaxed samples
-            return 5.71*(m/2.e12)**(-0.084)*(1.+z)**(-0.47) # full sample
+            #return 6.71*(m/2.e12)**(-0.091)*(1.+z)**(-0.44)  # relaxed samples
+            return 5.71*(m/2.e12)**(-0.084)*(1.+z)**(-0.47)  # full sample
         elif self.MCrelation=='Child18_obs':
             # individual, all
             return 75.4 * (1+z)**-.422 * m**-.089
@@ -114,7 +112,6 @@ class ConcentrationConversion:
             return c
         else:
             return self.MCrelation
-
 
     ##### Actual input functions
     # Input in [Msun/h]
@@ -131,7 +128,6 @@ class ConcentrationConversion:
         Mmax = Minput * ratio * 4
         return op.brentq(self.mdiff_findMDelta, Mmin, Mmax, args=(Minput,overdensity,z), xtol=1e-6)
 
-
     ##### Functions used for conversion
     # calculate the coefficient for NFW aperture mass given c
     def calcoef(self, c):
@@ -147,11 +143,11 @@ class ConcentrationConversion:
 
     # Root function for mass
     def mdiff_findM200(self, m200, mc, overdensity, z):
-        con =  self.calC200(m200,z)
+        con = self.calC200(m200,z)
         con2 = self.findc(con,overdensity)
         return m200/mc - self.calcoef(con)/self.calcoef(con2)
 
     def mdiff_findMDelta(self, mguess, Minput, overdensity, z):
-        conin =  self.calC200(Minput,z)
+        conin = self.calC200(Minput,z)
         conguess = self.findc(conin,overdensity)
         return Minput/mguess - self.calcoef(conin)/self.calcoef(conguess)
