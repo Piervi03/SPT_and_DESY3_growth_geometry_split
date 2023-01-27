@@ -480,4 +480,3 @@ class MultiObsConvolution:
         with np.errstate(divide='ignore'):
             lnHMF_3d = np.log(HMF_3d)
         return lnHMF_3d
-

@@ -66,7 +66,7 @@ class SetScaling:
             if np.linalg.det(cov)<THRESHOLD:
                 return False
             scaling['cov_HST_richness_SZ_%s'%name] = np.array(cov)
- 
+
 
         # X-ray
         cov = [[scaling['Dx']**2, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx']],

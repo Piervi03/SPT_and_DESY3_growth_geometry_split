@@ -91,4 +91,3 @@ class DistCompute:
         dN_dlambda = (np.trapz(np.exp(lndN_dz_dlnrichness_grid), self.HMF['z_arr'], axis=0)/np.exp(self.lnlambda_bins))[::10]
 
         return dN_dz_out, dN_dlambda
-

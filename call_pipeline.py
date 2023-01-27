@@ -114,7 +114,7 @@ scaling = {'Asz': 4., 'Bsz': 1.34, 'Csz': .49, 'Dsz': .2,
            'SZmPivot': 3e14,
            'XraymPivot': 5e14,
            'richmPivot': 3e14,
-            'YXPARAM': 'SPT_XVP',
+           'YXPARAM': 'SPT_XVP',
            }
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

@@ -247,7 +247,7 @@ class SPTlensing:
         """Return HST shear model given mass."""
         Dl = np.exp(self.lndA_interp(np.log(self.cat_cl['REDSHIFT'])))
         # NFW halo stuff
-        rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.cat_cl['REDSHIFT'], self.cosmology)**2 # [h^2 Msun/Mpc^3]
+        rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.cat_cl['REDSHIFT'], self.cosmology)**2  # [h^2 Msun/Mpc^3]
         M200c = np.exp(self.MCrel.lnM_to_lnM200(self.cat_cl['REDSHIFT'], np.log(mass)))[0]
         r200c = (3*M200c/4/np.pi/200/rho_c_z)**(1/3)
         c200c = self.MCrel.calC200(M200c, self.cat_cl['REDSHIFT'])
@@ -453,7 +453,7 @@ def readdata(catalog, HSTfile, MegacamFile, DESfile, save_shear_profiles):
                                             'tomo_rescale': f['clusters'][name]['tomo_rescale'][1:],
                                             }
                     if save_shear_profiles:
-                        tmp  = ['zlo', 'zmid', 'zhi']
+                        tmp = ['zlo', 'zmid', 'zhi']
                         idx = np.digitize(catalog['REDSHIFT'][i], z_lims)-1
                         zname = tmp[idx]
                         tmp = ['xilo', 'xihi']

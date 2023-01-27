@@ -48,4 +48,3 @@ class MisCentering(object):
         sigma_1 = np.sqrt(sigma_1**2 + sigma_obs_Mpch**2)
         R = np.sqrt(np.pi/2) * (rho*sigma_0 + (1-rho)*sigma_1)
         return R
-

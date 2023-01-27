@@ -50,7 +50,8 @@ def lnmass2lnobs(name, lnmass, z, scaling, cosmology=None, cluster_ID=None, lnM5
     elif name=='disp':
         h70z = cosmology['h']/.7*cosmo.Ez(z, cosmology)
         lnM200c = lnM500_to_lnM200(z, lnmass)
-        if len(lnM200c)==1: lnM200c = lnM200c[0]
+        if len(lnM200c)==1:
+            lnM200c = lnM200c[0]
         return np.log(scaling['Adisp']) + (1/scaling['Bdisp'])*(lnM200c-np.log(1e15/cosmology['h'])) +scaling['Cdisp']*np.log(h70z)
     elif name=='richness':
         return (np.log(scaling['Arichness'])
@@ -116,7 +117,8 @@ def dlnM_dlnobs(name, scaling, cosmology=None, M0_arr=None, z=None):
         dlnM = np.log(1.01)
         dlnobs = lnmass2lnobs('disp', np.log(1.01*M0_arr), z)-lnmass2lnobs('disp', np.log(M0_arr), z)
         if np.any(dlnobs==0.):
-            if dlnobs[-1]==0: dlnobs[-1] = dlnobs[-2]
+            if dlnobs[-1]==0:
+                dlnobs[-1] = dlnobs[-2]
         return dlnM/dlnobs
 
 
@@ -127,6 +129,6 @@ def WLscatter(name, lnmass, z, scaling):
         s_z = interp1d(scaling['DESwl_z'], scatter_z, fill_value='extrapolate')
         s_m = scaling['DESwl_scatter_m_mean'] + scaling['DES_s_dev_m']*scaling['DESwl_scatter_m_std']
         lnvar = s_z(z) + s_m*(lnmass-np.log(scaling['DES_m_piv']))
-        return  np.exp(.5 * lnvar)
+        return np.exp(.5 * lnvar)
     elif name=='wide':
         return np.sqrt(np.exp(scaling['DES_wide_s_0'] + scaling['DES_wide_s_1']*(lnmass-np.log(scaling['DES_m_piv']))))

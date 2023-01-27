@@ -1,5 +1,3 @@
-import numpy as np
-
 random_seed = 0
 
 Delta_crit = 200
@@ -27,4 +25,3 @@ HST = {'shape_noise': .3,
        # Type of M-c scaling relation, 'Duffy08' or 'DK15' or 'Cihld18_obs' or float
        'mcType': 'DK15',
        }
-

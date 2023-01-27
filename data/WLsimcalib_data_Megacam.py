@@ -1,5 +1,3 @@
-import numpy as np
-
 WLcalibration = {
     # Megacam
     'MegacamSim': (.938, .028, .214, .04),
@@ -10,4 +8,3 @@ WLcalibration = {
     'MegacamContamCorr': .009,
     'Megacam_LSS': (6.3e13, 7e12),
 }
-
