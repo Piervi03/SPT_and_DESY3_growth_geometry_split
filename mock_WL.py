@@ -218,7 +218,7 @@ class MockUpDESWL:
                     'beta': beta_bin,
                     'tomo_weights_R': w_r_bin[good_idx],
                     'tomo_rescale': self.tomo_rescale,
-                   }
+                    }
         return res_dict
 
 

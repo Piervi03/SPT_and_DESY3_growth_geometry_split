@@ -256,9 +256,9 @@ class MassCalibration:
         """Returns P(obs|xi,z,p) for a single type of follow-up data."""
         ##### dN/dlnobs/dlnzeta at z=z_cluster from interpolation tables
         if obsname=='WLHST':
-             lnHMF_2d = self.HMF_convos[pairname][self.catalog['SPT_ID'][dataID]]
+            lnHMF_2d = self.HMF_convos[pairname][self.catalog['SPT_ID'][dataID]]
         else:
-             lnHMF_2d = self.get_multiobs_lnHMF_z(z=self.catalog['REDSHIFT'][dataID],
+            lnHMF_2d = self.get_multiobs_lnHMF_z(z=self.catalog['REDSHIFT'][dataID],
                                                  z_arr=self.HMF_convos['%s_z'%pairname],
                                                  lnHMF=self.HMF_convos[pairname])
 
@@ -400,8 +400,8 @@ class MassCalibration:
                             lnHMF_3d_at_cut = lnHMF_3d[:,idx[0]-1,:] + Delta_y*Delta_x0/Delta_x
                         lnHMF_3d = np.insert(lnHMF_3d[:,idx,:], 0, lnHMF_3d_at_cut, axis=1)
                     obsArrTemp = np.insert(obsArrTemp[idx], 0, lambda_min)
-            obsArr.append( obsArrTemp )
-            lnobsArr.append( np.log(obsArrTemp) )
+            obsArr.append(obsArrTemp)
+            lnobsArr.append(np.log(obsArrTemp))
 
         ##### SZ arrays
         zeta_arr = self.thisSPTfield_gamma * np.exp(scaling_relations.lnmass2lnobs('zeta', self.HMF_convos['lnM_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology))

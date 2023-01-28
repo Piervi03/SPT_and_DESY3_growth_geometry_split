@@ -172,4 +172,3 @@ class NumberCount:
                 N_bins[i,j] = np.trapz(np.sum(integrand, axis=1), z_arr)
 
         return N_bins, dN_dz_out, dN_dxi_out, dN_dxi_out_survey, self.SPT_survey['FIELD'][fieldidx]
-

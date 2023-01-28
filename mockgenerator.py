@@ -26,7 +26,7 @@ def main(configMod_file, catalog_name):
     rng = np.random.default_rng(configMod.random_seed)
 
     # Set up HMF
-    M_arr =  np.logspace(13, 16, 301)
+    M_arr = np.logspace(13, 16, 301)
     lnM_arr = np.log(M_arr)
     dlnm = np.log(M_arr[1]/M_arr[0])
     dz_ = .01
@@ -153,7 +153,7 @@ def main(configMod_file, catalog_name):
                             # Cut in richness
                             if richness_obs<lambda_min:
                                 continue
-                            
+
                         mock.append((M, z, xi, Mg, obs[k,0], richness_obs, obs[k,4], SPT_survey['GAMMA'][fieldidx]))
                         fieldnames.append(field)
 

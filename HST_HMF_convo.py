@@ -30,7 +30,7 @@ class MultiObsConvolution:
         self.N_sigma = 4
         self.compression = 10
 
-        self.observable_pairs = []#, self.pairs_zmin, self.pairs_zmax, self.pairs_Nz = [], [], [], []
+        self.observable_pairs = []  # , self.pairs_zmin, self.pairs_zmax, self.pairs_Nz = [], [], [], []
         for pair, zmin, zmax, Nz in zip(observable_pairs, pairs_zmin, pairs_zmax, pairs_Nz):
             if (pair in self.pairnames_2d) | (pair in self.pairnames_3d):
                 self.observable_pairs.append(pair)
@@ -84,7 +84,7 @@ class MultiObsConvolution:
         return Nbins_obs, lnobs_arr
 
 
-    def get_P_2obs_z(self, obsname, covmat, z): 
+    def get_P_2obs_z(self, obsname, covmat, z):
         """Return P(obs, zeta | M, z(z_id), p) for constant correlated
         scatter."""
         dN_dlnM, = np.exp(self.HMF_interp(z, np.log(self.HMF['M_arr'])))
@@ -118,7 +118,7 @@ class MultiObsConvolution:
         return lnHMF_2d
 
 
-    def get_P_3obs_z(self, obsnames, covmat, z): 
+    def get_P_3obs_z(self, obsnames, covmat, z):
         """Return P(obs0, obs1, zeta | M, z(z_id), p) for constant correlated
         scatter."""
         dN_dlnM, = np.exp(self.HMF_interp(z, np.log(self.HMF['M_arr'])))
@@ -139,7 +139,7 @@ class MultiObsConvolution:
 
 
         # Get the scatter kernel [lnobs, lnzeta]
-        pos = np.empty((Nbins_obs0, Nbins_obs1, Nbins_zeta, 3)) 
+        pos = np.empty((Nbins_obs0, Nbins_obs1, Nbins_zeta, 3))
         pos[:,:,:,0], pos[:,:,:,1], pos[:,:,:,2] = np.meshgrid(lnobs0_arr, lnobs1_arr, lnzeta_arr, indexing='ij')
         kernel = multivariate_normal.pdf(pos, mean=(0,0,0), cov=covmat)
 
@@ -154,4 +154,3 @@ class MultiObsConvolution:
             lnHMF_3d = np.log(HMF_3d)
 
         return lnHMF_3d
-     

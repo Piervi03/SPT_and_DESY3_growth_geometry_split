@@ -119,4 +119,3 @@ class TestClass:
             HMF['z_arr'] = z['SZ_lambdacut_shallow_z']
         HMF['len_z'] = len(HMF['z_arr'])
         lnlike, dN_dz, dN_dxi, N_total = number_count.lnlike(HMF, self.cosmology, self.scaling)
-
