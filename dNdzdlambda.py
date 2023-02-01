@@ -25,9 +25,10 @@ class DistCompute:
 
         ##### Observable arrays for output
         self.lnlambda_bins = np.linspace(np.log(10), np.log(250), 151)
+        self.Nlambda = (len(self.lnlambda_bins)//10)+1
         dz = .1
-        Nz = int((self.surveyCutRedshift[1]-self.surveyCutRedshift[0])/dz + 1)
-        self.z_bins_output = np.linspace(self.surveyCutRedshift[0], self.surveyCutRedshift[1], Nz)
+        self.Nz = int((self.surveyCutRedshift[1]-self.surveyCutRedshift[0])/dz + 1)
+        self.z_bins_output = np.linspace(self.surveyCutRedshift[0], self.surveyCutRedshift[1], self.Nz)
 
     def run(self, HMF, cosmology, scaling):
         """Return ln-likelihood for SPT cluster abundance."""
@@ -57,6 +58,8 @@ class DistCompute:
 
     def run_field(self, fieldidx):
         """Return dN/dz and dN/dlambda for a given SPT field (index)."""
+        if 'noMCMF' in self.SPT_survey['FIELD'][fieldidx]:
+            return np.zeros(self.Nz), np.zeros(self.Nlambda)
         # Field size
         dN_dz_dlnobs = self.dN_dlnobs_deg2 * self.SPT_survey['AREA'][fieldidx]
         # xi|M
@@ -73,21 +76,16 @@ class DistCompute:
         # Cut in lambda
         if self.SPT_survey['FIELD'][fieldidx]=='sptpol_500d_MCMF':
             lambda_min = self.surveyCutRichness['deep'](self.HMF['z_arr'])
-        elif '_MCMF' in self.SPT_survey['FIELD'][fieldidx]:
-            lambda_min = self.surveyCutRichness['shallow'](self.HMF['z_arr'])
         else:
-            lambda_min = np.zeros(self.HMF['len_z'])
+            lambda_min = self.surveyCutRichness['shallow'](self.HMF['z_arr'])
         dN_dz_dlnrichness[self.lnrichness_m<np.log(lambda_min)[:,None]] = 0.
         with np.errstate(all='ignore'):
             lndN_dz_dlnrichness = np.log(dN_dz_dlnrichness)
         # dN/dlambda go to fixed grid in z,lambda and integrate over z; return sparse array
         with np.errstate(divide='ignore'):
             lndN_dz_dlnrichness_grid = np.array([np.interp(self.lnlambda_bins, self.lnrichness_m[i], lndN_dz_dlnrichness[i]) for i in range(len(self.HMF['z_arr']))])
-
-        # dN/dz
+        # dN/dz and dN/dlambda
         dN_dz = np.sum(np.exp(.5*(lndN_dz_dlnrichness[:,1:]+lndN_dz_dlnrichness[:,:-1])) * np.diff(self.lnrichness_m), axis=1)
         dN_dz_out = interp1d(self.HMF['z_arr'], dN_dz, kind='linear')(self.z_bins_output)
-
         dN_dlambda = (np.trapz(np.exp(lndN_dz_dlnrichness_grid), self.HMF['z_arr'], axis=0)/np.exp(self.lnlambda_bins))[::10]
-
         return dN_dz_out, dN_dlambda
