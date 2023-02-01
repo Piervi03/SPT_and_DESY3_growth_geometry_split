@@ -12,6 +12,8 @@ import cosmo, Mconversion_concentration, miscentering
 ########################################
 
 # Limits for stack
+z_names = ['zlo', 'zmid', 'zhi']
+xi_names = ['xilo', 'xihi']
 z_lims = [.25, .4, .6, .95]
 xi_lims = [4.25, 5.5, 1e10]
 
@@ -453,13 +455,9 @@ def readdata(catalog, HSTfile, MegacamFile, DESfile, save_shear_profiles):
                                             'tomo_rescale': f['clusters'][name]['tomo_rescale'][1:],
                                             }
                     if save_shear_profiles:
-                        tmp = ['zlo', 'zmid', 'zhi']
-                        idx = np.digitize(catalog['REDSHIFT'][i], z_lims)-1
-                        zname = tmp[idx]
-                        tmp = ['xilo', 'xihi']
-                        idx = np.digitize(catalog['REDSHIFT'][i], xi_lims)-1
-                        xiname = tmp[idx]
-                        catalog['WLdata'][i]['r_arcmin_stack'] = f['stack_%s%s'%(zname, xiname)]['r_arcmin'][:]
+                        z_idx = np.digitize(catalog['REDSHIFT'][i], z_lims)-1
+                        xi_idx = np.digitize(catalog['XI'][i], xi_lims)-1
+                        catalog['WLdata'][i]['r_arcmin_stack'] = f['stack_%s%s'%(z_names[z_idx], xi_names[xi_idx])]['r_arcmin'][:]
 
     ##### Megacam data
     if MegacamFile != 'None':
