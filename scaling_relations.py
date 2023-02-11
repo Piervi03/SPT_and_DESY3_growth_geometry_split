@@ -54,7 +54,7 @@ def lnmass2lnobs(name, lnmass, z, scaling, cosmology=None, cluster_ID=None, lnM5
             lnM200c = lnM200c[0]
         return np.log(scaling['Adisp']) + (1/scaling['Bdisp'])*(lnM200c-np.log(1e15/cosmology['h'])) +scaling['Cdisp']*np.log(h70z)
     elif name=='richness':
-        return (np.log(scaling['Arichness'])
+        return (scaling['Arichness']
                 + scaling['Brichness']*(lnmass-np.log(scaling['richmPivot']))
                 + scaling['Crichness']*np.log((1+z)/1.6))
     elif name=='WLMegacam':
@@ -78,7 +78,7 @@ def obs2lnmass(name, obs, z, scaling, cosmology=None, cluster_ID=None):
         return (np.log(scaling['SZmPivot'])
                 + (np.log(obs) - scaling['Asz'] - scaling['Csz']*lnE_z_term) / (scaling['Bsz'] + scaling['Esz']*lnE_z_term))
     elif name=='richness':
-        lnmass = np.log(scaling['richmPivot']) + (1/scaling['Brichness'])*np.log(obs / scaling['Arichness'] / ((1+z)/1.6)**scaling['Crichness'])
+        lnmass = np.log(scaling['richmPivot']) + (1/scaling['Brichness'])*(np.log(obs) - scaling['Arichness'] - scaling['Crichness']*np.log((1+z)/1.6))
         return lnmass
     elif name=='WLMegacam':
         return np.log(obs/scaling['bWL_Megacam'])

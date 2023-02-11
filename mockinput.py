@@ -33,7 +33,7 @@ scaling = {'Asz': .96, 'Bsz': 1.5, 'Csz': .5, 'Dsz': .2, 'zeta_min': 1.,
            'DES_s_dev_0': 0., 'DES_s_dev_1': 0., 'DES_s_dev_2': 0, 'DES_s_dev_m': 0.,
 
            'Adisp':939., 'Bdisp':2.91, 'Cdisp':.33, 'Ddisp0':.2, 'DdispN':3.,
-           'Arichness': 70., 'Brichness': 1., 'Crichness': 0., 'Drichness': .2,
+           'Arichness': 4.25, 'Brichness': 1., 'Crichness': 0., 'Drichness': .2,
            'Ax': 6.5, 'Bx': .57, 'Cx': -.4, 'Dx': .12, 'Ex':0,
            'slope_MgR': 1.16, 'slope_MgR_std': .016,
            'rhoSZrichness': 0., 'rhoSZdisp': 0., 'rhoSZX': 0., 'rhoSZWL': 0.,
