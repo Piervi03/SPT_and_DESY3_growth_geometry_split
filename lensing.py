@@ -199,9 +199,7 @@ class SPTlensing:
         # Model
         reduced_shear_cont, DeltaSigma_mis_rescaled, r_r200c, DeltaSigma_data_rescaled = self.shear_model_DES(M_arr)
         # Likelihood
-        diffs = reduced_shear_cont - self.cat_cl['WLdata']['shear']
-        chi2 = (diffs/self.cat_cl['WLdata']['shear_err'])**2
-        lnP_DES_Mwl = -.5*np.sum(chi2, axis=1)
+        lnP_DES_Mwl = -.5*np.sum(((reduced_shear_cont-self.cat_cl['WLdata']['shear'])/self.cat_cl['WLdata']['shear_err'])**2, axis=1)
         if self.save_shear_profiles:
             return lnP_DES_Mwl, reduced_shear_cont, DeltaSigma_mis_rescaled, r_r200c, DeltaSigma_data_rescaled
         else:
@@ -235,9 +233,7 @@ class SPTlensing:
         # Model
         g_2d = self.shear_model_Megacam(M_arr)
         # Likelihood
-        diff = g_2d - self.cat_cl['WLdata']['shear'][:,None]
-        chi2 = (diff/self.cat_cl['WLdata']['shearerr'][:,None])**2
-        lnpOfMass = -.5*np.sum(chi2, axis=0)
+        lnpOfMass = -.5*np.sum(((g_2d-self.cat_cl['WLdata']['shear'][:,None])/self.cat_cl['WLdata']['shearerr'][:,None])**2, axis=0)
         if self.save_shear_profiles:
             return lnpOfMass, g_2d
         else:
@@ -288,9 +284,7 @@ class SPTlensing:
         # Model
         g_2d = self.shear_model_HST(M_arr)
         # Likelihood
-        diff = g_2d[rInclude,:] - self.cat_cl['WLdata']['shear'][rInclude,None]
-        chi2 = (diff/self.cat_cl['WLdata']['shearerr'][rInclude,None])**2
-        lnpOfMass = -.5*np.sum(chi2, axis=0)
+        lnpOfMass = -.5*np.sum(((g_2d[rInclude,:]-self.cat_cl['WLdata']['shear'][rInclude,None])/self.cat_cl['WLdata']['shearerr'][rInclude,None])**2, axis=0)
         if self.save_shear_profiles:
             return lnpOfMass, g_2d
         else:
