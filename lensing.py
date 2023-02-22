@@ -35,7 +35,8 @@ class SPTlensing:
 
     def __init__(self, catalog, WLsimcalibfile,
                  HSTfile, MegacamFile, DESfile,
-                 DESboostfile, DESmiscenterfile, DEScentertype,
+                 DESboostfile, DESboost_z_arr,
+                 DESmiscenterfile, DEScentertype,
                  mcType,
                  NPROC=0,
                  save_shear_profiles=False):
@@ -61,7 +62,7 @@ class SPTlensing:
             with open(DESboostfile, 'r') as f:
                 tmp = f.readline().split()[1:]
             dat = np.mean(np.loadtxt(DESboostfile), axis=0)
-            self.boost_dict = {'z_arr': np.linspace(.2, .9, 10)}
+            self.boost_dict = {'z_arr': DESboost_z_arr}
             for n,name in enumerate(tmp):
                 self.boost_dict[name] = dat[n]
             # Initialize miscentering

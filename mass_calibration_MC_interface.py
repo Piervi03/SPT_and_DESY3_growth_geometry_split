@@ -49,12 +49,14 @@ def setup(options):
         MegacamFile = options.get_string(option_section, 'MegacamFile')
         DESfile = options.get_string(option_section, 'DESfile')
         DESboostfile = options.get_string(option_section, 'DESboostfile')
+        DESboost_z_arr = options.get_double_array_1d(option_section, 'DESboost_z_arr')
         DESmiscenterfile = options.get_string(option_section, 'DESmiscenterfile')
         DEScentertype = options.get_string(option_section, 'DEScentertype')
         masscalibration.WL = lensing.SPTlensing(masscalibration.catalog,
                                                 WLsimcalibfile,
                                                 HSTfile, MegacamFile, DESfile,
-                                                DESboostfile, DESmiscenterfile, DEScentertype,
+                                                DESboostfile, DESboost_z_arr,
+                                                DESmiscenterfile, DEScentertype,
                                                 mcType,
                                                 NPROC, save_shear_profiles=get_stacked_DES)
 
@@ -113,7 +115,7 @@ def execute(block, masscalibration):
     if np.isfinite(lnlike):
         block.put_double('likelihoods', 'MASS_CALIBRATION_LIKE', lnlike)
         if masscalibration.get_stacked_DES:
-            for name in ['zloxilo', 'zloxihi', 'zhixilo', 'zhixihi']:
+            for name in ['zloxilo', 'zloxihi', 'zmidxilo', 'zmidxihi', 'zhixilo', 'zhixihi']:
                 for i,n in enumerate(DES_stack['shear_%s'%name]):
                     block.put_double('DES_stack', 'shear_%s_%d'%(name,i), n)
                 for i,n in enumerate(DES_stack['DeltaSigma_%s'%name]):
