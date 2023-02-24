@@ -45,11 +45,15 @@ def execute(block, HMF_calculator):
             'Omega_l': block.get_double('cosmological_parameters', 'omega_lambda'),
             'h': block.get_double('cosmological_parameters', 'hubble')/100.,
             'w0': block.get_double('cosmological_parameters', 'w'),
-            'wa': block.get_double('cosmological_parameters', 'wa')}
+            'wa': block.get_double('cosmological_parameters', 'wa'),
+            'HMFbias': block.get_double('cosmological_parameters', 'HMFbias', default=1.),
+        }
         # cdm+bar power spectrum (w/o neutrinos)
         z, k, Pk = block.get_grid('cdm_baryon_power_lin', 'z', 'k_h', 'p_k')
         # Compute the HMF
         dNdlnM_noVol, dNdlnM = HMF_calculator.compute_HMF(cosmology, z, k, Pk)
+        dNdlnM_noVol*= cosmology['HMFbias']
+        dNdlnM*= cosmology['HMFbias']
         # Put it into block
         block.put_grid('HMF', 'z_arr', HMF_calculator.z_arr, 'M_arr', HMF_calculator.M_arr, 'dNdlnM', dNdlnM)
         block.put_double_array_nd('HMF', 'dNdlnM_unitVol', dNdlnM_noVol)
