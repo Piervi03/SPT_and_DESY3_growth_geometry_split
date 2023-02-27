@@ -84,7 +84,7 @@ class NumberCount:
         # dN_dxi_SZ = dN_dxi_survey[subsurveys=='SZ',:].sum(axis=0)
         # dN_dxi_SPECS = dN_dxi_survey[subsurveys=='SPECS',:].sum(axis=0)
 
-        # print 'abundance lnlike %.3f, Ntotal %.2f'%(lnlike, Ntotal)
+        # print('abundance lnlike %.3f, Ntotal %.2f'%(lnlike, Ntotal))
 
         return lnlike, dN_dz, dN_dxi, Ntotal
 
