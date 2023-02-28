@@ -56,15 +56,15 @@ class SPTlensing:
         if DESfile != 'None':
             # source redshifts
             with h5py.File(DESfile, 'r') as f:
-                self.SOM_Z_MID = f['config/SOM_Z_MID'][:]
-                self.SOM_BINs = f['config/SOM_BINs'][:][1:,:]
+                self.DES = {'SOM_Z_MID': f['config/SOM_Z_MID'][:],
+                            'SOM_BINs': f['config/SOM_BINs'][:][1:,:]}
             # Read boost chain
             with open(DESboostfile, 'r') as f:
                 tmp = f.readline().split()[1:]
             dat = np.mean(np.loadtxt(DESboostfile), axis=0)
-            self.boost_dict = {'z_arr': DESboost_z_arr}
+            self.DES['boost_dict'] = {'z_arr': DESboost_z_arr}
             for n,name in enumerate(tmp):
-                self.boost_dict[name] = dat[n]
+                self.DES['boost_dict'][name] = dat[n]
             # Initialize miscentering
             with open(DESmiscenterfile, 'r') as f:
                 tmp = f.readline().split()[1:]
@@ -80,7 +80,7 @@ class SPTlensing:
             for glob,this in zip(['alpha_opt_0', 'alpha_opt_z', 'alpha_opt_lam', 'opt_comp0_0', 'opt_comp0_z', 'opt_comp0_lam', 'opt_comp1_0', 'opt_comp1_z', 'opt_comp1_lam'],
                                  ['alpha_0', 'alpha_z', 'alpha_lam', 'comp0_0', 'comp0_z', 'comp0_lam', 'comp1_0', 'comp1_z', 'comp1_lam']):
                 miscenter_dict['MCMF'][this] = miscenter_dict[glob]
-            self.miscenterer = miscentering.MisCentering(miscenter_dict[DEScentertype])
+            self.DES['miscenterer'] = miscentering.MisCentering(miscenter_dict[DEScentertype])
 
 
     ########################################
@@ -178,7 +178,7 @@ class SPTlensing:
         delta_c = 200/3 * c200c**3 / (np.log(1+c200c) - c200c/(1+c200c))
         r_s = r200c/c200c
         # Get miscentering radius
-        R_mis = self.miscenterer.get_mean_Rmis(self.cat_cl, self.cosmology)
+        R_mis = self.DES['miscenterer'].get_mean_Rmis(self.cat_cl, self.cosmology)
         # NFW surface mass densities [mass][radius]
         r_Mpch = self.cat_cl['WLdata']['r_arcmin'] * Dl * np.pi/60/180
         Sigma_mis = get_Sigma_mis(r_Mpch[None,:], r_s[:,None], rho_c_z, delta_c[:,None], R_mis)
@@ -188,7 +188,7 @@ class SPTlensing:
         # Rescaled averaging [mass][radius]
         reduced_shear = np.sum(self.cat_cl['WLdata']['tomo_rescale'][None,None,:]*self.cat_cl['WLdata']['tomo_weights'][None,:,:]*reduced_shear_bins, axis=2)/np.sum(self.cat_cl['WLdata']['tomo_weights'], axis=1)
         # Cluster member contamination
-        A = boost_get_A(self.boost_dict, 'Gausssmooth', self.boost_dict['z_arr'], self.cat_cl['REDSHIFT'], self.cat_cl['richness'], r_Mpch, R_mis)
+        A = boost_get_A(self.DES['boost_dict'], 'Gausssmooth', self.DES['boost_dict']['z_arr'], self.cat_cl['REDSHIFT'], self.cat_cl['richness'], r_Mpch, R_mis)
         reduced_shear_cont = 1/(1+A) * reduced_shear
         # Model data back to DeltaSigma
         DeltaSigma_data = (self.cat_cl['WLdata']['shear']/invSigma_c[-1]*(1+A))[None,:]/r200c[:,None]/rho_c_z
@@ -319,11 +319,11 @@ class SPTlensing:
 
     def get_beta_DES(self, cosmology):
         """Return mean(beta) for each DES tomo bin."""
-        beta = np.zeros(len(self.SOM_Z_MID))
-        bgIdx = (self.SOM_Z_MID>self.cat_cl['REDSHIFT']).nonzero()[0]
-        beta[bgIdx] = self.dA_twoz_interp(np.log(self.cat_cl['REDSHIFT']), np.log(self.SOM_Z_MID[bgIdx]))
-        beta[bgIdx]/= np.exp(self.lndA_interp(np.log(self.SOM_Z_MID[bgIdx])))
-        self.beta_avg = np.sum(self.SOM_BINs*beta[None,:], axis=1)/np.sum(self.SOM_BINs, axis=1)
+        beta = np.zeros(len(self.DES['SOM_Z_MID']))
+        bgIdx = (self.DES['SOM_Z_MID']>self.cat_cl['REDSHIFT']).nonzero()[0]
+        beta[bgIdx] = self.dA_twoz_interp(np.log(self.cat_cl['REDSHIFT']), np.log(self.DES['SOM_Z_MID'][bgIdx]))
+        beta[bgIdx]/= np.exp(self.lndA_interp(np.log(self.DES['SOM_Z_MID'][bgIdx])))
+        self.beta_avg = np.sum(self.DES['SOM_BINs']*beta[None,:], axis=1)/np.sum(self.DES['SOM_BINs'], axis=1)
         return 0
 
     def get_beta_HST_Megacam(self, cosmology):
