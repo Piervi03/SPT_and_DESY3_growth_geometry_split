@@ -42,28 +42,18 @@ def main(configMod_file, catalog_name):
     else:
         import baccoemu, compute_HMF_Bocquet16, compute_HMF_Tinker08
         emulator = baccoemu.Matter_powerspectrum()
+        params = {'neutrino_mass': cosmology['Omnuh2']*94.,
+                  'A_s': 1e-10*np.exp(cosmology['ln1e10As'])}
+        for me, they in zip(['Omega_m', 'Omega_b', 'h', 'n_s', 'w0', 'wa'], ['omega_matter', 'omega_baryon', 'hubble', 'ns', 'w0', 'wa']):
+            params[they] = cosmology[me]
         # Call the emulator for P_{CDM+bar}(k)
-        k, Pk = emulator.get_linear_pk(omega_matter=cosmology['Omega_m'],
-                                       omega_baryon=cosmology['Omega_b'],
-                                       hubble=cosmology['h'],
-                                       ns=cosmology['n_s'],
-                                       w0=cosmology['w0'],
-                                       wa=cosmology['wa'],
-                                       neutrino_mass=cosmology['Omnuh2']*94.,
-                                       A_s=1e-10*np.exp(cosmology['ln1e10As']),
-                                       expfactor=1./(1.+z_arr),
-                                       cold=True)
+        k, Pk = emulator.get_linear_pk(expfactor=1./(1.+z_arr),
+                                       cold=True,
+                                       **params)
         # Compute sigma_8 for total matter
-        k_, Pk_ = emulator.get_linear_pk(omega_matter=cosmology['Omega_m'],
-                                         omega_baryon=cosmology['Omega_b'],
-                                         hubble=cosmology['h'],
-                                         ns=cosmology['n_s'],
-                                         w0=cosmology['w0'],
-                                         wa=cosmology['wa'],
-                                         neutrino_mass=cosmology['Omnuh2']*94.,
-                                         A_s=1e-10*np.exp(cosmology['ln1e10As']),
-                                         expfactor=1.,
-                                         cold=False)
+        k_, Pk_ = emulator.get_linear_pk(expfactor=1.,
+                                         cold=False,
+                                         **params)
         kR = 8.*k_
         window = 3. * (np.sin(kR)/kR**3 - np.cos(kR)/kR**2)
         integrand_sigma2 = Pk_ * window**2 * k_**3
