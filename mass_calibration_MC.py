@@ -320,7 +320,7 @@ class MassCalibration:
                 if lambda_min>0.:
                     lnlike-= log_ndtr((lnrichness-np.log(lambda_min))/lnrichness_std)
         # In all other cases we need to draw richness
-        elif self.richness_scatter_model in ['lognormalrelPoisson', 'lognormalGaussPoisson']:
+        elif self.richness_scatter_model in ['lognormalrelPoisson', 'lognormalGaussPoisson', 'lognormalGaussmeaserror']:
             lnM_richness = self.rng.normal(lnM, richness_std_lnM)
             lnrichness = scaling_relations.lnmass2lnobs('richness', lnM_richness, self.catalog['REDSHIFT'][dataID], self.scaling)
             richness = np.exp(lnrichness)
@@ -336,6 +336,12 @@ class MassCalibration:
                 if self.todo['lambda_min']:
                     if lambda_min>0.:
                         lnlike-= log_ndtr((richness-lambda_min)/np.sqrt(richness))
+            # Gaussian measurement error
+            elif self.richness_scatter_model=='lognormalGaussmeaserror':
+                lnlike = -.5*(self.catalog['richness'][dataID]-richness)**2/self.catalog['richness_err'][dataID]**2 - .5*ln2pi - np.log(self.catalog['richness_err'][dataID])
+                if self.todo['lambda_min']:
+                    if lambda_min>0.:
+                        lnlike-= log_ndtr((richness-lambda_min)/self.catalog['richness_err'][dataID])
         # No valid option
         else:
             raise RuntimeError("richness_scatter_model %s not found"%self.richness_scatter_model)

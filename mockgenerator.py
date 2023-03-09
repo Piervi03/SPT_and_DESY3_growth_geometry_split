@@ -132,19 +132,21 @@ def main(configMod_file, catalog_name):
                             # No measurement here
                             richness_obs = 0.
                         else:
+                            richness_err = 0.
                             if configMod.richness_scatter_model=='lognormal':
                                 richness_obs = obs[k,3]
                             elif configMod.richness_scatter_model=='lognormalrelPoisson':
                                 richness_obs = np.exp(rng.normal(np.log(obs[k,3]), scale=1/np.sqrt(obs[k,3])))
                             elif configMod.richness_scatter_model=='lognormalGaussPoisson':
-                                richness_obs = rng.normal(obs[k,3], scale=np.sqrt(obs[k,3]))
+                                richness_err = np.sqrt(obs[k,3])
+                                richness_obs = rng.normal(obs[k,3], scale=richness_err)
                             else:
                                 raise ValueError("Unknown value for richness_scatter_model")
                             # Cut in richness
                             if richness_obs<lambda_min:
                                 continue
 
-                        mock.append((M, z, xi, Mg, obs[k,0], richness_obs, obs[k,4], SPT_survey['GAMMA'][fieldidx]))
+                        mock.append((M, z, xi, Mg, obs[k,0], richness_obs, obs[k,4], SPT_survey['GAMMA'][fieldidx], richness_err))
                         fieldnames.append(field)
 
         # False detections
@@ -246,14 +248,14 @@ def main(configMod_file, catalog_name):
                  'M_true', 'Tx_MM',
                  'M500',
                  'Mwl_DES_200', 'Mwl_HST_200',
-                 'richness',
+                 'richness', 'richness_err',
                  'GAMMA_FIELD',
                  'COSMO_SAMPLE']
     data_arr = [names, fieldnames, mock[:,2], theta_core, mock[:,1], np.zeros(nCluster), redshiftLim,
                 Mgas, Xerrarr, Xerrarr,
                 mock[:,0], 1e14*np.ones(nCluster), M500_noh,
                 mock[:,4], mock[:,6],
-                mock[:,5],
+                mock[:,5], mock[:,8],
                 mock[:,7],
                 np.ones(nCluster, dtype=int)]
     # Save to fits

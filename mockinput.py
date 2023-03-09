@@ -66,4 +66,4 @@ nXrayCluster = 80
 # Use Mgas or Yx?
 Xray_obs = 'Yx'
 # Type of scatter in richness: 'lognormal', 'lognormalrelPoisson', 'lognormalGaussPoisson'
-richness_scatter_model = 'lognormal'
+richness_scatter_model = 'lognormalGaussPoisson'
