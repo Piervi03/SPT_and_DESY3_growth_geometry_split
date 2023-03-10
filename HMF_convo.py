@@ -334,12 +334,9 @@ class MultiObsConvolution:
         # Main component
         cov_base = np.array([[1, self.scaling['rhoSZWL']*self.scaling['Dsz']],
                              [self.scaling['rhoSZWL']*self.scaling['Dsz'], self.scaling['Dsz']**2]])
-        DES_scatter = scaling_relations.WLscatter('main', self.HMF['lnM_arr'], z, self.scaling)
+        DES_scatter = scaling_relations.WLscatter(self.HMF['lnM_arr'], z, self.scaling)
         covmat_main = cov_base * np.array([DES_scatter**2, DES_scatter, DES_scatter, np.ones(len(DES_scatter))]).T.reshape(len(DES_scatter),2,2)
-        # Wide component
-        # DES_scatter = scaling_relations.WLscatter('wide', self.HMF['lnM_arr'], z, self.scaling)
-        # covmat_wide = cov_base * np.array([DES_scatter**2, DES_scatter, DES_scatter, 1]).T.reshape(len(DES_scatter),2,2)
-        covmat = covmat_main  # + covmat_wide
+        covmat = covmat_main
         # Convert observable covmat into covmat in mass
         dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
         dlnM_dlnobs = scaling_relations.dlnM_dlnobs(obsname, self.scaling)
@@ -374,7 +371,7 @@ class MultiObsConvolution:
         cov_base = np.array([[1, self.scaling['rhoWLrichness']*self.scaling['Drichness'], self.scaling['rhoSZWL']*self.scaling['Dsz']],
                              [self.scaling['rhoWLrichness']*self.scaling['Drichness'], self.scaling['Drichness']**2, self.scaling['rhoSZrichness']*self.scaling['Dsz']*self.scaling['Drichness']],
                              [self.scaling['rhoSZWL']*self.scaling['Dsz'], self.scaling['rhoSZrichness']*self.scaling['Dsz']*self.scaling['Drichness'], self.scaling['Dsz']**2]])
-        DES_scatter = scaling_relations.WLscatter('main', self.HMF['lnM_arr'], z, self.scaling)
+        DES_scatter = scaling_relations.WLscatter(self.HMF['lnM_arr'], z, self.scaling)
         covmat = cov_base * np.array([DES_scatter**2, DES_scatter, DES_scatter,
                                       DES_scatter, np.ones(len(DES_scatter)), np.ones(len(DES_scatter)),
                                       DES_scatter, np.ones(len(DES_scatter)), np.ones(len(DES_scatter))]).T.reshape(len(DES_scatter),3,3)
@@ -423,7 +420,7 @@ class MultiObsConvolution:
             cov_base = np.array([[1, self.scaling['rhoWLrichness']*self.scaling['Drichness'], self.scaling['rhoSZWL']*self.scaling['Dsz']],
                                  [self.scaling['rhoWLrichness']*self.scaling['Drichness'], self.scaling['Drichness']**2, self.scaling['rhoSZrichness']*self.scaling['Dsz']*self.scaling['Drichness']],
                                  [self.scaling['rhoSZWL']*self.scaling['Dsz'], self.scaling['rhoSZrichness']*self.scaling['Dsz']*self.scaling['Drichness'], self.scaling['Dsz']**2]])
-        DES_scatter = scaling_relations.WLscatter('main', self.HMF['lnM_arr'], z, self.scaling)
+        DES_scatter = scaling_relations.WLscatter(self.HMF['lnM_arr'], z, self.scaling)
         covmat = cov_base * np.array([DES_scatter**2, DES_scatter, DES_scatter,
                                       DES_scatter, np.ones(len(DES_scatter)), np.ones(len(DES_scatter)),
                                       DES_scatter, np.ones(len(DES_scatter)), np.ones(len(DES_scatter))]).T.reshape(len(DES_scatter),3,3)

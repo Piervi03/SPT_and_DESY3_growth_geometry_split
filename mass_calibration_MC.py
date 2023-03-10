@@ -178,9 +178,8 @@ class MassCalibration:
 
         if np.isnan(lnprobability) | np.isinf(lnprobability):
             return -np.inf
-            # raise ValueError("P(obs|xi) =", probability, name)
 
-        # print(name, obsnames, lnprobability,)# time.time()-t0)
+        # print(self.catalog['SPT_ID'][i], obsnames, lnprobability,)# time.time()-t0)
         return lnprobability
 
 
@@ -388,7 +387,7 @@ class MassCalibration:
             N_obs = len(obsnames)
             covmat_lnM = covmat * dlnM_dlnobs[:,None]*dlnM_dlnobs[None,:] * np.ones((len(lnM),N_obs,N_obs))
             if 'WLDES' in obsnames:
-                DES_scatter = scaling_relations.WLscatter('main', lnM, self.catalog['REDSHIFT'][dataID], self.scaling)
+                DES_scatter = scaling_relations.WLscatter(lnM, self.catalog['REDSHIFT'][dataID], self.scaling)
                 covmat_lnM[:,obsnames.index('WLDES'),:]*= DES_scatter[:,None]
                 covmat_lnM[:,:,obsnames.index('WLDES')]*= DES_scatter[:,None]
             elif 'WLHST' in obsnames:

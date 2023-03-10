@@ -75,7 +75,7 @@ def main(configMod_file, catalog_name):
     covs = np.empty((len(z_arr), len(M_arr), 5, 5))
     for i, z in enumerate(z_arr):
         for j, M in enumerate(M_arr):
-            scaling['DWL_DES'] = scaling_relations.WLscatter('main', np.log(M), z, scaling)
+            scaling['DWL_DES'] = scaling_relations.WLscatter(np.log(M), z, scaling)
             covs[i,j,:,:] = [[scaling['DWL_DES']**2, scaling['rhoWLX']*scaling['DWL_DES']*scaling['Dx'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_DES'], scaling['rhoWLrichness']*scaling['DWL_DES']*scaling['Drichness'], 0],
                              [scaling['rhoWLX']*scaling['DWL_DES']*scaling['Dx'], scaling['Dx']**2, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['rhoXrichness']*scaling['Dx']*scaling['Drichness'], scaling['rhoWLX']*scaling['DWL_HST']*scaling['Dx']],
                              [scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_DES'], scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2, scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_HST']],
