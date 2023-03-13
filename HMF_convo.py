@@ -192,7 +192,7 @@ class MultiObsConvolution:
 
     def get_P_zeta_z(self, z):
         """Return dN/dlnzeta."""
-        dN_dlnM, = np.exp(self.HMF_interp(z))
+        dN_dlnM = np.exp(self.HMF_interp(z))
         dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
         Nbin = self.scaling['Dsz'] * dlnM_dlnzeta / self.Delta_lnM
         HMF_1d = gaussian_filter1d(dN_dlnM, Nbin, mode='constant')
@@ -205,7 +205,7 @@ class MultiObsConvolution:
 
     def get_P_zeta_lambdacut_lognormal_z(self, covmat, z, SZsurvey):
         """Return dN/dlnzeta accounting for richness confirmation."""
-        dN_dlnM, = np.exp(self.HMF_interp(z))
+        dN_dlnM = np.exp(self.HMF_interp(z))
         # Halo bias
         if self.do_bias:
             Tinker_bias = bias.haloBias(np.exp(self.HMF['lnM_arr']), model='tinker10', z=z, mdef='200c')
@@ -239,7 +239,7 @@ class MultiObsConvolution:
         """Return dN/dlnzeta accounting for richness confirmation. Lognormal
         scatter in richness is increased by 1/sqrt(lambda) to mimic relative
         increase due to Poisson shot noise."""
-        dN_dlnM, = np.exp(self.HMF_interp(z))
+        dN_dlnM = np.exp(self.HMF_interp(z))
         # Convert observable covmat into covmat in mass
         dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
         dlnM_dlnobs = scaling_relations.dlnM_dlnobs('richness', self.scaling)
@@ -272,7 +272,7 @@ class MultiObsConvolution:
         """Return dN/dlnzeta accounting for richness confirmation. Lognormal
         scatter in richness is convolved by Gaussian of width 1/sqrt(lambda) to
         mimic Poisson shot noise in Gaussian limit."""
-        dN_dlnM, = np.exp(self.HMF_interp(z))
+        dN_dlnM = np.exp(self.HMF_interp(z))
         # Convert observable covmat into covmat in mass
         dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
         dlnM_dlnobs = scaling_relations.dlnM_dlnobs('richness', self.scaling)
@@ -306,7 +306,7 @@ class MultiObsConvolution:
     def get_P_2obs_z(self, obsname, covmat, z):
         """Return P(obs, zeta | M, z[z_id], p) for constant correlated
         scatter."""
-        dN_dlnM, = np.exp(self.HMF_interp(z))
+        dN_dlnM = np.exp(self.HMF_interp(z))
         # Convert observable covmat into covmat in mass
         dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
         dlnM_dlnobs = scaling_relations.dlnM_dlnobs(obsname, self.scaling)
@@ -329,7 +329,7 @@ class MultiObsConvolution:
 
     def get_P_2obs_DES_z(self, obsname, z):
         """Return P(DES_WL, zeta | M, z, p) with correlated scatter."""
-        dN_dlnM, = np.exp(self.HMF_interp(z))
+        dN_dlnM = np.exp(self.HMF_interp(z))
         # (Mass-dependent) covariance matrices
         # Main component
         cov_base = np.array([[1, self.scaling['rhoSZWL']*self.scaling['Dsz']],
@@ -369,7 +369,7 @@ class MultiObsConvolution:
         """Return P(DES_WL, zeta | M, z, p) with correlated scatter accounting
         for optical confirmation."""
         # Mass function at this redshift
-        dN_dlnM, = np.exp(self.HMF_interp(z))
+        dN_dlnM = np.exp(self.HMF_interp(z))
         # (Mass-dependent) covariance matrices
         cov_base = np.array([[1, self.scaling['rhoWLrichness']*self.scaling['Drichness'], self.scaling['rhoSZWL']*self.scaling['Dsz']],
                              [self.scaling['rhoWLrichness']*self.scaling['Drichness'], self.scaling['Drichness']**2, self.scaling['rhoSZrichness']*self.scaling['Dsz']*self.scaling['Drichness']],
@@ -417,7 +417,7 @@ class MultiObsConvolution:
     def get_P_3obs_DES_z(self, obsnames, z):
         """Return P(DES_WL, obs_1, zeta | M, z, p) with correlated scatter."""
         # Mass function at this redshift
-        dN_dlnM, = np.exp(self.HMF_interp(z))
+        dN_dlnM = np.exp(self.HMF_interp(z))
         # (Mass-dependent) covariance matrices
         if obsnames[1]=='richness':
             cov_base = np.array([[1, self.scaling['rhoWLrichness']*self.scaling['Drichness'], self.scaling['rhoSZWL']*self.scaling['Dsz']],
@@ -458,7 +458,7 @@ class MultiObsConvolution:
     def get_P_3obs_z(self, obsnames, covmat, z):
         """Return P(obs0, obs1, zeta | M, z(z_id), p) for constant correlated
         scatter."""
-        dN_dlnM, = np.exp(self.HMF_interp(z))
+        dN_dlnM = np.exp(self.HMF_interp(z))
         # Convert observable covmat into covmat in mass
         dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
         dlnM_dlnobs = [scaling_relations.dlnM_dlnobs(obs, self.scaling) for obs in obsnames]
