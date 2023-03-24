@@ -74,7 +74,7 @@ def setup(options):
             DES_WL_prior['deltab_pc1'] = -np.sqrt(DES_WL_prior['deltab_pc1']**2 + .02**2)
             DES_WL_prior['bias_slope'][1] = np.sqrt(DES_WL_prior['bias_slope'][1]**2 + .018**2)
             DES_WL_prior['delta_lnsigma2'] = np.sqrt(DES_WL_prior['delta_lnsigma2']**2 + .25**2)
-            DES_WL_prior['lnsigma2_slope'][1] = np.sqrt(DES_WL_prior['lnsigma2_slope'][1] + .59**2)
+            DES_WL_prior['lnsigma2_slope'][1] = np.sqrt(DES_WL_prior['lnsigma2_slope'][1]**2 + .59**2)
 
     return masscalibration, DES_WL_prior
 
