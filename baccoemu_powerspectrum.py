@@ -21,28 +21,24 @@ def execute(block, stuff):
     block."""
     # Setup
     z_arr, emulator = stuff
+    # Parameters
+    params = {'omega_matter': block.get_double('cosmological_parameters', 'Omega_m'),
+              'omega_baryon': block.get_double('cosmological_parameters', 'Omega_b'),
+              'neutrino_mass': block.get_double('cosmological_parameters', 'Omnuh2')*94.,
+              'hubble': block.get_double('cosmological_parameters', 'h0'),
+              'ns': block.get_double('cosmological_parameters', 'n_s'),
+              'w0': block.get_double('cosmological_parameters', 'w'),
+              'wa': block.get_double('cosmological_parameters', 'wa'),
+              'A_s': block.get_double('cosmological_parameters', 'A_s'),
+              }
     # Call the emulator for P_{CDM+bar}(k)
-    k, Pk = emulator.get_linear_pk(omega_matter=block.get_double('cosmological_parameters', 'Omega_m'),
-                                   omega_baryon=block.get_double('cosmological_parameters', 'Omega_b'),
-                                   hubble=block.get_double('cosmological_parameters', 'h0'),
-                                   ns=block.get_double('cosmological_parameters', 'n_s'),
-                                   w0=block.get_double('cosmological_parameters', 'w'),
-                                   wa=block.get_double('cosmological_parameters', 'wa'),
-                                   neutrino_mass=block.get_double('cosmological_parameters', 'Omnuh2')*94.,
-                                   A_s=block.get_double('cosmological_parameters', 'A_s'),
-                                   expfactor=1./(1.+z_arr),
-                                   cold=True)
+    k, Pk = emulator.get_linear_pk(expfactor=1./(1.+z_arr),
+                                   cold=True,
+                                   **params)
     # Compute sigma_8 for total matter
-    k_, Pk_ = emulator.get_linear_pk(omega_matter=block.get_double('cosmological_parameters', 'Omega_m'),
-                                     omega_baryon=block.get_double('cosmological_parameters', 'Omega_b'),
-                                     hubble=block.get_double('cosmological_parameters', 'h0'),
-                                     ns=block.get_double('cosmological_parameters', 'n_s'),
-                                     w0=block.get_double('cosmological_parameters', 'w'),
-                                     wa=block.get_double('cosmological_parameters', 'wa'),
-                                     neutrino_mass=block.get_double('cosmological_parameters', 'Omnuh2')*94.,
-                                     A_s=block.get_double('cosmological_parameters', 'A_s'),
-                                     expfactor=1.,
-                                     cold=False)
+    k_, Pk_ = emulator.get_linear_pk(expfactor=1.,
+                                     cold=False,
+                                     **params)
     kR = 8.*k_
     window = 3. * (np.sin(kR)/kR**3 - np.cos(kR)/kR**2)
     integrand_sigma2 = Pk_ * window**2 * k_**3

@@ -178,9 +178,8 @@ class MassCalibration:
 
         if np.isnan(lnprobability) | np.isinf(lnprobability):
             return -np.inf
-            # raise ValueError("P(obs|xi) =", probability, name)
 
-        # print(name, obsnames, lnprobability,)# time.time()-t0)
+        # print(self.catalog['SPT_ID'][i], obsnames, lnprobability,)# time.time()-t0)
         return lnprobability
 
 
@@ -316,23 +315,32 @@ class MassCalibration:
             lnrichness_std = richness_std_lnM/scaling_relations.dlnM_dlnobs('richness', self.scaling)
             lnrichness = scaling_relations.lnmass2lnobs('richness', lnM, self.catalog['REDSHIFT'][dataID], self.scaling)
             lnlike = -.5*(np.log(self.catalog['richness'][dataID])-lnrichness)**2/lnrichness_std**2 - np.log(self.catalog['richness'][dataID]*lnrichness_std) - .5*ln2pi
-            if self.todo['lambda_min']&(lambda_min>0.):
-                lnlike-= log_ndtr((lnrichness-np.log(lambda_min))/lnrichness_std)
+            if self.todo['lambda_min']:
+                if lambda_min>0.:
+                    lnlike-= log_ndtr((lnrichness-np.log(lambda_min))/lnrichness_std)
         # In all other cases we need to draw richness
-        elif self.richness_scatter_model in ['lognormalrelPoisson', 'lognormalGaussPoisson']:
+        elif self.richness_scatter_model in ['lognormalrelPoisson', 'lognormalGaussPoisson', 'lognormalGaussmeaserror']:
             lnM_richness = self.rng.normal(lnM, richness_std_lnM)
             lnrichness = scaling_relations.lnmass2lnobs('richness', lnM_richness, self.catalog['REDSHIFT'][dataID], self.scaling)
             richness = np.exp(lnrichness)
             # Lognormal scatter in richness gets additional 1/lambda for relative shot noise
             if self.richness_scatter_model=='lognormalrelPoisson':
                 lnlike = -.5*(np.log(self.catalog['richness'][dataID])-lnrichness)**2*richness - np.log(self.catalog['richness'][dataID]) - .5*ln2pi + .5*lnrichness
-                if self.todo['lambda_min']&(lambda_min>0.):
-                    lnlike-= log_ndtr((lnrichness-np.log(lambda_min))*np.sqrt(richness))
+                if self.todo['lambda_min']:
+                    if lambda_min>0.:
+                        lnlike-= log_ndtr((lnrichness-np.log(lambda_min))*np.sqrt(richness))
             # Convolve lognormal scatter with Gaussian of width sqrt(richness)
             elif self.richness_scatter_model=='lognormalGaussPoisson':
                 lnlike = -.5*(self.catalog['richness'][dataID]-richness)**2/richness - .5*np.log(2*np.pi*richness)
-                if self.todo['lambda_min']&(lambda_min>0.):
-                    lnlike-= log_ndtr((richness-lambda_min)/np.sqrt(richness))
+                if self.todo['lambda_min']:
+                    if lambda_min>0.:
+                        lnlike-= log_ndtr((richness-lambda_min)/np.sqrt(richness))
+            # Gaussian measurement error
+            elif self.richness_scatter_model=='lognormalGaussmeaserror':
+                lnlike = -.5*(self.catalog['richness'][dataID]-richness)**2/self.catalog['richness_err'][dataID]**2 - .5*ln2pi - np.log(self.catalog['richness_err'][dataID])
+                if self.todo['lambda_min']:
+                    if lambda_min>0.:
+                        lnlike-= log_ndtr((richness-lambda_min)/self.catalog['richness_err'][dataID])
         # No valid option
         else:
             raise RuntimeError("richness_scatter_model %s not found"%self.richness_scatter_model)
@@ -360,7 +368,7 @@ class MassCalibration:
         lnlike = self.lensinglikeinterp(lnobs)
         # Shear profile for DES stacks
         if self.get_stacked_DES & (obsname=='WLDES'):
-            self.DES_shear_profile_MC = interp1d(self.lnMwl, self.lensingres[1], axis=0)(lnobs)
+            self.DES_shear_profile_MC = interp1d(self.lnMwl, self.lensingres[1], axis=0, fill_value='extrapolate')(lnobs)
             self.DES_DeltaSigma_MC = interp1d(self.lnMwl, self.lensingres[2], axis=0)(lnobs)
             self.DES_r_r200c_MC = interp1d(self.lnMwl, self.lensingres[3], axis=0)(lnobs)
             self.DES_DeltaSigma_data_MC = interp1d(self.lnMwl, self.lensingres[4], axis=0)(lnobs)
@@ -379,7 +387,7 @@ class MassCalibration:
             N_obs = len(obsnames)
             covmat_lnM = covmat * dlnM_dlnobs[:,None]*dlnM_dlnobs[None,:] * np.ones((len(lnM),N_obs,N_obs))
             if 'WLDES' in obsnames:
-                DES_scatter = scaling_relations.WLscatter('main', lnM, self.catalog['REDSHIFT'][dataID], self.scaling)
+                DES_scatter = scaling_relations.WLscatter(lnM, self.catalog['REDSHIFT'][dataID], self.scaling)
                 covmat_lnM[:,obsnames.index('WLDES'),:]*= DES_scatter[:,None]
                 covmat_lnM[:,:,obsnames.index('WLDES')]*= DES_scatter[:,None]
             elif 'WLHST' in obsnames:

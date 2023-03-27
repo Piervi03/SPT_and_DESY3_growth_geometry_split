@@ -1,6 +1,6 @@
 from __future__ import division
 import numpy as np
-from scipy.interpolate import RectBivariateSpline
+from scipy.interpolate import interp1d
 import cosmo
 
 
@@ -59,8 +59,8 @@ class HMFCalculator:
         # Sigma^2 and dsigma^2/dM [z_arr, M_arr]
         sigma2 = .5/np.pi**2 * np.trapz(integrand_sigma2, np.log(k), axis=-1)
         dsigma2dM = np.pi**-2 * R[None,:]/self.M_arr[None,:]/3 * np.trapz(integrand_dsigma2dM, np.log(k), axis=-1)
-        sigma2_fine = np.exp(RectBivariateSpline(z, self.M_arr, np.log(sigma2), kx=1, ky=1)(self.z_arr, self.M_arr))
-        dsigma2dM_fine = -np.exp(RectBivariateSpline(z, self.M_arr, np.log(-dsigma2dM), kx=1, ky=1)(self.z_arr, self.M_arr))
+        sigma2_fine = np.exp(interp1d(z, np.log(sigma2), axis=0)(self.z_arr))
+        dsigma2dM_fine = -np.exp(interp1d(z, np.log(-dsigma2dM), axis=0)(self.z_arr))
 
         ##### Compute HMF (unit volume) [z_arr, M_arr]
         A, a, b, c = self.get_params(self.z_arr)

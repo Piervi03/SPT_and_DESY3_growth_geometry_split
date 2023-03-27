@@ -1,6 +1,7 @@
 from __future__ import division
 import numpy as np
 from scipy.interpolate import interp1d
+import h5py
 from cosmosis.datablock import option_section
 import mass_calibration_MC as mass_calibration
 import lensing
@@ -44,24 +45,42 @@ def setup(options):
 
     # Set up lensing code
     if todo['WL']:
+        # Lensing data
         WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
-        HSTfile = options.get_string(option_section, 'HSTfile')
-        MegacamFile = options.get_string(option_section, 'MegacamFile')
-        DESfile = options.get_string(option_section, 'DESfile')
+        HSTfile = options.get_string(option_section, 'HSTfile', default='None')
+        MegacamFile = options.get_string(option_section, 'MegacamFile', default='None')
+        DESfile = options.get_string(option_section, 'DESfile', default='None')
         DESboostfile = options.get_string(option_section, 'DESboostfile')
+        DESboost_z_arr = options.get_double_array_1d(option_section, 'DESboost_z_arr')
         DESmiscenterfile = options.get_string(option_section, 'DESmiscenterfile')
         DEScentertype = options.get_string(option_section, 'DEScentertype')
         masscalibration.WL = lensing.SPTlensing(masscalibration.catalog,
                                                 WLsimcalibfile,
                                                 HSTfile, MegacamFile, DESfile,
-                                                DESboostfile, DESmiscenterfile, DEScentertype,
+                                                DESboostfile, DESboost_z_arr,
+                                                DESmiscenterfile, DEScentertype,
                                                 mcType,
                                                 NPROC, save_shear_profiles=get_stacked_DES)
+        # DES lensing priors
+        if DESfile=='None':
+            DES_WL_prior = None
+        else:
+            DES_WL_priors_file = options.get_string(option_section, 'DES_WL_priors_file')
+            with h5py.File(DES_WL_priors_file, 'r') as f:
+                DES_WL_prior = {}
+                for k in f.keys():
+                    DES_WL_prior[k] = f[k][()]
+            # Additional hydro uncertainty
+            DES_WL_prior['deltab_pc1'] = -np.sqrt(DES_WL_prior['deltab_pc1']**2 + .02**2)
+            DES_WL_prior['bias_slope'][1] = np.sqrt(DES_WL_prior['bias_slope'][1]**2 + .018**2)
+            DES_WL_prior['delta_lnsigma2'] = np.sqrt(DES_WL_prior['delta_lnsigma2']**2 + .25**2)
+            DES_WL_prior['lnsigma2_slope'][1] = np.sqrt(DES_WL_prior['lnsigma2_slope'][1]**2 + .59**2)
 
-    return masscalibration
+    return masscalibration, DES_WL_prior
 
 
-def execute(block, masscalibration):
+def execute(block, setup_stuff):
+    masscalibration, DES_WL_prior = setup_stuff
     ##### Extract from datablock
     cosmology = {
         'Omega_l': block.get_double('cosmological_parameters', 'Omega_lambda'),
@@ -82,13 +101,13 @@ def execute(block, masscalibration):
               'Adisp', 'Bdisp', 'Cdisp',]:
         scaling[p] = block.get_double('mor_parameters', p)
     # DES
-    if block.has_value('mor_parameters', 'DESwl_z'):
-        for p in ['DES_b_dev_0', 'DES_b_dev_1', 'DES_b_dev_2', 'DES_b_dev_m', 'DESwl_bias_m_mean', 'DESwl_bias_m_std',
-                  'DES_s_dev_0', 'DES_s_dev_1', 'DES_s_dev_2', 'DES_s_dev_m', 'DESwl_scatter_m_mean', 'DESwl_scatter_m_std',
+    if DES_WL_prior is not None:
+        for p in ['DES_b_dev_1', 'DES_b_dev_2', 'DES_b_dev_m',
+                  'DES_s_dev', 'DES_s_dev_m',
                   'DES_m_piv']:
             scaling[p] = block.get_double('mor_parameters', p)
-        for p in ['DESwl_z', 'DESwl_bias_mean', 'DESwl_bias_std', 'DESwl_scatter_mean', 'DESwl_scatter_std']:
-            scaling[p] = block.get_double_array_1d('mor_parameters', p)
+        for p in DES_WL_prior.keys():
+            scaling['DES_%s'%p] = DES_WL_prior[p]
     # HST
     scaling['bWL_HST'], scaling['DWL_HST'] = {}, {}
     for name in masscalibration.HSTcalib['SPT_ID']:
@@ -113,7 +132,7 @@ def execute(block, masscalibration):
     if np.isfinite(lnlike):
         block.put_double('likelihoods', 'MASS_CALIBRATION_LIKE', lnlike)
         if masscalibration.get_stacked_DES:
-            for name in ['zloxilo', 'zloxihi', 'zhixilo', 'zhixihi']:
+            for name in ['zloxilo', 'zloxihi', 'zmidxilo', 'zmidxihi', 'zhixilo', 'zhixihi']:
                 for i,n in enumerate(DES_stack['shear_%s'%name]):
                     block.put_double('DES_stack', 'shear_%s_%d'%(name,i), n)
                 for i,n in enumerate(DES_stack['DeltaSigma_%s'%name]):

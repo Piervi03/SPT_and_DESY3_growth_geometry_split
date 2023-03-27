@@ -42,28 +42,18 @@ def main(configMod_file, catalog_name):
     else:
         import baccoemu, compute_HMF_Bocquet16, compute_HMF_Tinker08
         emulator = baccoemu.Matter_powerspectrum()
+        params = {'neutrino_mass': cosmology['Omnuh2']*94.,
+                  'A_s': 1e-10*np.exp(cosmology['ln1e10As'])}
+        for me, they in zip(['Omega_m', 'Omega_b', 'h', 'n_s', 'w0', 'wa'], ['omega_matter', 'omega_baryon', 'hubble', 'ns', 'w0', 'wa']):
+            params[they] = cosmology[me]
         # Call the emulator for P_{CDM+bar}(k)
-        k, Pk = emulator.get_linear_pk(omega_matter=cosmology['Omega_m'],
-                                       omega_baryon=cosmology['Omega_b'],
-                                       hubble=cosmology['h'],
-                                       ns=cosmology['n_s'],
-                                       w0=cosmology['w0'],
-                                       wa=cosmology['wa'],
-                                       neutrino_mass=cosmology['Omnuh2']*94.,
-                                       A_s=1e-10*np.exp(cosmology['ln1e10As']),
-                                       expfactor=1./(1.+z_arr),
-                                       cold=True)
+        k, Pk = emulator.get_linear_pk(expfactor=1./(1.+z_arr),
+                                       cold=True,
+                                       **params)
         # Compute sigma_8 for total matter
-        k_, Pk_ = emulator.get_linear_pk(omega_matter=cosmology['Omega_m'],
-                                         omega_baryon=cosmology['Omega_b'],
-                                         hubble=cosmology['h'],
-                                         ns=cosmology['n_s'],
-                                         w0=cosmology['w0'],
-                                         wa=cosmology['wa'],
-                                         neutrino_mass=cosmology['Omnuh2']*94.,
-                                         A_s=1e-10*np.exp(cosmology['ln1e10As']),
-                                         expfactor=1.,
-                                         cold=False)
+        k_, Pk_ = emulator.get_linear_pk(expfactor=1.,
+                                         cold=False,
+                                         **params)
         kR = 8.*k_
         window = 3. * (np.sin(kR)/kR**3 - np.cos(kR)/kR**2)
         integrand_sigma2 = Pk_ * window**2 * k_**3
@@ -85,7 +75,7 @@ def main(configMod_file, catalog_name):
     covs = np.empty((len(z_arr), len(M_arr), 5, 5))
     for i, z in enumerate(z_arr):
         for j, M in enumerate(M_arr):
-            scaling['DWL_DES'] = scaling_relations.WLscatter('main', np.log(M), z, scaling)
+            scaling['DWL_DES'] = scaling_relations.WLscatter(np.log(M), z, scaling)
             covs[i,j,:,:] = [[scaling['DWL_DES']**2, scaling['rhoWLX']*scaling['DWL_DES']*scaling['Dx'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_DES'], scaling['rhoWLrichness']*scaling['DWL_DES']*scaling['Drichness'], 0],
                              [scaling['rhoWLX']*scaling['DWL_DES']*scaling['Dx'], scaling['Dx']**2, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['rhoXrichness']*scaling['Dx']*scaling['Drichness'], scaling['rhoWLX']*scaling['DWL_HST']*scaling['Dx']],
                              [scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_DES'], scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2, scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_HST']],
@@ -134,27 +124,29 @@ def main(configMod_file, catalog_name):
                     # draw xi|zeta
                     xi = rng.normal(scaling_relations.zeta2xi(obs[k,2]), scale=1.)
                     if xi>=SPT_survey['XI_MIN'][fieldidx]:
-                        # Apply observational error to Mgas
-                        Mg = rng.lognormal(np.log(obs[k,1]), sigma=configMod.Xerr)
+                        # Apply observational error to X-ray
+                        X = rng.lognormal(np.log(obs[k,1]), sigma=configMod.Xerr)
 
                         # Observed richness
                         if lambda_min==0.:
                             # No measurement here
                             richness_obs = 0.
                         else:
+                            richness_err = 0.
                             if configMod.richness_scatter_model=='lognormal':
                                 richness_obs = obs[k,3]
                             elif configMod.richness_scatter_model=='lognormalrelPoisson':
                                 richness_obs = np.exp(rng.normal(np.log(obs[k,3]), scale=1/np.sqrt(obs[k,3])))
                             elif configMod.richness_scatter_model=='lognormalGaussPoisson':
-                                richness_obs = rng.normal(obs[k,3], scale=np.sqrt(obs[k,3]))
+                                richness_err = np.sqrt(obs[k,3])
+                                richness_obs = rng.normal(obs[k,3], scale=richness_err)
                             else:
                                 raise ValueError("Unknown value for richness_scatter_model")
                             # Cut in richness
                             if richness_obs<lambda_min:
                                 continue
 
-                        mock.append((M, z, xi, Mg, obs[k,0], richness_obs, obs[k,4], SPT_survey['GAMMA'][fieldidx]))
+                        mock.append([M, z, xi, X, obs[k,0], obs[k,4], richness_obs, richness_err, SPT_survey['GAMMA'][fieldidx]])
                         fieldnames.append(field)
 
         # False detections
@@ -165,54 +157,50 @@ def main(configMod_file, catalog_name):
         #         mock.append((0., 0., xiArrBin[i], 0., 0., 0.))
         #         fieldnames.append(field)
 
-    names = np.array(['cluster%d'%i for i in range(len(mock))])
-
-    mock = np.array(mock)
+    nCluster = len(mock)
+    mock = Table(rows=mock, names=['M_true', 'REDSHIFT', 'XI',
+                                   configMod.Xray_obs,
+                                   'Mwl_DES_200', 'Mwl_HST_200',
+                                   'richness', 'richness_err',
+                                   'GAMMA_FIELD'])
+    mock['SPT_ID'] = ['cluster%d'%i for i in range(nCluster)]
+    mock['FIELD'] = fieldnames
 
     ##### HST weak lensing
-    HST_z_range = ((mock[:,1]>.6)&(mock[:,1]<1.1)).nonzero()[0]
-    HST_idx = np.argsort(mock[HST_z_range,2])[-30:]
+    HST_z_range = ((mock['REDSHIFT']>.6)&(mock['REDSHIFT']<1.1)).nonzero()[0]
+    HST_idx = np.argsort(mock['XI'][HST_z_range])[-30:]
     # HST_idx = rng.choice(HST_z_range, 30, replace=False)
     mask = np.ones(len(mock), bool)
     mask[HST_z_range[HST_idx]] = 0
-    mock[mask,6] = 0.
+    mock['Mwl_HST_200'][mask] = 0.
 
     ##### Select XVP
-    nCluster = len(mock)
-    print(nCluster,'clusters', 'xi max', np.amax(mock[:,2]), 'lambda min', np.amin(mock[:,5]))
+    print(nCluster,'clusters', 'xi max', np.amax(mock['XI']), 'lambda min', np.amin(mock['richness']))
 
     # Select nXrayCluster highest xi for Yx follow-up
-    XVP = np.argsort(mock[:,2])
-    mock[XVP[:-configMod.nXrayCluster],3] = 0.
-
-    Xerrarr = configMod.Xerr*np.ones(nCluster)
-    Xerrarr[XVP[:-configMod.nXrayCluster]] = 0.
-
+    mock['ln%s_err'%configMod.Xray_obs] = configMod.Xerr*np.ones(nCluster)
+    XVP = np.argsort(mock['XI'])
+    mock[configMod.Xray_obs][XVP[:-configMod.nXrayCluster]] = 0.
+    mock['ln%s_err'%configMod.Xray_obs][XVP[:-configMod.nXrayCluster]] = 0.
 
     ##### Create X-ray gas mass profiles
     # For maximal confusion, this part is in decent units, with factors of h
     # because Xrayprofile.py is in nice units as well :)
-    Mgas = np.zeros((nCluster,2,80))
+    mock['%s_profile'%configMod.Xray_obs] = np.zeros((nCluster,2,80))
     r_ref = np.linspace(25, 2000, 80)
     for i in range(nCluster):
-        if mock[i,3] == 0.:
+        if mock[configMod.Xray_obs][i] == 0.:
             continue
-
-        zClust = mock[i,1]
-
         # Angular diameter distances
         # The reference cosmology matches Mike M's choice for the XVP data
-        dAref = cosmo.dA(zClust, cosmologyRef) / cosmologyRef['h']
-        dA = cosmo.dA(zClust, cosmology) / cosmology['h']
-
+        dAref = cosmo.dA(mock['REDSHIFT'][i], cosmologyRef) / cosmologyRef['h']
+        dA = cosmo.dA(mock['REDSHIFT'][i], cosmology) / cosmology['h']
         # Scale r_ref to current cosmo
         rArr = r_ref * dA/dAref
-
         # Get the true r500
-        rho_c_z = cosmo.RHOCRIT * cosmo.Ez(zClust, cosmology)**2.
-        r500 = 1000 * (3*mock[i,0]/(4*np.pi*500*rho_c_z))**(1/3)
+        rho_c_z = cosmo.RHOCRIT * cosmo.Ez(mock['REDSHIFT'][i], cosmology)**2.
+        r500 = 1000 * (3*mock['M_true'][i]/(4*np.pi*500*rho_c_z))**(1/3)
         r500/= cosmology['h']
-
         if configMod.profile_shape=='BETA':
             # Build a BETA profile with BETA=2/3 (because that easy to integrate)
             # and random r500/7 < rc < r500/3
@@ -222,55 +210,40 @@ def main(configMod_file, catalog_name):
             Micm = rc**2 * (rArr - rc*np.arctan(rArr/rc))
             # Normalize it such that Micm(r500) = mock[i,3]
             Micmr500 = np.interp(r500, rArr, Micm)
-            Micm*= mock[i,3]/Micmr500
+            Micm*= mock[configMod.Xray_obs][i]/Micmr500
         elif configMod.profile_shape=='PL':
-            Micm = mock[i,3] * (rArr/r500)**(scaling['slope_MgR'] + scaling['slope_MgR_std']*rng.standard_normal())
-
+            Micm = mock[configMod.Xray_obs][i] * (rArr/r500)**(scaling['slope_MgR'] + scaling['slope_MgR_std']*rng.standard_normal())
         # Scale back to ref cosmology
         Micmref = Micm * (dAref/dA)**2.5
+        # Write to catalog
+        mock['%s_profile'%configMod.Xray_obs][i][0] = r_ref
+        mock['%s_profile'%configMod.Xray_obs][i][1] = Micmref
 
-        Mgas[i][0] = r_ref
-        Mgas[i][1] = Micmref
-
-
-    ##### Bookkeeping of names
-    XraySample = names[np.where(mock[:,3]!=0.)[0]]
-    # print(XraySample)
 
     # False detections
-    redshiftLim = np.zeros(nCluster)
-    redshiftLim[mock[:,1]==0.] = 1.4
+    mock['REDSHIFT_LIMIT'] = np.zeros(nCluster)
+    mock['REDSHIFT_LIMIT'][mock['REDSHIFT']==0.] = 1.4
+
+    # Redshift errors
+    mock['REDSHIFT_UNC'] = np.zeros(nCluster)
 
     # M500 estimate, neede for defining X-ray observable
-    M500_noh = rng.lognormal(np.log(mock[:,0]/cosmology['h']), scaling['Dsz']/scaling['Bsz'])
+    mock['M500'] = rng.lognormal(np.log(mock['M_true']/cosmology['h']), scaling['Dsz']/scaling['Bsz'])
 
     # Theta_core (random)
     theta_core_Mpc = rng.exponential(scale=1/3.76, size=len(mock))
-    theta_core_arcmin = theta_core_Mpc*cosmology['h'] / [cosmo.dA(z, cosmology) for z in mock[:,1]] * 180/np.pi * 60
+    theta_core_arcmin = theta_core_Mpc*cosmology['h'] / [cosmo.dA(z, cosmology) for z in mock['REDSHIFT']] * 180/np.pi * 60
     theta_core = np.round(theta_core_arcmin*4)/4
     theta_core[theta_core>3] = 3.
+    mock['THETA_CORE'] = theta_core
 
-    ##### Save catalog file
-    names_arr = ['SPT_ID', 'FIELD', 'XI', 'THETA_CORE', 'REDSHIFT', 'REDSHIFT_UNC', 'REDSHIFT_LIMIT',
-                 'Mg_MM', 'lnMg_err_MM', 'lnYx_err_MM',
-                 'M_true', 'Tx_MM',
-                 'M500',
-                 'Mwl_DES_200', 'Mwl_HST_200',
-                 'richness',
-                 'GAMMA_FIELD',
-                 'COSMO_SAMPLE']
-    data_arr = [names, fieldnames, mock[:,2], theta_core, mock[:,1], np.zeros(nCluster), redshiftLim,
-                Mgas, Xerrarr, Xerrarr,
-                mock[:,0], 1e14*np.ones(nCluster), M500_noh,
-                mock[:,4], mock[:,6],
-                mock[:,5],
-                mock[:,7],
-                np.ones(nCluster, dtype=int)]
+    # Sample
+    mock['COSMO_SAMPLE'] = np.ones(nCluster, dtype=int)
+
     # Save to fits
-    cat = Table(data_arr, names=names_arr)
     if catalog_name is None:
         catalog_name = 'mock_%s.fits'%time.strftime("%y%m%d-%H%M%S")
-    cat.write(catalog_name)
+    mock.write(catalog_name)
 
 
 

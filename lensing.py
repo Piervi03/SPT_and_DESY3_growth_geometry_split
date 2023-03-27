@@ -12,6 +12,8 @@ import cosmo, Mconversion_concentration, miscentering
 ########################################
 
 # Limits for stack
+z_names = ['zlo', 'zmid', 'zhi']
+xi_names = ['xilo', 'xihi']
 z_lims = [.25, .4, .6, .95]
 xi_lims = [4.25, 5.5, 1e10]
 
@@ -33,7 +35,8 @@ class SPTlensing:
 
     def __init__(self, catalog, WLsimcalibfile,
                  HSTfile, MegacamFile, DESfile,
-                 DESboostfile, DESmiscenterfile, DEScentertype,
+                 DESboostfile, DESboost_z_arr,
+                 DESmiscenterfile, DEScentertype,
                  mcType,
                  NPROC=0,
                  save_shear_profiles=False):
@@ -53,15 +56,15 @@ class SPTlensing:
         if DESfile != 'None':
             # source redshifts
             with h5py.File(DESfile, 'r') as f:
-                self.SOM_Z_MID = f['config/SOM_Z_MID'][:]
-                self.SOM_BINs = f['config/SOM_BINs'][:][1:,:]
+                self.DES = {'SOM_Z_MID': f['config/SOM_Z_MID'][:],
+                            'SOM_BINs': f['config/SOM_BINs'][:][1:,:]}
             # Read boost chain
             with open(DESboostfile, 'r') as f:
                 tmp = f.readline().split()[1:]
             dat = np.mean(np.loadtxt(DESboostfile), axis=0)
-            self.boost_dict = {'z_arr': np.linspace(.2, .9, 10)}
+            self.DES['boost_dict'] = {'z_arr': DESboost_z_arr}
             for n,name in enumerate(tmp):
-                self.boost_dict[name] = dat[n]
+                self.DES['boost_dict'][name] = dat[n]
             # Initialize miscentering
             with open(DESmiscenterfile, 'r') as f:
                 tmp = f.readline().split()[1:]
@@ -77,7 +80,7 @@ class SPTlensing:
             for glob,this in zip(['alpha_opt_0', 'alpha_opt_z', 'alpha_opt_lam', 'opt_comp0_0', 'opt_comp0_z', 'opt_comp0_lam', 'opt_comp1_0', 'opt_comp1_z', 'opt_comp1_lam'],
                                  ['alpha_0', 'alpha_z', 'alpha_lam', 'comp0_0', 'comp0_z', 'comp0_lam', 'comp1_0', 'comp1_z', 'comp1_lam']):
                 miscenter_dict['MCMF'][this] = miscenter_dict[glob]
-            self.miscenterer = miscentering.MisCentering(miscenter_dict[DEScentertype])
+            self.DES['miscenterer'] = miscentering.MisCentering(miscenter_dict[DEScentertype])
 
 
     ########################################
@@ -175,7 +178,7 @@ class SPTlensing:
         delta_c = 200/3 * c200c**3 / (np.log(1+c200c) - c200c/(1+c200c))
         r_s = r200c/c200c
         # Get miscentering radius
-        R_mis = self.miscenterer.get_mean_Rmis(self.cat_cl, self.cosmology)
+        R_mis = self.DES['miscenterer'].get_mean_Rmis(self.cat_cl, self.cosmology)
         # NFW surface mass densities [mass][radius]
         r_Mpch = self.cat_cl['WLdata']['r_arcmin'] * Dl * np.pi/60/180
         Sigma_mis = get_Sigma_mis(r_Mpch[None,:], r_s[:,None], rho_c_z, delta_c[:,None], R_mis)
@@ -185,7 +188,7 @@ class SPTlensing:
         # Rescaled averaging [mass][radius]
         reduced_shear = np.sum(self.cat_cl['WLdata']['tomo_rescale'][None,None,:]*self.cat_cl['WLdata']['tomo_weights'][None,:,:]*reduced_shear_bins, axis=2)/np.sum(self.cat_cl['WLdata']['tomo_weights'], axis=1)
         # Cluster member contamination
-        A = boost_get_A(self.boost_dict, 'Gausssmooth', self.boost_dict['z_arr'], self.cat_cl['REDSHIFT'], self.cat_cl['richness'], r_Mpch, R_mis)
+        A = boost_get_A(self.DES['boost_dict'], 'Gausssmooth', self.DES['boost_dict']['z_arr'], self.cat_cl['REDSHIFT'], self.cat_cl['richness'], r_Mpch, R_mis)
         reduced_shear_cont = 1/(1+A) * reduced_shear
         # Model data back to DeltaSigma
         DeltaSigma_data = (self.cat_cl['WLdata']['shear']/invSigma_c[-1]*(1+A))[None,:]/r200c[:,None]/rho_c_z
@@ -197,9 +200,7 @@ class SPTlensing:
         # Model
         reduced_shear_cont, DeltaSigma_mis_rescaled, r_r200c, DeltaSigma_data_rescaled = self.shear_model_DES(M_arr)
         # Likelihood
-        diffs = reduced_shear_cont - self.cat_cl['WLdata']['shear']
-        chi2 = (diffs/self.cat_cl['WLdata']['shear_err'])**2
-        lnP_DES_Mwl = -.5*np.sum(chi2, axis=1)
+        lnP_DES_Mwl = -.5*np.sum(((reduced_shear_cont-self.cat_cl['WLdata']['shear'])/self.cat_cl['WLdata']['shear_err'])**2, axis=1)
         if self.save_shear_profiles:
             return lnP_DES_Mwl, reduced_shear_cont, DeltaSigma_mis_rescaled, r_r200c, DeltaSigma_data_rescaled
         else:
@@ -233,9 +234,7 @@ class SPTlensing:
         # Model
         g_2d = self.shear_model_Megacam(M_arr)
         # Likelihood
-        diff = g_2d - self.cat_cl['WLdata']['shear'][:,None]
-        chi2 = (diff/self.cat_cl['WLdata']['shearerr'][:,None])**2
-        lnpOfMass = -.5*np.sum(chi2, axis=0)
+        lnpOfMass = -.5*np.sum(((g_2d-self.cat_cl['WLdata']['shear'][:,None])/self.cat_cl['WLdata']['shearerr'][:,None])**2, axis=0)
         if self.save_shear_profiles:
             return lnpOfMass, g_2d
         else:
@@ -286,9 +285,7 @@ class SPTlensing:
         # Model
         g_2d = self.shear_model_HST(M_arr)
         # Likelihood
-        diff = g_2d[rInclude,:] - self.cat_cl['WLdata']['shear'][rInclude,None]
-        chi2 = (diff/self.cat_cl['WLdata']['shearerr'][rInclude,None])**2
-        lnpOfMass = -.5*np.sum(chi2, axis=0)
+        lnpOfMass = -.5*np.sum(((g_2d[rInclude,:]-self.cat_cl['WLdata']['shear'][rInclude,None])/self.cat_cl['WLdata']['shearerr'][rInclude,None])**2, axis=0)
         if self.save_shear_profiles:
             return lnpOfMass, g_2d
         else:
@@ -322,11 +319,11 @@ class SPTlensing:
 
     def get_beta_DES(self, cosmology):
         """Return mean(beta) for each DES tomo bin."""
-        beta = np.zeros(len(self.SOM_Z_MID))
-        bgIdx = (self.SOM_Z_MID>self.cat_cl['REDSHIFT']).nonzero()[0]
-        beta[bgIdx] = self.dA_twoz_interp(np.log(self.cat_cl['REDSHIFT']), np.log(self.SOM_Z_MID[bgIdx]))
-        beta[bgIdx]/= np.exp(self.lndA_interp(np.log(self.SOM_Z_MID[bgIdx])))
-        self.beta_avg = np.sum(self.SOM_BINs*beta[None,:], axis=1)/np.sum(self.SOM_BINs, axis=1)
+        beta = np.zeros(len(self.DES['SOM_Z_MID']))
+        bgIdx = (self.DES['SOM_Z_MID']>self.cat_cl['REDSHIFT']).nonzero()[0]
+        beta[bgIdx] = self.dA_twoz_interp(np.log(self.cat_cl['REDSHIFT']), np.log(self.DES['SOM_Z_MID'][bgIdx]))
+        beta[bgIdx]/= np.exp(self.lndA_interp(np.log(self.DES['SOM_Z_MID'][bgIdx])))
+        self.beta_avg = np.sum(self.DES['SOM_BINs']*beta[None,:], axis=1)/np.sum(self.DES['SOM_BINs'], axis=1)
         return 0
 
     def get_beta_HST_Megacam(self, cosmology):
@@ -453,13 +450,9 @@ def readdata(catalog, HSTfile, MegacamFile, DESfile, save_shear_profiles):
                                             'tomo_rescale': f['clusters'][name]['tomo_rescale'][1:],
                                             }
                     if save_shear_profiles:
-                        tmp = ['zlo', 'zmid', 'zhi']
-                        idx = np.digitize(catalog['REDSHIFT'][i], z_lims)-1
-                        zname = tmp[idx]
-                        tmp = ['xilo', 'xihi']
-                        idx = np.digitize(catalog['REDSHIFT'][i], xi_lims)-1
-                        xiname = tmp[idx]
-                        catalog['WLdata'][i]['r_arcmin_stack'] = f['stack_%s%s'%(zname, xiname)]['r_arcmin'][:]
+                        z_idx = np.digitize(catalog['REDSHIFT'][i], z_lims)-1
+                        xi_idx = np.digitize(catalog['XI'][i], xi_lims)-1
+                        catalog['WLdata'][i]['r_arcmin_stack'] = f['stack_%s%s'%(z_names[z_idx], xi_names[xi_idx])]['r_arcmin'][:]
 
     ##### Megacam data
     if MegacamFile != 'None':
