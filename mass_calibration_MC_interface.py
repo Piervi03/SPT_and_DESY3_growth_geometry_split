@@ -56,12 +56,17 @@ def setup(options):
         DESmiscenterfile = options.get_string(option_section, 'DESmiscenterfile')
         DEScentertype = options.get_string(option_section, 'DEScentertype')
         masscalibration.WL = lensing.SPTlensing(masscalibration.catalog,
-                                                WLsimcalibfile,
-                                                HSTfile, MegacamFile, DESfile,
-                                                DESboostfile, DESboost_z_arr,
-                                                DESmiscenterfile, DEScentertype,
-                                                mcType,
-                                                NPROC, save_shear_profiles=get_stacked_DES)
+                                                WLsimcalibfile=WLsimcalibfile,
+                                                HSTfile=HSTfile,
+                                                MegacamFile=MegacamFile,
+                                                DESfile=DESfile,
+                                                DESboostfile=DESboostfile,
+                                                DESboost_z_arr=DESboost_z_arr,
+                                                DESmiscenterfile=DESmiscenterfile,
+                                                DEScentertype=DEScentertype,
+                                                mcType=mcType,
+                                                NPROC=NPROC,
+                                                save_shear_profiles=get_stacked_DES)
         # DES lensing priors
         if DESfile=='None':
             DES_WL_prior = None

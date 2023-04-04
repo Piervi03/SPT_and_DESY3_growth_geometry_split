@@ -33,21 +33,20 @@ def unwrap_self_one_cluster(arg):
 
 class SPTlensing:
 
-    def __init__(self, catalog, WLsimcalibfile,
-                 HSTfile, MegacamFile, DESfile,
-                 DESboostfile, DESboost_z_arr,
-                 DESmiscenterfile, DEScentertype,
-                 mcType,
-                 NPROC=0,
-                 save_shear_profiles=False):
-        WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
+    def __init__(self, catalog, **kwargs):
+        WLsimcalib = imp.load_source('WLsimcalib', kwargs.pop('WLsimcalibfile'))
         self.WLcalib = WLsimcalib.WLcalibration
         # Set up more stuff
-        self.save_shear_profiles = save_shear_profiles
-        self.NPROC = NPROC
-        self.mcType = mcType
+        self.save_shear_profiles = kwargs.pop('save_shear_profiles', False)
+        self.NPROC = kwargs.pop('NPROC', 0)
+        self.mcType = kwargs.pop('mcType')
         # Read lensing data
-        readdata(catalog, HSTfile, MegacamFile, DESfile, self.save_shear_profiles)
+        DESfile = kwargs.pop('DESfile')
+        readdata(catalog,
+                 kwargs.pop('HSTfile'),
+                 kwargs.pop('MegacamFile'),
+                 DESfile,
+                 self.save_shear_profiles)
         # Redshift range of clusters with WL data
         self.WL_idx = (catalog['WLdata'] != None).nonzero()[0]
         self.z_cl_min = np.amin(catalog['REDSHIFT'][self.WL_idx])
@@ -59,13 +58,16 @@ class SPTlensing:
                 self.DES = {'SOM_Z_MID': f['config/SOM_Z_MID'][:],
                             'SOM_BINs': f['config/SOM_BINs'][:][1:,:]}
             # Read boost chain
+            DESboostfile = kwargs.pop('DESboostfile')
             with open(DESboostfile, 'r') as f:
                 tmp = f.readline().split()[1:]
             dat = np.mean(np.loadtxt(DESboostfile), axis=0)
-            self.DES['boost_dict'] = {'z_arr': DESboost_z_arr}
+            self.DES['boost_dict'] = {'z_arr': kwargs.pop('DESboost_z_arr')}
             for n,name in enumerate(tmp):
                 self.DES['boost_dict'][name] = dat[n]
             # Initialize miscentering
+            DESmiscenterfile = kwargs.pop('DESmiscenterfile')
+            DEScentertype = kwargs.pop('DEScentertype')
             with open(DESmiscenterfile, 'r') as f:
                 tmp = f.readline().split()[1:]
             dat = np.mean(np.loadtxt(DESmiscenterfile), axis=0)
