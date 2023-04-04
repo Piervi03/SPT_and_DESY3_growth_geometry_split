@@ -41,29 +41,29 @@ def unwrap_self_f(arg):
 
 class MassCalibration:
 
-    def __init__(self, todo, mcType,
-                 surveyCutRedshift, surveyCutRichness, richness_scatter_model,
-                 SPT_survey_fields, SPTcatalogfile,
-                 HSTcalibfile,
-                 NPROC,
-                 get_stacked_DES=False):
-
-        self.NPROC = NPROC
-        self.get_stacked_DES = get_stacked_DES
-        self.todo = todo
-        self.mcType = mcType
-        self.surveyCutRedshift = surveyCutRedshift
-        self.surveyCutRichness = surveyCutRichness
-        self.richness_scatter_model = richness_scatter_model
-
+    def __init__(self, **kwargs):
+        # General setup
+        self.todo = kwargs.pop('todo')
+        self.NPROC = kwargs.pop('NPROC', 0)
+        self.get_stacked_DES = kwargs.pop('get_stacked_DES', False)
+        self.mcType = kwargs.pop('mcType')
+        self.surveyCutRedshift = kwargs.pop('surveyCutRedshift')
+        self.surveyCutRichness = kwargs.pop('surveyCutRichness')
+        self.richness_scatter_model = kwargs.pop('richness_scatter_model')
         # Read input files
-        self.SPT_survey = Table.read(SPT_survey_fields, format='ascii.commented_header')
-        self.catalog = Table.read(SPTcatalogfile)
+        self.SPT_survey = Table.read(kwargs.pop('SPT_survey_fields'), format='ascii.commented_header')
+        self.catalog = Table.read(kwargs.pop('SPTcatalogfile'))
+        HSTcalibfile = kwargs.pop('HSTcalibfile', 'None')
+        if HSTcalibfile!='None':
+            self.HSTcalib = Table.read(HSTcalibfile, format='ascii.commented_header')
+        # Init data structures for lensing stacks
         if self.get_stacked_DES:
             self.catalog['DES_shear_profile_mean'] = [None for i in range(len(self.catalog))]
             self.catalog['DES_DeltaSigma_mean'] = [None for i in range(len(self.catalog))]
             self.catalog['DES_DeltaSigma_data_mean'] = [None for i in range(len(self.catalog))]
-        self.HSTcalib = Table.read(HSTcalibfile, format='ascii.commented_header')
+        # Safety first
+        if not kwargs=={}:
+            print("Unknown keyword arguments in", kwargs)
 
 
     ############################################################################

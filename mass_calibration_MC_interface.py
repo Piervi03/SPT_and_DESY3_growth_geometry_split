@@ -24,23 +24,24 @@ def setup(options):
     else:
         surveyCutLambda = None
     richness_scatter_model = options.get_string(option_section, 'richness_scatter_model')
-    NPROC = options.get_int(option_section, 'NPROC')
+    NPROC = options.get_int(option_section, 'NPROC', default=0)
     # SPT survey
     SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
     # Cluster catalog
     SPTcatalogfile = options.get_string(option_section, 'SPTcatalogfile')
     # WL param file
-    WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
+    WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile', default='None')
     # HST file
-    HSTcalibfile = options.get_string(option_section, 'HSTcalibfile')
+    HSTcalibfile = options.get_string(option_section, 'HSTcalibfile', default='None')
     # Do stack lensing for validation
-    get_stacked_DES = options.get_bool(option_section, 'get_stacked_DES', False)
+    get_stacked_DES = options.get_bool(option_section, 'get_stacked_DES', default=False)
 
-    masscalibration = mass_calibration.MassCalibration(todo, mcType,
-                                                       surveyCutRedshift, surveyCutLambda, richness_scatter_model,
-                                                       SPT_survey_fields, SPTcatalogfile,
-                                                       HSTcalibfile,
-                                                       NPROC, get_stacked_DES=get_stacked_DES)
+    masscalibration = mass_calibration.MassCalibration(todo=todo,
+                                                       mcType=mcType,
+                                                       surveyCutRedshift=surveyCutRedshift, surveyCutRichness=surveyCutLambda, richness_scatter_model=richness_scatter_model,
+                                                       SPT_survey_fields=SPT_survey_fields, SPTcatalogfile=SPTcatalogfile,
+                                                       HSTcalibfile=HSTcalibfile,
+                                                       NPROC=NPROC, get_stacked_DES=get_stacked_DES)
     masscalibration.YXPARAM = options.get_string(option_section, 'YXPARAM')
 
     # Set up lensing code
