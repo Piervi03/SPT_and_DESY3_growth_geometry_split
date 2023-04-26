@@ -15,6 +15,7 @@ def setup(options):
     todo['lambda_min'] = options.get_bool(option_section, 'lambda_min')
     mcType = options.get_string(option_section, 'mcType')
     surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
+    z_DESWISE = options.get_double(option_section, 'z_DESWISE', default=surveyCutRedshift[1])
     # Data for optical cleaning
     if todo['lambda_min']:
         surveyCutLambda_file = options.get_string(option_section, 'MCMF_lambda_min')
@@ -39,6 +40,7 @@ def setup(options):
     masscalibration = mass_calibration.MassCalibration(todo=todo,
                                                        mcType=mcType,
                                                        surveyCutRedshift=surveyCutRedshift, surveyCutRichness=surveyCutLambda, richness_scatter_model=richness_scatter_model,
+                                                       z_DESWISE=z_DESWISE,
                                                        SPT_survey_fields=SPT_survey_fields, SPTcatalogfile=SPTcatalogfile,
                                                        HSTcalibfile=HSTcalibfile,
                                                        NPROC=NPROC, get_stacked_DES=get_stacked_DES)
@@ -103,6 +105,7 @@ def execute(block, setup_stuff):
               'HSTscatterLSS', 'MegacamScatterLSS',
               'bWL_Megacam', 'DWL_Megacam',
               'Arichness', 'Brichness', 'Crichness', 'Drichness', 'richmPivot',
+              'Arichness_ext', 'Brichness_ext', 'Crichness_ext', 'Drichness_ext',
               'rhoSZrichness', 'rhoWLrichness', 'rhoSZWL',
               'Adisp', 'Bdisp', 'Cdisp',]:
         scaling[p] = block.get_double('mor_parameters', p)
@@ -119,11 +122,6 @@ def execute(block, setup_stuff):
     for name in masscalibration.HSTcalib['SPT_ID']:
         scaling['bWL_HST'][name] = block.get_double('mor_parameters', 'bWL_HST_%s'%name)
         scaling['DWL_HST'][name] = block.get_double('mor_parameters', 'DWL_HST_%s'%name)
-        for c in ['cov_HST_SZ_%s'%name, 'cov_HST_X_SZ_%s'%name, 'cov_HST_richness_SZ_%s'%name]:
-            scaling[c] = block.get_double_array_nd('mor_parameters', c)
-    # Covariance matrices
-    for p in ['cov_X_SZ', 'cov_Megacam_SZ', 'cov_richness_SZ', 'cov_Megacam_X_SZ', ]:
-        scaling[p] = block.get_double_array_nd('mor_parameters', p)
 
     # Halo mass function
     z, M, N = block.get_grid('HMF', 'z_arr', 'M_arr', 'dNdlnM')
@@ -147,6 +145,7 @@ def execute(block, setup_stuff):
                     block.put_double('DES_stack', 'DeltaSigma_data_%s_%d'%(name,i), n)
         return 0
     else:
+        print("mass calibration", flush=True)
         return 1
 
 

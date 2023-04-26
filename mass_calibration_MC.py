@@ -26,10 +26,15 @@ z_lims = [.25, .4, .6, .95]
 xi_lims = [4.25, 5.5, 1e10]
 lnr_r200c_stack = np.linspace(np.log(.3), np.log(5), 16)
 
-scatter_dict = {'zeta': 'Dsz', 'richness': 'Drichness',
+scatter_dict = {'zeta': 'Dsz',
+                'richness_base': 'Drichness',
+                'richness_ext': 'Drichness_ext',
                 'Mgas': 'Dx', 'Yx': 'Dx',
                 'WLMegacam': 'DWL_Megacam', 'WLDES': 'one', 'WLHST': 'one'}
-rho_dict = {'zeta': 'SZ', 'richness': 'richness', 'Mgas': 'X', 'Yx': 'X',
+rho_dict = {'zeta': 'SZ',
+            'richness_base': 'richness',
+            'richness_ext': 'richness',
+            'Mgas': 'X', 'Yx': 'X',
             'WLDES': 'WL', 'WLHST': 'WL', 'WLMegacam': 'WL'}
 
 
@@ -50,6 +55,7 @@ class MassCalibration:
         self.surveyCutRedshift = kwargs.pop('surveyCutRedshift')
         self.surveyCutRichness = kwargs.pop('surveyCutRichness')
         self.richness_scatter_model = kwargs.pop('richness_scatter_model')
+        self.z_DESWISE = kwargs.pop('z_DESWISE')
         # Read input files
         self.SPT_survey = Table.read(kwargs.pop('SPT_survey_fields'), format='ascii.commented_header')
         self.catalog = Table.read(kwargs.pop('SPTcatalogfile'))
@@ -162,7 +168,10 @@ class MassCalibration:
             obsnames.append('Mgas')
         if self.todo['richness'] and self.catalog['richness'][i]>0.:
             nobs+= 1
-            obsnames.append('richness')
+            if self.catalog['REDSHIFT'][i]<self.z_DESWISE:
+                obsnames.append('richness_base')
+            else:
+                obsnames.append('richness_ext')
         if nobs==0:
             return 0.
 
@@ -298,7 +307,7 @@ class MassCalibration:
                - Sigma12[:,:,None]*Sigma12[:,None,:] / covmat_lnM[:,idx_meas,idx_meas][:,None,None])
         return lnM_cond, var, obsnames_cond
 
-    def get_lnlike_richness(self, lnM, richness_std_lnM, dataID):
+    def get_lnlike_richness(self, lnM, richness_std_lnM, dataID, obsname):
         """Return ln-likelihood of richness and the draws of intrinsic
         ln(M_richness)."""
         # Compute lambda_min
@@ -311,9 +320,9 @@ class MassCalibration:
                 lambda_min = 0.
         # Lognormal scatter
         if self.richness_scatter_model=='lognormal':
-            lnM_richness = scaling_relations.obs2lnmass('richness', self.catalog['richness'][dataID], self.catalog['REDSHIFT'][dataID], self.scaling)
-            lnrichness_std = richness_std_lnM/scaling_relations.dlnM_dlnobs('richness', self.scaling)
-            lnrichness = scaling_relations.lnmass2lnobs('richness', lnM, self.catalog['REDSHIFT'][dataID], self.scaling)
+            lnM_richness = scaling_relations.obs2lnmass(obsname, self.catalog['richness'][dataID], self.catalog['REDSHIFT'][dataID], self.scaling)
+            lnrichness_std = richness_std_lnM/scaling_relations.dlnM_dlnobs(obsname, self.scaling)
+            lnrichness = scaling_relations.lnmass2lnobs(obsname, lnM, self.catalog['REDSHIFT'][dataID], self.scaling)
             lnlike = -.5*(np.log(self.catalog['richness'][dataID])-lnrichness)**2/lnrichness_std**2 - np.log(self.catalog['richness'][dataID]*lnrichness_std) - .5*ln2pi
             if self.todo['lambda_min']:
                 if lambda_min>0.:
@@ -321,7 +330,7 @@ class MassCalibration:
         # In all other cases we need to draw richness
         elif self.richness_scatter_model in ['lognormalrelPoisson', 'lognormalGaussPoisson', 'lognormalGaussmeaserror']:
             lnM_richness = self.rng.normal(lnM, richness_std_lnM)
-            lnrichness = scaling_relations.lnmass2lnobs('richness', lnM_richness, self.catalog['REDSHIFT'][dataID], self.scaling)
+            lnrichness = scaling_relations.lnmass2lnobs(obsname, lnM_richness, self.catalog['REDSHIFT'][dataID], self.scaling)
             richness = np.exp(lnrichness)
             # Lognormal scatter in richness gets additional 1/lambda for relative shot noise
             if self.richness_scatter_model=='lognormalrelPoisson':
@@ -401,9 +410,9 @@ class MassCalibration:
             lnlike_obs = []
             # Always pick the first element and then remove it from list
             while True:
-                if obsnames_remaining[0]=='richness':
-                    tmp, lnM_meas = self.get_lnlike_richness(lnM_remaining[:,0], np.sqrt(var_remaining[:,0,0]), dataID)
-                elif obsnames_remaining[0] in ['WLDES', 'WLHST', 'WLMegacam']:
+                if 'richness' in obsnames_remaining[0]:
+                    tmp, lnM_meas = self.get_lnlike_richness(lnM_remaining[:,0], np.sqrt(var_remaining[:,0,0]), dataID, obsnames_remaining[0])
+                elif 'WL' in obsnames_remaining[0]:
                     tmp, lnM_meas = self.get_lnlike_WL(lnM_remaining[:,0], np.sqrt(var_remaining[:,0,0]), dataID, obsnames_remaining[0])
                 lnlike_obs.append(tmp)
                 # Condition on this follow-up observable or finish

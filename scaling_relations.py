@@ -53,10 +53,14 @@ def lnmass2lnobs(name, lnmass, z, scaling, cosmology=None, cluster_ID=None, lnM5
         if len(lnM200c)==1:
             lnM200c = lnM200c[0]
         return np.log(scaling['Adisp']) + (1/scaling['Bdisp'])*(lnM200c-np.log(1e15/cosmology['h'])) +scaling['Cdisp']*np.log(h70z)
-    elif name=='richness':
+    elif name=='richness_base':
         return (scaling['Arichness']
                 + scaling['Brichness']*(lnmass-np.log(scaling['richmPivot']))
                 + scaling['Crichness']*np.log((1+z)/1.6))
+    elif name=='richness_ext':
+        return (scaling['Arichness_ext']
+                + scaling['Brichness_ext']*(lnmass-np.log(scaling['richmPivot']))
+                + scaling['Crichness_ext']*np.log((1+z)/1.6))
     elif name=='WLMegacam':
         return np.log(scaling['bWL_Megacam']) + lnmass
     elif name=='WLHST':
@@ -78,8 +82,11 @@ def obs2lnmass(name, obs, z, scaling, cosmology=None, cluster_ID=None):
         lnE_z_term = np.log(cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology))
         return (np.log(scaling['SZmPivot'])
                 + (np.log(obs) - scaling['Asz'] - scaling['Csz']*lnE_z_term) / (scaling['Bsz'] + scaling['Esz']*lnE_z_term))
-    elif name=='richness':
+    elif name=='richness_base':
         lnmass = np.log(scaling['richmPivot']) + (1/scaling['Brichness'])*(np.log(obs) - scaling['Arichness'] - scaling['Crichness']*np.log((1+z)/1.6))
+        return lnmass
+    elif name=='richness_ext':
+        lnmass = np.log(scaling['richmPivot']) + (1/scaling['Brichness_ext'])*(np.log(obs) - scaling['Arichness_ext'] - scaling['Crichness_ext']*np.log((1+z)/1.6))
         return lnmass
     elif name=='WLMegacam':
         return np.log(obs/scaling['bWL_Megacam'])
@@ -100,8 +107,10 @@ def dlnM_dlnobs(name, scaling, cosmology=None, M0_arr=None, z=None):
     """Returns dlnM/dln(obs) for a given observable."""
     if name=='zeta':
         return 1/scaling['Bsz']
-    elif name=='richness':
+    elif name=='richness_base':
         return 1/scaling['Brichness']
+    elif name=='richness_ext':
+        return 1/scaling['Brichness_ext']
     elif name=='Yx':
         if scaling['YXPARAM']=='SPT_XVP':
             return 1/(1/scaling['Bx'] - scaling['dlnMg_dlnr']/3)

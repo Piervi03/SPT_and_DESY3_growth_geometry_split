@@ -98,7 +98,7 @@ def main(configMod_file, catalog_name):
         N = rng.poisson(HMF_dNdM_V*SPT_survey['AREA'][fieldidx])
 
         obs_0 = np.array([np.exp(scaling_relations.lnmass2lnobs(name, lnM_arr[None,:], z_arr[:,None], scaling, cosmology))
-                          for name in ('WLDES', configMod.Xray_obs, 'zeta', 'richness',)])
+                          for name in ('WLDES', configMod.Xray_obs, 'zeta', 'richness_base',)])
         obs_0 = np.concatenate((obs_0, M_arr*np.ones((len(z_arr), len(M_arr)))[None,:]))
 
         # Field depth
