@@ -74,7 +74,7 @@ class MockUpDESWL:
         with open(self.config_mod.DES['DESboostfile'], 'r') as f:
             tmp = f.readline().split()[1:]
         dat = np.mean(np.loadtxt(self.config_mod.DES['DESboostfile']), axis=0)
-        self.boost_dict = {'z_arr': np.linspace(.2, .9, 10)}
+        self.boost_dict = {'z_arr': np.linspace(.2, 1., 11)}
         for n,name in enumerate(tmp):
             self.boost_dict[name] = dat[n]
         # Initialize miscentering
