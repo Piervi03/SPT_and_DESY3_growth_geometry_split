@@ -35,7 +35,6 @@ def execute(block, scaling_setter):
         for name in scaling_setter.HSTcalib['SPT_ID']:
             block.put_double('mor_parameters', 'bWL_HST_%s'%name, scaling['bWL_HST'][name])
             block.put_double('mor_parameters', 'DWL_HST_%s'%name, scaling['DWL_HST'][name])
-        block.put_double('likelihoods', 'set_scaling_like', 0)
         return 0
     else:
         print("set scaling", flush=True)
