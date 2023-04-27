@@ -77,7 +77,7 @@ def execute(block, args):
                 return 1
     else:
         for tmp in ['SZ_lambdacut_shallow', 'SZ_lambdacut_deep']:
-            HMF['%s_z'] = HMF['SZ_z']
+            HMF['%s_z'] = HMF['z_arr']
             HMF['%s_dNdlnM'%tmp] = HMF['SZ_dNdlnM']
     HMF['len_z'] = len(HMF['z_arr'])
     # Compute the likelihood
