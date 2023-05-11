@@ -52,7 +52,7 @@ with h5py.File(DES_WL_priors_file, 'r') as f:
         scaling['DES_%s'%k] = f[k][()]
 
 # SPT survey cuts
-surveyCutRedshift = (0.25, 1.78)
+surveyCutRedshift = (0.25, 1.79)
 # How to model X-ray profiles? 'PL' or 'beta'
 profile_shape = 'PL'
 # Observable errors
@@ -62,4 +62,4 @@ nXrayCluster = 80
 # Use Mgas or Yx?
 Xray_obs = 'Yx'
 # Type of scatter in richness: 'lognormal', 'lognormalrelPoisson', 'lognormalGaussPoisson'
-richness_scatter_model = 'lognormalGaussPoisson'
+richness_scatter_model = 'lognormalrelPoisson'
