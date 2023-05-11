@@ -6,8 +6,6 @@ import imp
 
 import scaling_relations
 
-THRESHOLD = 1e-8
-
 
 class SetScaling:
 
@@ -23,7 +21,7 @@ class SetScaling:
         analyzing. The scatter in velocity dispersions depends on cluster
         properties and therefore cannot be pre-computed. Return: (bool) whether
         or not all covariance matrices can be inverted (by checking whether all
-        determinants are >= THRESHOLD) """
+        determinants are >= =0.) """
 
         # Megacam
         massModel_var = self.WLcalib['MegacamSim'][1]**2 + self.WLcalib['MegacamMcErr']**2 + self.WLcalib['MegacamCenterErr']**2
@@ -49,21 +47,21 @@ class SetScaling:
             # SZ WL covariance matrix
             cov = [[DWL_HST**2, scaling['rhoSZWL']*scaling['Dsz']*DWL_HST],
                    [scaling['rhoSZWL']*scaling['Dsz']*DWL_HST, scaling['Dsz']**2]]
-            if np.linalg.det(cov)<THRESHOLD:
+            if np.linalg.det(cov)<=0.:
                 return False
             scaling['cov_HST_SZ_%s'%name] = np.array(cov)
             # SZ WL X covariance matrix
             cov = [[DWL_HST**2, scaling['rhoWLX']*DWL_HST*scaling['Dx'], scaling['rhoSZWL']*scaling['Dsz']*DWL_HST],
                    [scaling['rhoWLX']*DWL_HST*scaling['Dx'], scaling['Dx']**2, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx']],
                    [scaling['rhoSZWL']*scaling['Dsz']*DWL_HST, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2]]
-            if np.linalg.det(cov)<THRESHOLD:
+            if np.linalg.det(cov)<=0.:
                 return False
             scaling['cov_HST_X_SZ_%s'%name] = np.array(cov)
             # SZ WL richness covariance matrix
             cov = [[DWL_HST**2, scaling['rhoWLrichness']*DWL_HST*scaling['Drichness'], scaling['rhoSZWL']*scaling['Dsz']*DWL_HST],
                    [scaling['rhoWLrichness']*DWL_HST*scaling['Drichness'], scaling['Drichness']**2, scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness']],
                    [scaling['rhoSZWL']*scaling['Dsz']*DWL_HST, scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness'], scaling['Dsz']**2]]
-            if np.linalg.det(cov)<THRESHOLD:
+            if np.linalg.det(cov)<=0.:
                 return False
             scaling['cov_HST_richness_SZ_%s'%name] = np.array(cov)
 
@@ -71,21 +69,21 @@ class SetScaling:
         # X-ray
         cov = [[scaling['Dx']**2, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx']],
                [scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2]]
-        if np.linalg.det(cov) < THRESHOLD:
+        if np.linalg.det(cov) <=0.:
             return False
         scaling['cov_X_SZ'] = np.array(cov)
 
         # Richness
         cov = [[scaling['Drichness']**2, scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness']],
                [scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness'], scaling['Dsz']**2]]
-        if np.linalg.det(cov) < THRESHOLD:
+        if np.linalg.det(cov) <=0.:
             return False
         scaling['cov_richness_SZ'] = np.array(cov)
 
         # WL: Megacam
         cov = [[scaling['DWL_Megacam']**2, scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_Megacam']],
                [scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_Megacam'], scaling['Dsz']**2]]
-        if np.linalg.det(cov) < THRESHOLD:
+        if np.linalg.det(cov) <=0.:
             return False
         scaling['cov_Megacam_SZ'] = np.array(cov)
 
@@ -97,7 +95,7 @@ class SetScaling:
             dets = [np.linalg.det([[DES_scatter[i]**2, scaling['rhoSZWL']*scaling['Dsz']*DES_scatter[i]],
                                    [scaling['rhoSZWL']*scaling['Dsz']*DES_scatter[i], scaling['Dsz']**2]])
                     for i in range(4)]
-            if np.any(np.array(dets)<THRESHOLD):
+            if np.any(np.array(dets)<=0.):
                 return False
 
 
@@ -105,7 +103,7 @@ class SetScaling:
         cov = [[scaling['DWL_Megacam']**2, scaling['rhoWLX']*scaling['DWL_Megacam']*scaling['Dx'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_Megacam']],
                [scaling['rhoWLX']*scaling['DWL_Megacam']*scaling['Dx'], scaling['Dx']**2, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx']],
                [scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_Megacam'], scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2]]
-        if np.linalg.det(cov) < THRESHOLD:
+        if np.linalg.det(cov) <=0.:
             return False
         scaling['cov_Megacam_X_SZ'] = np.array(cov)
 
@@ -118,7 +116,7 @@ class SetScaling:
                                    [scaling['rhoWLrichness']*DES_scatter[i]*scaling['Drichness'], scaling['Drichness']**2, scaling['rhoSZrichness']*scaling['Drichness']*scaling['Dsz']],
                                    [scaling['rhoSZWL']*DES_scatter[i]*scaling['Dsz'], scaling['rhoSZrichness']*scaling['Drichness']*scaling['Dsz'], scaling['Dsz']**2]])
                     for i in range(4)]
-            if np.any(np.array(dets)<THRESHOLD):
+            if np.any(np.array(dets)<=0.):
                 return False
 
         return True
