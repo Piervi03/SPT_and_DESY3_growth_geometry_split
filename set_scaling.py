@@ -91,7 +91,7 @@ class SetScaling:
         if 'DES_m_piv' in scaling.keys():
             z = np.array([.25, .25, .85, .85])
             M = np.array([1e13, 1e16, 1e13, 1e16])
-            DES_scatter = scaling_relations.WLscatter('main', np.log(M), z, scaling)
+            DES_scatter = scaling_relations.WLscatter(np.log(M), z, scaling)
             dets = [np.linalg.det([[DES_scatter[i]**2, scaling['rhoSZWL']*scaling['Dsz']*DES_scatter[i]],
                                    [scaling['rhoSZWL']*scaling['Dsz']*DES_scatter[i], scaling['Dsz']**2]])
                     for i in range(4)]
@@ -111,7 +111,7 @@ class SetScaling:
         if 'DES_m_piv' in scaling.keys():
             z = np.array([.25, .25, .85, .85])
             M = np.array([1e13, 1e16, 1e13, 1e16])
-            DES_scatter = scaling_relations.WLscatter('main', np.log(M), z, scaling)
+            DES_scatter = scaling_relations.WLscatter(np.log(M), z, scaling)
             dets = [np.linalg.det([[DES_scatter[i]**2, scaling['rhoWLrichness']*DES_scatter[i]*scaling['Drichness'], scaling['rhoSZWL']*DES_scatter[i]*scaling['Dsz']],
                                    [scaling['rhoWLrichness']*DES_scatter[i]*scaling['Drichness'], scaling['Drichness']**2, scaling['rhoSZrichness']*scaling['Drichness']*scaling['Dsz']],
                                    [scaling['rhoSZWL']*DES_scatter[i]*scaling['Dsz'], scaling['rhoSZrichness']*scaling['Drichness']*scaling['Dsz'], scaling['Dsz']**2]])

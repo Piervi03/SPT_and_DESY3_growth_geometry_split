@@ -128,11 +128,11 @@ def main(configMod_file, catalog_name):
                         X = rng.lognormal(np.log(obs[k,1]), sigma=configMod.Xerr)
 
                         # Observed richness
+                        richness_err = 0.
                         if lambda_min==0.:
                             # No measurement here
                             richness_obs = 0.
                         else:
-                            richness_err = 0.
                             if configMod.richness_scatter_model=='lognormal':
                                 richness_obs = obs[k,3]
                             elif configMod.richness_scatter_model=='lognormalrelPoisson':
