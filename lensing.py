@@ -136,13 +136,14 @@ class SPTlensing:
         """Function name says it all. Call this function before calling
         `one_cluster` directly. Not relevant if you are calling `lnlike_all`."""
         self.cosmology = cosmology
-        if self.mcType != 'None':
+        if (self.HSTfile!='None') or (self.MegacamFile!='None'):
             if self.Delta_crit==200.:
                 self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, cosmology, setup_interp=False)
             else:
                 self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, cosmology,
                                                                                setup_interp=True, interp_massdef=self.Delta_crit)
-        self.MCrel_DES = Mconversion_concentration.ConcentrationConversion(3.5)
+        if self.DESfile!='None':
+            self.MCrel_DES = Mconversion_concentration.ConcentrationConversion(3.5)
         # Pre-compute angular diameter distances
         self.get_dAs(self.z_cl_min, self.z_cl_max, 5., cosmology)
 
