@@ -48,31 +48,26 @@ def setup(options):
 
     # Set up lensing code
     if todo['WL']:
-        # Lensing data
-        Delta_crit = options.get_double(option_section, 'Delta_crit')
-        WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
-        HSTfile = options.get_string(option_section, 'HSTfile', default='None')
-        MegacamFile = options.get_string(option_section, 'MegacamFile', default='None')
-        DESfile = options.get_string(option_section, 'DESfile', default='None')
-        DESboostfile = options.get_string(option_section, 'DESboostfile')
-        DESboost_z_arr = options.get_double_array_1d(option_section, 'DESboost_z_arr')
-        DESmiscenterfile = options.get_string(option_section, 'DESmiscenterfile')
-        DEScentertype = options.get_string(option_section, 'DEScentertype')
-        masscalibration.WL = lensing.SPTlensing(masscalibration.catalog,
-                                                WLsimcalibfile=WLsimcalibfile,
-                                                HSTfile=HSTfile,
-                                                MegacamFile=MegacamFile,
-                                                DESfile=DESfile,
-                                                DESboostfile=DESboostfile,
-                                                DESboost_z_arr=DESboost_z_arr,
-                                                DESmiscenterfile=DESmiscenterfile,
-                                                DEScentertype=DEScentertype,
-                                                mcType=mcType,
-                                                NPROC=NPROC,
-                                                Delta_crit=Delta_crit,
-                                                save_shear_profiles=get_stacked_DES)
+        # Data files
+        lensing_dict = {'HSTfile': options.get_string(option_section, 'HSTfile', default='None'),
+                        'MegacamFile': options.get_string(option_section, 'MegacamFile', default='None'),
+                        'DESfile': options.get_string(option_section, 'DESfile', default='None'),
+                        'NPROC': NPROC,
+                        'save_shear_profiles': get_stacked_DES,
+                        }
+        # DES specific
+        if lensing_dict['DESfile']!='None':
+            for name in ['DESboostfile', 'DESmiscenterfile', 'DEScentertype']:
+                lensing_dict[name] = options.get_string(option_section, name)
+            lensing_dict['DESboost_z_arr'] = options.get_double_array_1d(option_section, 'DESboost_z_arr')
+        # HST and Megacam specific
+        if (lensing_dict['HSTfile']!='None') or (lensing_dict['MegacamFile']!='None'):
+            lensing_dict['mcType'] = mcType
+            lensing_dict['Delta_crit'] = options.get_double(option_section, 'Delta_crit')
+        # Set up lensing module
+        masscalibration.WL = lensing.SPTlensing(masscalibration.catalog, **lensing_dict)
         # DES lensing priors
-        if DESfile=='None':
+        if lensing_dict['DESfile']=='None':
             DES_WL_prior = None
         else:
             DES_WL_priors_file = options.get_string(option_section, 'DES_WL_priors_file')

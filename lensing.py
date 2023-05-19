@@ -5,7 +5,6 @@ from scipy.interpolate import InterpolatedUnivariateSpline, RectBivariateSpline
 from multiprocessing import Pool
 
 import h5py
-import imp
 
 import cosmo, Mconversion_concentration, miscentering
 
@@ -34,28 +33,30 @@ def unwrap_self_one_cluster(arg):
 class SPTlensing:
 
     def __init__(self, catalog, **kwargs):
-        WLsimcalib = imp.load_source('WLsimcalib', kwargs.pop('WLsimcalibfile'))
-        self.WLcalib = WLsimcalib.WLcalibration
         # Set up more stuff
         self.save_shear_profiles = kwargs.pop('save_shear_profiles', False)
         self.NPROC = kwargs.pop('NPROC', 0)
-        self.mcType = kwargs.pop('mcType')
-        self.Delta_crit = kwargs.pop('Delta_crit')
         # Read lensing data
-        DESfile = kwargs.pop('DESfile')
+        self.DESfile = kwargs.pop('DESfile')
+        self.HSTfile = kwargs.pop('HSTfile')
+        self.MegacamFile = kwargs.pop('MegacamFile')
         readdata(catalog,
-                 kwargs.pop('HSTfile'),
-                 kwargs.pop('MegacamFile'),
-                 DESfile,
+                 self.HSTfile,
+                 self.MegacamFile,
+                 self.DESfile,
                  self.save_shear_profiles)
         # Redshift range of clusters with WL data
         self.WL_idx = (catalog['WLdata'] != None).nonzero()[0]
         self.z_cl_min = np.amin(catalog['REDSHIFT'][self.WL_idx])
         self.z_cl_max = np.amax(catalog['REDSHIFT'][self.WL_idx])
+        # Mass conversion for HST and Megacam (legacy)
+        if (self.HSTfile!='None') or (self.MegacamFile!='None'):
+            self.mcType = kwargs.pop('mcType')
+            self.Delta_crit = kwargs.pop('Delta_crit')
         # DES-specific stuff
-        if DESfile != 'None':
+        if self.DESfile != 'None':
             # source redshifts
-            with h5py.File(DESfile, 'r') as f:
+            with h5py.File(self.DESfile, 'r') as f:
                 self.DES = {'SOM_Z_MID': f['config/SOM_Z_MID'][:],
                             'SOM_BINs': f['config/SOM_BINs'][:][1:,:]}
             # Read boost chain
@@ -94,13 +95,14 @@ class SPTlensing:
         # t.append(time.time())
         self.cosmology = cosmology
         self.scaling = scaling
-        if self.mcType != 'None':
+        if (self.HSTfile!='None') or (self.MegacamFile!='None'):
             if self.Delta_crit==200.:
                 self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, self.cosmology, setup_interp=False)
             else:
                 self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, self.cosmology,
                                                                                setup_interp=True, interp_massdef=self.Delta_crit)
-        self.MCrel_DES = Mconversion_concentration.ConcentrationConversion(3.5)
+        if self.DESfile!='None':
+            self.MCrel_DES = Mconversion_concentration.ConcentrationConversion(3.5)
         self.lnM_arr = lnM_arr_default
         self.M_arr = np.exp(self.lnM_arr)
         # Pre-compute angular diameter distances
@@ -135,8 +137,11 @@ class SPTlensing:
         `one_cluster` directly. Not relevant if you are calling `lnlike_all`."""
         self.cosmology = cosmology
         if self.mcType != 'None':
-            self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, cosmology,
-                                                                           setup_interp=True, interp_massdef=500)
+            if self.Delta_crit==200.:
+                self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, cosmology, setup_interp=False)
+            else:
+                self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, cosmology,
+                                                                               setup_interp=True, interp_massdef=self.Delta_crit)
         self.MCrel_DES = Mconversion_concentration.ConcentrationConversion(3.5)
         # Pre-compute angular diameter distances
         self.get_dAs(self.z_cl_min, self.z_cl_max, 5., cosmology)
