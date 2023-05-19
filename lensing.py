@@ -40,6 +40,7 @@ class SPTlensing:
         self.save_shear_profiles = kwargs.pop('save_shear_profiles', False)
         self.NPROC = kwargs.pop('NPROC', 0)
         self.mcType = kwargs.pop('mcType')
+        self.Delta_crit = kwargs.pop('Delta_crit')
         # Read lensing data
         DESfile = kwargs.pop('DESfile')
         readdata(catalog,
@@ -94,8 +95,11 @@ class SPTlensing:
         self.cosmology = cosmology
         self.scaling = scaling
         if self.mcType != 'None':
-            self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, self.cosmology,
-                                                                           setup_interp=True, interp_massdef=500)
+            if self.Delta_crit==200.:
+                self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, self.cosmology, setup_interp=False)
+            else:
+                self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, self.cosmology,
+                                                                               setup_interp=True, interp_massdef=self.Delta_crit)
         self.MCrel_DES = Mconversion_concentration.ConcentrationConversion(3.5)
         self.lnM_arr = lnM_arr_default
         self.M_arr = np.exp(self.lnM_arr)
@@ -216,7 +220,10 @@ class SPTlensing:
         Dl = np.exp(self.lndA_interp(np.log(self.cat_cl['REDSHIFT'])))
         # NFW halo stuff
         rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.cat_cl['REDSHIFT'], self.cosmology)**2  # [h^2 Msun/Mpc^3]
-        M200c = np.exp(self.MCrel.lnM_to_lnM200(self.cat_cl['REDSHIFT'], np.log(mass)))[0]
+        if self.Delta_crit==200.:
+            M200c = mass
+        else:
+            M200c = np.exp(self.MCrel.lnM_to_lnM200(self.cat_cl['REDSHIFT'], np.log(mass)))[0]
         r200c = (3*M200c/4/np.pi/200/rho_c_z)**(1/3)
         c200c = self.MCrel.calC200(M200c, self.cat_cl['REDSHIFT'])
         delta_c = 200/3 * c200c**3 / (np.log(1+c200c) - c200c/(1+c200c))
@@ -249,7 +256,10 @@ class SPTlensing:
         Dl = np.exp(self.lndA_interp(np.log(self.cat_cl['REDSHIFT'])))
         # NFW halo stuff
         rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.cat_cl['REDSHIFT'], self.cosmology)**2  # [h^2 Msun/Mpc^3]
-        M200c = np.exp(self.MCrel.lnM_to_lnM200(self.cat_cl['REDSHIFT'], np.log(mass)))[0]
+        if self.Delta_crit==200.:
+            M200c = mass
+        else:
+            M200c = np.exp(self.MCrel.lnM_to_lnM200(self.cat_cl['REDSHIFT'], np.log(mass)))[0]
         r200c = (3*M200c/4/np.pi/200/rho_c_z)**(1/3)
         c200c = self.MCrel.calC200(M200c, self.cat_cl['REDSHIFT'])
         delta_c = 200/3 * c200c**3 / (np.log(1+c200c) - c200c/(1+c200c))

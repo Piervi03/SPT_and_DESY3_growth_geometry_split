@@ -49,6 +49,7 @@ def setup(options):
     # Set up lensing code
     if todo['WL']:
         # Lensing data
+        Delta_crit = options.get_double(option_section, 'Delta_crit')
         WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
         HSTfile = options.get_string(option_section, 'HSTfile', default='None')
         MegacamFile = options.get_string(option_section, 'MegacamFile', default='None')
@@ -68,6 +69,7 @@ def setup(options):
                                                 DEScentertype=DEScentertype,
                                                 mcType=mcType,
                                                 NPROC=NPROC,
+                                                Delta_crit=Delta_crit,
                                                 save_shear_profiles=get_stacked_DES)
         # DES lensing priors
         if DESfile=='None':
