@@ -182,16 +182,19 @@ class MultiObsConvolution:
         dlnM_dlnobs = scaling_relations.dlnM_dlnobs('richness_%s'%richness, self.scaling)
         Jacobian = np.array([[dlnM_dlnobs**2, dlnM_dlnobs*dlnM_dlnzeta],
                              [dlnM_dlnobs*dlnM_dlnzeta, dlnM_dlnzeta**2]])
-        Drich = self.scaling[richscatter[richness]]
         Dsz = self.scaling['Dsz']
+        Drich = self.scaling[richscatter[richness]]
         if self.richness_scatter_model in ['lognormal', 'lognormalGaussPoisson']:
             covmat = np.array([[Drich**2, self.scaling['rhoSZrichness']*Drich*Dsz],
                                [self.scaling['rhoSZrichness']*Drich*Dsz, Dsz**2]])[None,:,:]
         elif self.richness_scatter_model=='lognormalrelPoisson':
-            covmat_base = np.array([[Drich**2, self.scaling['rhoSZrichness']*Drich*Dsz],
-                                [self.scaling['rhoSZrichness']*Drich*Dsz, Dsz**2]])
             richness_ = np.exp(scaling_relations.lnmass2lnobs('richness_%s'%richness, self.HMF['lnM_arr'], z, self.scaling))
-            covmat = covmat_base[None,:,:] + 1/richness_[:,None,None]*np.array([[1, 0], [0, 0]])[None,:,:]
+            Drich = np.sqrt(Drich**2 + 1/richness_)
+            covmat = np.array([[1., self.scaling['rhoSZrichness']*Dsz],
+                               [self.scaling['rhoSZrichness']*Dsz, Dsz**2]])[None,:,:]\
+                     * np.ones((len(richness_),2,2))
+            covmat[:,0,:]*= Drich[:,None]
+            covmat[:,:,0]*= Drich[:,None]
         covmat_lnM = covmat * Jacobian[None,:,:]
         # Number of bins and arrays for each observable
         Nbins_zeta, lnzeta_arr = self.get_Nbins_array(msqrt(np.amax(covmat_lnM[:,1,1])))
