@@ -197,20 +197,62 @@ class MassCalibration:
     def get_lnP_obs_given_xi(self, obsnames, dataID):
         """Return lnP(obs|xi,z,p) = ln(P(obs,xi|z,p)/P(xi|z,p)) for `obsnames`
         and cluster number `dataID`."""
-#        lnPxi = self.get_lnP_xi(dataID)
-        lnPallobs = self.get_lnP_allobs(obsnames, dataID)
-        return lnPallobs[0]-lnPallobs[1]
+        # ln(dN/dxi)
+        if 'lndNdxi' in self.catalog.colnames:
+            lndNdxi = self.catalog['lndNdxi'][dataID]
+        else:
+            # Which richness (if any)?
+            richness_obs = None
+            if self.todo['lambda_min']:
+                if 'richness_base' in obsnames:
+                    richness_obs = 'richness_base'
+                else:
+                    richness_obs = 'richness_ext'
+            lndNdxi = self.get_lndN_dxi(dataID, richness_obs)
+        # ln(dN/dobs)
+        self.lensingres = None
+        dlnM_dlnobs = np.array([scaling_relations.dlnM_dlnobs(obs, self.scaling) for obs in obsnames])
+        covmat = self.get_covmat_obs(obsnames)
+        lndNdallobs = self.get_lndN_dallobs(obsnames, covmat, dlnM_dlnobs, dataID)
+        return lndNdallobs-lndNdxi
 
-    def get_lnP_xi(self, dataID):
+    def get_lndN_dxi(self, dataID, richness_obs=None):
         """Return lnP(xi|z,p) for cluster `dataID`."""
         # Mass given zeta
-        lnM_zeta, xi_lnweights = self.get_lnM_zeta_given_xi(dataID)
+        zeta, lnM_zeta, xi_lnweights = self.get_lnM_zeta_given_xi(dataID)
         SZscatter_lnM = self.scaling['Dsz'] * scaling_relations.dlnM_dlnobs('zeta', self.scaling)
         lnM, zeta_lnweights = self.draw_lnm_given_lnzeta(lnM_zeta, SZscatter_lnM)
         # Weight with mass function
-        mass_lnweights = self.get_mass_function_lnweights(self.catalog['REDSHIFT'][dataID], lnM)-lnM
+        mass_lnweights = self.get_mass_function_lnweights(self.catalog['REDSHIFT'][dataID], lnM)
+        # Parameter transformation
+        trans_lnweights = np.log(scaling_relations.dlnM_dlnobs('zeta', self.scaling) * scaling_relations.dlnzeta_dxi_given_zeta(zeta))
+        # Account for lambda_min
+        lnP_lambda_gtr_cut = 0.
+        if self.todo['lambda_min']:
+            if self.catalog['FIELD'][dataID]=='sptpol_500d_MCMF':
+                lambda_min = self.surveyCutRichness['deep'](self.catalog['REDSHIFT'][dataID])
+            elif '_MCMF' in self.catalog['FIELD'][dataID]:
+                lambda_min = self.surveyCutRichness['shallow'](self.catalog['REDSHIFT'][dataID])
+            else:
+                lambda_min = 0.
+            if lambda_min>0.:
+                if self.richness_scatter_model in ['lognormal', 'lognormalrelPoisson']:
+                    # Scatter in richness
+                    var_richness = self.scaling[scatter_dict[richness_obs]]**2
+                    if self.richness_scatter_model=='lognormalrelPoisson':
+                        richness = np.exp(scaling_relations.lnmass2lnobs(richness_obs, lnM, self.catalog['REDSHIFT'][dataID], self.scaling))
+                        var_richness+= 1/richness
+                    # Variance and covariance in mass space
+                    var_richness_lnM = var_richness * scaling_relations.dlnM_dlnobs(richness_obs, self.scaling)**2
+                    covar_lnM = self.scaling['rhoSZrichness'] * SZscatter_lnM * np.sqrt(var_richness_lnM)
+                    # Conditional P(lambda| M, xi)
+                    lnmass_lambda_mean = lnM + (covar_lnM/SZscatter_lnM**2) * (lnM_zeta-lnM)
+                    lnlambda_mean = scaling_relations.lnmass2lnobs(richness_obs, lnmass_lambda_mean, self.catalog['REDSHIFT'][dataID], self.scaling)
+                    lnmass_lambda_std = np.sqrt(var_richness_lnM - covar_lnM**2/SZscatter_lnM**2)
+                    lnlambda_std = lnmass_lambda_std/scaling_relations.dlnM_dlnobs(richness_obs, self.scaling)
+                    lnP_lambda_gtr_cut = log_ndtr((lnlambda_mean-np.log(lambda_min))/lnlambda_std)
         # lnP(xi)
-        lnweights = xi_lnweights + zeta_lnweights + mass_lnweights
+        lnweights = xi_lnweights + zeta_lnweights + mass_lnweights + trans_lnweights + lnP_lambda_gtr_cut
         shift_lnweights = np.amax(lnweights)
         lnPxi = np.log(np.mean(np.exp(lnweights-shift_lnweights))) + shift_lnweights
         return lnPxi
@@ -219,9 +261,8 @@ class MassCalibration:
         """Returns mass draws given xi for cluster `dataID`. Prior P(M) is not
         accounted for."""
         zeta, lnweights = self.get_zeta_draws(self.catalog['XI'][dataID])
-        zeta/= self.thisSPTfield_gamma
-        lnM = scaling_relations.obs2lnmass('zeta', zeta, self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
-        return lnM, lnweights
+        lnM = scaling_relations.obs2lnmass('zeta', zeta/self.thisSPTfield_gamma, self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
+        return zeta, lnM, lnweights
 
     def get_zeta_draws(self, xi):
         """Draw zetas from `xi`. In practice, draw from offset distribution,
@@ -277,7 +318,7 @@ class MassCalibration:
         """Return probability P(xi|zeta) for cluster `dataID`."""
         zeta = self.thisSPTfield_gamma*np.exp(scaling_relations.lnmass2lnobs('zeta', lnM_zeta, self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology))
         xi = scaling_relations.zeta2xi(zeta)
-        lnP = -.5*(self.catalog['XI'][dataID]-xi)**2
+        lnP = -.5*(self.catalog['XI'][dataID]-xi)**2 - .5*ln2pi
         return lnP
 
     def get_covmat_obs(self, obsnames):
@@ -310,23 +351,12 @@ class MassCalibration:
     def get_lnlike_richness(self, lnM, richness_std_lnM, dataID, obsname):
         """Return ln-likelihood of richness and the draws of intrinsic
         ln(M_richness)."""
-        # Compute lambda_min
-        if self.todo['lambda_min']:
-            if self.catalog['FIELD'][dataID]=='sptpol_500d_MCMF':
-                lambda_min = self.surveyCutRichness['deep'](self.catalog['REDSHIFT'][dataID])
-            elif '_MCMF' in self.catalog['FIELD'][dataID]:
-                lambda_min = self.surveyCutRichness['shallow'](self.catalog['REDSHIFT'][dataID])
-            else:
-                lambda_min = 0.
         # Lognormal scatter
         if self.richness_scatter_model=='lognormal':
             lnM_richness = scaling_relations.obs2lnmass(obsname, self.catalog['richness'][dataID], self.catalog['REDSHIFT'][dataID], self.scaling)
             lnrichness_std = richness_std_lnM/scaling_relations.dlnM_dlnobs(obsname, self.scaling)
             lnrichness = scaling_relations.lnmass2lnobs(obsname, lnM, self.catalog['REDSHIFT'][dataID], self.scaling)
             lnlike = -.5*(np.log(self.catalog['richness'][dataID])-lnrichness)**2/lnrichness_std**2 - np.log(self.catalog['richness'][dataID]*lnrichness_std) - .5*ln2pi
-            if self.todo['lambda_min']:
-                if lambda_min>0.:
-                    lnlike-= log_ndtr((lnrichness-np.log(lambda_min))/lnrichness_std)
         # In all other cases we need to draw richness
         elif self.richness_scatter_model in ['lognormalrelPoisson', 'lognormalGaussPoisson', 'lognormalGaussmeaserror']:
             lnM_richness = self.rng.normal(lnM, richness_std_lnM)
@@ -335,21 +365,12 @@ class MassCalibration:
             # Lognormal scatter in richness gets additional 1/lambda for relative shot noise
             if self.richness_scatter_model=='lognormalrelPoisson':
                 lnlike = -.5*(np.log(self.catalog['richness'][dataID])-lnrichness)**2*richness - np.log(self.catalog['richness'][dataID]) - .5*ln2pi + .5*lnrichness
-                if self.todo['lambda_min']:
-                    if lambda_min>0.:
-                        lnlike-= log_ndtr((lnrichness-np.log(lambda_min))*np.sqrt(richness))
             # Convolve lognormal scatter with Gaussian of width sqrt(richness)
             elif self.richness_scatter_model=='lognormalGaussPoisson':
                 lnlike = -.5*(self.catalog['richness'][dataID]-richness)**2/richness - .5*np.log(2*np.pi*richness)
-                if self.todo['lambda_min']:
-                    if lambda_min>0.:
-                        lnlike-= log_ndtr((richness-lambda_min)/np.sqrt(richness))
             # Gaussian measurement error
             elif self.richness_scatter_model=='lognormalGaussmeaserror':
                 lnlike = -.5*(self.catalog['richness'][dataID]-richness)**2/self.catalog['richness_err'][dataID]**2 - .5*ln2pi - np.log(self.catalog['richness_err'][dataID])
-                if self.todo['lambda_min']:
-                    if lambda_min>0.:
-                        lnlike-= log_ndtr((richness-lambda_min)/self.catalog['richness_err'][dataID])
         # No valid option
         else:
             raise RuntimeError("richness_scatter_model %s not found"%self.richness_scatter_model)
@@ -391,6 +412,7 @@ class MassCalibration:
         xi_lnweights = self.P_xi_zeta(lnM_zeta, dataID)
         # Weight with mass function
         mass_lnweights = self.get_mass_function_lnweights(self.catalog['REDSHIFT'][dataID], lnM)
+        # Follow-up observables
         if do_obs:
             # Covariance matrix with mass dependent scatter
             N_obs = len(obsnames)
@@ -424,47 +446,20 @@ class MassCalibration:
             lnlike_obs = None
         return xi_lnweights, zeta_lnweights, mass_lnweights, lnlike_obs
 
-    def get_lnP_allobs(self, obsnames, dataID):
-        """Returns lnP(obs,xi|z,p)"""
-        # Basic setup
-        self.lensingres = None
-        dlnM_dlnobs = np.array([scaling_relations.dlnM_dlnobs(obs, self.scaling) for obs in obsnames])
-        # Covariance matrix in ln-mass [draw, N_obs, N_obs]
-        covmat = self.get_covmat_obs(obsnames)
+    def get_lndN_dallobs(self, obsnames, covmat, dlnM_dlnobs, dataID):
+        """Returns ln(dN/d(obs,xi,z))"""
         # Mass draws uniform in log
         lnM = self.lnM_arr[0] + (self.lnM_arr[-1]-self.lnM_arr[0])*self.rng.random(Ndraw_ini)
         # Likelihood
         xi_lnweights, zeta_lnweights, mass_lnweights, lnlike_obs = self.weights_for_mass_samples(lnM, obsnames, covmat, dlnM_dlnobs, dataID)
-        # Mass|xi
-        lnweights_Pxi = xi_lnweights + zeta_lnweights + mass_lnweights
-        w = np.exp(lnweights_Pxi-np.amax(lnweights_Pxi))
-        sum_w = np.sum(w)
-        if np.sum(w**2)/sum_w==sum_w:
-            return -np.inf, 0.
-        mean_lnM_xi = np.sum(w*lnM)/sum_w
-        std_lnM_xi = np.sqrt(np.sum(w*(lnM-mean_lnM_xi)**2) / (sum_w - np.sum(w**2)/sum_w))
         # Mass|obs,xi
         lnweights_Pobsxi = xi_lnweights + zeta_lnweights + mass_lnweights + np.sum(lnlike_obs, axis=0)
         w = np.exp(lnweights_Pobsxi-np.amax(lnweights_Pobsxi))
         sum_w = np.sum(w)
         if np.sum(w**2)/sum_w==sum_w:
-            return -np.inf, 0.
+            return -np.inf
         mean_lnM_obsxi = np.sum(w*lnM)/sum_w
         std_lnM_obsxi = np.sqrt(np.sum(w*(lnM-mean_lnM_obsxi)**2) / (sum_w - np.sum(w**2)/sum_w))
-        # Refined estimate P(xi)
-        r_min = ndtr((self.lnM_arr[0]-mean_lnM_xi)/std_lnM_xi)
-        r_max = ndtr((self.lnM_arr[-1]-mean_lnM_xi)/std_lnM_xi)
-        if r_min<ndtr_m3:
-            r_min = ndtr_m3
-        if r_max>ndtr_p3:
-            r_max = ndtr_p3
-        r = r_min + (r_max-r_min)*self.rng.random(Ndraw)
-        lnM = erfinv(2*r-1)*std_lnM_xi*sqrt2 + mean_lnM_xi
-        draw_lnweights = -(-.5*((lnM-mean_lnM_xi)/std_lnM_xi)**2 - .5*ln2pi - np.log(std_lnM_xi))
-        xi_lnweights, zeta_lnweights, mass_lnweights, _ = self.weights_for_mass_samples(lnM, obsnames, covmat, dlnM_dlnobs, dataID, do_obs=False)
-        lnweights_Pxi = draw_lnweights + xi_lnweights + zeta_lnweights + mass_lnweights
-        shift_lnweights = np.amax(lnweights_Pxi)
-        lnPxi = np.log(np.mean(np.exp(lnweights_Pxi-shift_lnweights))) + shift_lnweights
         # Refined estimate P(obs,xi)
         r_min = ndtr((self.lnM_arr[0]-mean_lnM_obsxi)/std_lnM_obsxi)
         r_max = ndtr((self.lnM_arr[-1]-mean_lnM_obsxi)/std_lnM_obsxi)
@@ -479,7 +474,7 @@ class MassCalibration:
         xi_lnweights, zeta_lnweights, mass_lnweights, lnlike_obs = self.weights_for_mass_samples(lnM, obsnames, covmat, dlnM_dlnobs, dataID)
         lnweights_Pobsxi = draw_lnweights + xi_lnweights + zeta_lnweights + mass_lnweights + np.sum(lnlike_obs, axis=0)
         shift_lnweights = np.amax(lnweights_Pobsxi)
-        lnPobsxi = np.log(np.mean(np.exp(lnweights_Pobsxi-shift_lnweights))) + shift_lnweights
+        lndNdobsxi = np.log(np.mean(np.exp(lnweights_Pobsxi-shift_lnweights))) + shift_lnweights
         # Stacked DES profile
         if self.get_stacked_DES & ('WLDES' in obsnames):
             lnweights = draw_lnweights + xi_lnweights + zeta_lnweights + mass_lnweights
@@ -500,4 +495,4 @@ class MassCalibration:
             DeltaSigma_interp = interp1d(np.log(r_r200c_mean), DeltaSigma_data_mean, bounds_error=False)
             self.catalog['DES_DeltaSigma_data_mean'][dataID] = DeltaSigma_interp(lnr_r200c_stack)
 
-        return lnPobsxi, lnPxi
+        return lndNdobsxi
