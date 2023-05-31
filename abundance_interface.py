@@ -81,13 +81,14 @@ def execute(block, args):
             HMF['%s_dNdlnM'%tmp] = HMF['SZ_dNdlnM']
     HMF['len_z'] = len(HMF['z_arr'])
     # Compute the likelihood
-    lnlike, dN_dz, dN_dxi, N_total = number_count.lnlike(HMF, cosmology, scaling)
+    lnlike, dN_dz, dN_dxi, N_total, all_lndNdxi = number_count.lnlike(HMF, cosmology, scaling)
     if np.isneginf(lnlike):
         return 1
     for i,n in enumerate(dN_dz):
         block.put_double('dN', 'dN_dz_%d'%i, n)
     for i,n in enumerate(dN_dxi):
         block.put_double('dN', 'dN_dxi_%d'%i, n)
+    block.put_double_array_1d('cat', 'lndNdxi', all_lndNdxi)
     block.put_double('likelihoods', 'ABUNDANCE_LIKE', lnlike)
     return 0
 

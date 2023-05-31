@@ -128,6 +128,10 @@ def execute(block, setup_stuff):
     if masscalibration.todo['WL']:
         masscalibration.WL.setup_one_cluster_mode(cosmology)
 
+    # lndN/dxi (computed in abundance)
+    if block.has_section('cat') and block.has_value('cat', 'lndNdxi'):
+        masscalibration.catalog['lndNdxi'] = block.get_double_array_1d('cat', 'lndNdxi')
+
     ##### Compute likelihood
     lnlike, DES_stack = masscalibration.lnlike(HMF, cosmology, scaling)
     if np.isfinite(lnlike):

@@ -83,10 +83,14 @@ class NumberCount:
         # dN_dxi_500d = dN_dxi_survey[subsurveys=='SPTPOL_500d',:].sum(axis=0)
         # dN_dxi_SZ = dN_dxi_survey[subsurveys=='SZ',:].sum(axis=0)
         # dN_dxi_SPECS = dN_dxi_survey[subsurveys=='SPECS',:].sum(axis=0)
+        # dN/dxi
+        all_lndNdxi = np.zeros(len(self.catalog))
+        for i in range(num_fields):
+            all_lndNdxi[field_results[i][6]] = field_results[i][7]
 
         # print('abundance lnlike %.3f, Ntotal %.2f'%(lnlike, Ntotal))
 
-        return lnlike, dN_dz, dN_dxi, Ntotal
+        return lnlike, dN_dz, dN_dxi, Ntotal, all_lndNdxi
 
     ##########
 
@@ -150,11 +154,11 @@ class NumberCount:
                                     & (self.catalog['XI']<=self.surveyCutSZmax)
                                     & (self.catalog['REDSHIFT']>=self.surveyCutRedshift[0])
                                     & (self.catalog['REDSHIFT']<=self.surveyCutRedshift[1]))[0]
-        for i in thisfield_conf:
+        these_lndNdxi = lndNdxi(np.log(self.catalog['REDSHIFT'][thisfield_conf]), np.log(self.catalog['XI'][thisfield_conf]), grid=False) - np.log(self.SPT_survey['AREA'][fieldidx] * (np.pi/180)**2)
+        for n,i in enumerate(thisfield_conf):
             # spec-z: Evaluate dN/dxi/dz at exact location
             if self.catalog['REDSHIFT_UNC'][i]==0.:
-                this_lnlike = lndNdxi(np.log(self.catalog['REDSHIFT'][i]), np.log(self.catalog['XI'][i]))[0,0]
-                lnlike_this_field+= this_lnlike
+                lnlike_this_field+= these_lndNdxi[n]
             # photo-z: \int dz dN/dxi/dz, choose limits to encompass +/- 4 sigma of photo-z error
             elif self.catalog['REDSHIFT_UNC'][i]>0.:
                 zlo = min((.25, self.catalog['REDSHIFT'][i]-4*self.catalog['REDSHIFT_UNC'][i]))
@@ -164,4 +168,5 @@ class NumberCount:
                 this_lnlike = np.log(np.trapz(integrand, zarr))
                 lnlike_this_field+= this_lnlike
 
-        return lnlike_this_field, Ntotal, dN_dz_out, dN_dxi_out, dN_dxi_out_survey, self.SPT_survey['FIELD'][fieldidx]
+
+        return lnlike_this_field, Ntotal, dN_dz_out, dN_dxi_out, dN_dxi_out_survey, self.SPT_survey['FIELD'][fieldidx], thisfield_conf, these_lndNdxi
