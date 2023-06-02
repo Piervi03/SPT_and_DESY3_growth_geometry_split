@@ -98,6 +98,7 @@ def execute(block, setup_stuff):
 
     scaling = {'YXPARAM': masscalibration.YXPARAM}
     for p in ['Asz', 'Bsz', 'Csz', 'Dsz', 'Bsz2', 'Csz2', 'Esz', 'SPECS_calib', 'SZmPivot', 'zeta_min',
+              'Delta_Csz_ECS', 'Delta_Csz_500d',
               'Ax', 'Bx', 'Cx', 'Ex', 'dlnMg_dlnr', 'XraymPivot',
               'MegacamScatterLSS',
               'bWL_Megacam', 'DWL_Megacam',

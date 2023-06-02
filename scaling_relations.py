@@ -25,13 +25,19 @@ def dlnzeta_dxi_given_zeta(zeta):
 
 
 ####################
-def lnmass2lnobs(name, lnmass, z, scaling, cosmology=None, cluster_ID=None, lnM500_to_lnM200=None):
+def lnmass2lnobs(name, lnmass, z, scaling, cosmology=None, cluster_ID=None, lnM500_to_lnM200=None, SPTsurvey=None):
     """Returns ln-observable given (lnmass, z) using scaling relation."""
     if name=='zeta':
+        if SPTsurvey=='SZ':
+            Csz = scaling['Csz']
+        elif SPTsurvey=='ECS':
+            Csz = scaling['Csz'] + scaling['Delta_Csz_ECS']
+        elif SPTsurvey=='500d':
+            Csz = scaling['Csz'] + scaling['Delta_Csz_500d']
         lnE_z_term = np.log(cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology))
         return (scaling['Asz']
                 + scaling['Bsz'] * (lnmass-np.log(scaling['SZmPivot']))
-                + scaling['Csz'] * lnE_z_term
+                + Csz * lnE_z_term
                 + scaling['Esz'] * (lnmass-np.log(scaling['SZmPivot']))*lnE_z_term)
     elif name=='Yx':
         if scaling['YXPARAM']=='SPT_XVP':
@@ -76,12 +82,18 @@ def lnmass2lnobs(name, lnmass, z, scaling, cosmology=None, cluster_ID=None, lnM5
 
 
 ####################
-def obs2lnmass(name, obs, z, scaling, cosmology=None, cluster_ID=None):
+def obs2lnmass(name, obs, z, scaling, cosmology=None, cluster_ID=None, SPTsurvey=None):
     """Return lnmass given observable and z."""
     if name=='zeta':
+        if SPTsurvey=='SZ':
+            Csz = scaling['Csz']
+        elif SPTsurvey=='ECS':
+            Csz = scaling['Csz'] + scaling['Delta_Csz_ECS']
+        elif SPTsurvey=='500d':
+            Csz = scaling['Csz'] + scaling['Delta_Csz_500d']
         lnE_z_term = np.log(cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology))
         return (np.log(scaling['SZmPivot'])
-                + (np.log(obs) - scaling['Asz'] - scaling['Csz']*lnE_z_term) / (scaling['Bsz'] + scaling['Esz']*lnE_z_term))
+                + (np.log(obs) - scaling['Asz'] - Csz*lnE_z_term) / (scaling['Bsz'] + scaling['Esz']*lnE_z_term))
     elif name=='richness_base':
         lnmass = np.log(scaling['richmPivot']) + (1/scaling['Brichness'])*(np.log(obs) - scaling['Arichness'] - scaling['Crichness']*np.log((1+z)/1.6))
         return lnmass

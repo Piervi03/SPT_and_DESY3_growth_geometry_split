@@ -46,7 +46,7 @@ def execute(block, args):
         'wa': block.get_double('cosmological_parameters', 'wa')}
     # SZ scaling relation parameters
     scaling = {}
-    for p in ['Asz', 'Bsz', 'Csz', 'Dsz', 'Esz', 'SPECS_calib', 'SZmPivot', 'zeta_min']:
+    for p in ['Asz', 'Bsz', 'Csz', 'Dsz', 'Esz', 'SPECS_calib', 'SZmPivot', 'zeta_min', 'Delta_Csz_ECS', 'Delta_Csz_500d']:
         scaling[p] = block.get_double('mor_parameters', p)
     # Convolved halo mass function
     HMF = {'lnM_arr': block.get_double_array_1d('dN_dmultiobs', 'lnM_arr'),

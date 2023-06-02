@@ -60,9 +60,6 @@ class NumberCount:
         for tmp in ['SZ_lambdacut_shallow', 'SZ_lambdacut_deep', 'SZ']:
             self.dN_dlnzeta_unitSolidAng[tmp] = scaling_relations.dlnM_dlnobs('zeta', self.scaling) * np.exp(self.HMF['%s_dNdlnM'%tmp])
 
-        # zeta[z,M]
-        self.lnzeta_m = scaling_relations.lnmass2lnobs('zeta', self.HMF['lnM_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling, self.cosmology)
-
         ##### Evaluate (log)-likelihood for each SPT field (optional multiprocessing)
         num_fields = len(self.SPT_survey)
         if self.NPROC==0:
@@ -103,17 +100,24 @@ class NumberCount:
         with np.errstate(divide='ignore'):
             lndN_dlnzeta = np.log(dN_dlnzeta)
 
-        # Apply field scaling factor
-        this_lnzeta_m = self.lnzeta_m + np.log(self.SPT_survey['GAMMA'][fieldidx])
+        # Scaling relation (depends on survey)
+        if '500d' in self.SPT_survey['FIELD'][fieldidx]:
+            SPTsurvey = '500d'
+        elif '_sptpol' in self.SPT_survey['FIELD'][fieldidx]:
+            SPTsurvey = 'ECS'
+        else:
+            SPTsurvey = 'SZ'
+        lnzeta_m = (np.log(self.SPT_survey['GAMMA'][fieldidx])
+                    + scaling_relations.lnmass2lnobs('zeta', self.HMF['lnM_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling, self.cosmology, SPTsurvey=SPTsurvey))
         if '_sptpol' in self.SPT_survey['FIELD'][fieldidx]:
-            this_lnzeta_m+= np.log(self.scaling['SPECS_calib'])
+            lnzeta_m+= np.log(self.scaling['SPECS_calib'])
 
         # dN/dxi = dN/dlnzeta dlnzeta/dxi (unconvolved)
         # Unfortunately, the zeta_m table is not regular
         # and repeated spline interp is way too slow (1.6sec per field)
         # So we do linear interpolation (in ln(M), and for ln(dN/dlnzeta))
         dN_dxi = (self.dlnzeta_dxi_arr
-                  * np.exp(np.array([np.interp(self.ln_zeta_xi_arr, this_lnzeta_m[i], lndN_dlnzeta[i])
+                  * np.exp(np.array([np.interp(self.ln_zeta_xi_arr, lnzeta_m[i], lndN_dlnzeta[i])
                                      for i in range(self.HMF['len_z'])])))
 
         # Convolve with unit scatter (measurement uncertainty)
