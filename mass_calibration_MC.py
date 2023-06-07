@@ -454,7 +454,20 @@ class MassCalibration:
         xi_lnweights, zeta_lnweights, mass_lnweights, lnlike_obs = self.weights_for_mass_samples(lnM, obsnames, covmat, dlnM_dlnobs, dataID)
         # Mass|obs,xi
         lnweights_Pobsxi = xi_lnweights + zeta_lnweights + mass_lnweights + np.sum(lnlike_obs, axis=0)
-        w = np.exp(lnweights_Pobsxi-np.amax(lnweights_Pobsxi))
+        max_lnweights_Pobsxi = np.amax(lnweights_Pobsxi)
+        # Check if we have enough "good" weights
+        idx = np.argsort(lnweights_Pobsxi)
+        if max_lnweights_Pobsxi-lnweights_Pobsxi[idx[-10]]>2.:
+            # New mass draws uniform in log
+            lo = np.amin(lnM[idx[-10:]])
+            lnM = lo + (np.amax(lnM[idx[-10:]])-lo)*self.rng.random(Ndraw_ini)
+            # Likelihood
+            xi_lnweights, zeta_lnweights, mass_lnweights, lnlike_obs = self.weights_for_mass_samples(lnM, obsnames, covmat, dlnM_dlnobs, dataID)
+            # Mass|obs,xi
+            lnweights_Pobsxi = xi_lnweights + zeta_lnweights + mass_lnweights + np.sum(lnlike_obs, axis=0)
+            max_lnweights_Pobsxi = np.amax(lnweights_Pobsxi)
+        # Mean and std of lnM
+        w = np.exp(lnweights_Pobsxi-max_lnweights_Pobsxi)
         sum_w = np.sum(w)
         if np.sum(w**2)/sum_w==sum_w:
             return -np.inf
