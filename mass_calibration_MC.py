@@ -266,9 +266,8 @@ class MassCalibration:
         """Returns mass draws given xi for cluster `dataID`. Prior P(M) is not
         accounted for."""
         zeta, lnweights = self.get_zeta_draws(self.catalog['XI'][dataID])
-        zeta/= self.thisSPTfield_gamma
-        lnM = scaling_relations.obs2lnmass('zeta', zeta, self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, SPTsurvey=self.SPTsurvey)
-        return lnM, lnweights
+        lnM = scaling_relations.obs2lnmass('zeta', zeta/self.thisSPTfield_gamma, self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, SPTsurvey=self.SPTsurvey)
+        return zeta, lnM, lnweights
 
     def get_zeta_draws(self, xi):
         """Draw zetas from `xi`. In practice, draw from offset distribution,
