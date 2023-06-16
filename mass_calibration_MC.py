@@ -179,6 +179,11 @@ class MassCalibration:
         self.thisSPTfield_gamma = float(self.SPT_survey['GAMMA'][self.SPT_survey['FIELD']==self.catalog['FIELD'][i]])
         if '_sptpol' in self.catalog['FIELD'][i]:
             self.thisSPTfield_gamma*= self.scaling['SPECS_calib']
+            self.SPTsurvey = 'ECS'
+        elif '500d' in self.catalog['FIELD'][i]:
+            self.SPTsurvey = '500d'
+        else:
+            self.SPTsurvey = 'SZ'
 
         ##### Set up random number generator and get likelihood
         seed = np.abs(int(123456.*(i+1)*np.prod([self.scaling[key]+1. for key in ['Asz', 'Bsz', 'Csz', 'Dsz']])))
@@ -261,8 +266,9 @@ class MassCalibration:
         """Returns mass draws given xi for cluster `dataID`. Prior P(M) is not
         accounted for."""
         zeta, lnweights = self.get_zeta_draws(self.catalog['XI'][dataID])
-        lnM = scaling_relations.obs2lnmass('zeta', zeta/self.thisSPTfield_gamma, self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology)
-        return zeta, lnM, lnweights
+        zeta/= self.thisSPTfield_gamma
+        lnM = scaling_relations.obs2lnmass('zeta', zeta, self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, SPTsurvey=self.SPTsurvey)
+        return lnM, lnweights
 
     def get_zeta_draws(self, xi):
         """Draw zetas from `xi`. In practice, draw from offset distribution,
@@ -306,7 +312,7 @@ class MassCalibration:
 
     def draw_lnzeta_given_lnM(self, lnM, z, SZscatter_lnM):
         """Return draws and associated weights from P(zeta|M,z)."""
-        zeta_min_lnM = scaling_relations.obs2lnmass('zeta', self.scaling['zeta_min']/self.thisSPTfield_gamma, z, self.scaling, self.cosmology)
+        zeta_min_lnM = scaling_relations.obs2lnmass('zeta', self.scaling['zeta_min']/self.thisSPTfield_gamma, z, self.scaling, self.cosmology, SPTsurvey=self.SPTsurvey)
         r_min = ndtr((zeta_min_lnM-lnM)/SZscatter_lnM)
         r_min[r_min<ndtr_m3] = ndtr_m3
         r = r_min + (ndtr_p3-r_min)*self.rng.random(len(lnM))
@@ -316,7 +322,7 @@ class MassCalibration:
 
     def P_xi_zeta(self, lnM_zeta, dataID):
         """Return probability P(xi|zeta) for cluster `dataID`."""
-        zeta = self.thisSPTfield_gamma*np.exp(scaling_relations.lnmass2lnobs('zeta', lnM_zeta, self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology))
+        zeta = self.thisSPTfield_gamma*np.exp(scaling_relations.lnmass2lnobs('zeta', lnM_zeta, self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, SPTsurvey=self.SPTsurvey))
         xi = scaling_relations.zeta2xi(zeta)
         lnP = -.5*(self.catalog['XI'][dataID]-xi)**2 - .5*ln2pi
         return lnP
