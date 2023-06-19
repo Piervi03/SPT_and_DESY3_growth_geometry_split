@@ -47,13 +47,6 @@ class MultiObsConvolution:
                          'SZ_lambdacut_base_shallow', 'SZ_lambdacut_base_deep',
                          'SZ_lambdacut_ext_shallow', 'SZ_lambdacut_ext_deep',]
 
-        self.obsnames_dict = {'SZ': 'zeta',
-                              'SZ_lambdacut_base_shallow': 'zeta',
-                              'SZ_lambdacut_base_deep': 'zeta',
-                              'SZ_lambdacut_ext_shallow': 'zeta',
-                              'SZ_lambdacut_ext_deep': 'zeta',
-                              }
-
         self.observable_pairs, self.pairs_zmin, self.pairs_zmax, self.pairs_Nz = [], [], [], []
         for pair, zmin, zmax, Nz in zip(observable_pairs, pairs_zmin, pairs_zmax, pairs_Nz):
             if pair in all_pairnames:
@@ -91,18 +84,15 @@ class MultiObsConvolution:
         output_dict = {'lnM_arr': HMF['lnM_arr'][::self.compression]}
         for pair_idx,pair_name in enumerate(self.observable_pairs):
             z_arr = np.linspace(self.pairs_zmin[pair_idx], self.pairs_zmax[pair_idx], self.pairs_Nz[pair_idx])
-            obsname_s_ = self.obsnames_dict[pair_name]
-            output_dict[pair_name] = self.get_P_multiobs_allz(obsname=obsname_s_,
-                                                              pairname=pair_name,
+            output_dict[pair_name] = self.get_P_multiobs_allz(pairname=pair_name,
                                                               z_arr=z_arr)
             output_dict['%s_z'%pair_name] = z_arr
         return output_dict
 
-    def get_P_multiobs_allz(self, obsname, pairname, z_arr):
+    def get_P_multiobs_allz(self, pairname, z_arr):
         """Return P(obs, xi | M, z, p) for each redshift in z_arr. Optional
         multiprocess."""
         # Write to self to make function pickleable for multiprocessing
-        self.obsname = obsname
         self.pairname = pairname
 
         if self.NPROC==0:
@@ -118,20 +108,18 @@ class MultiObsConvolution:
     def get_P_multiobs_z(self, z):
         """Decide whether it's a 2D or 3D observable array or whether it's the
         fancy DES stuff."""
-        # Unpack self (again, because of multiprocessing)
-        obsname = self.obsname
-        pairname = self.pairname
         # Which HMF convolution?
-        if pairname=='SZ':
+        if self.pairname=='SZ':
             return self.get_P_zeta_z(z)
         else:
-            if 'base' in pairname:
+            # Which richness--mass relation
+            if 'base' in self.pairname:
                 richness = 'base'
-            elif 'ext' in pairname:
+            elif 'ext' in self.pairname:
                 richness = 'ext'
-            if 'shallow' in pairname:
+            if 'shallow' in self.pairname:
                 survey = 'shallow'
-            elif 'deep' in pairname:
+            elif 'deep' in self.pairname:
                 survey = 'deep'
             return self.get_P_zeta_lambdacut_z(z, survey, richness)
 
