@@ -45,7 +45,8 @@ class MultiObsConvolution:
 
         all_pairnames = ['SZ',
                          'SZ_lambdacut_base_shallow', 'SZ_lambdacut_base_deep',
-                         'SZ_lambdacut_ext_shallow', 'SZ_lambdacut_ext_deep',]
+                         'SZ_lambdacut_ext_shallow', 'SZ_lambdacut_ext_deep',
+                         'richness_SZ_base', 'richness_SZ_ext',]
 
         self.observable_pairs, self.pairs_zmin, self.pairs_zmax, self.pairs_Nz = [], [], [], []
         for pair, zmin, zmax, Nz in zip(observable_pairs, pairs_zmin, pairs_zmax, pairs_Nz):
@@ -117,11 +118,16 @@ class MultiObsConvolution:
                 richness = 'base'
             elif 'ext' in self.pairname:
                 richness = 'ext'
-            if 'shallow' in self.pairname:
-                survey = 'shallow'
-            elif 'deep' in self.pairname:
-                survey = 'deep'
-            return self.get_P_zeta_lambdacut_z(z, survey, richness)
+            # dN/dlnzeta/dlnlambda
+            if self.pairname in ['richness_SZ_base', 'richness_SZ_ext']:
+                return self.get_P_zeta_lambda_lognormal_z(z, richness)
+            # dN/dlnzeta given lambda>lambda_min
+            else:
+                if 'shallow' in self.pairname:
+                    survey = 'shallow'
+                elif 'deep' in self.pairname:
+                    survey = 'deep'
+                return self.get_P_zeta_lambdacut_z(z, survey, richness)
 
     def get_Nbins_array(self, std):
         """Return number of bins and array that satisfy that std/Delta_lnM is
