@@ -20,10 +20,12 @@ def setup(options):
     tmp = np.loadtxt(surveyCutLambda_file, unpack=True)
     surveyCutLambda = {'shallow': interp1d(tmp[0], tmp[1], kind='linear'),
                        'deep': interp1d(tmp[0], tmp[2], kind='linear')}
+    z_DESWISE = options.get_double(option_section, 'z_DESWISE', default=surveyCutRedshift[1])
     ##### Initialize abundance
     computer = dNdzdlambda.DistCompute(SPT_survey,
                                        surveyCutRedshift,
                                        surveyCutLambda,
+                                       z_DESWISE,
                                        NPROC)
     return computer
 
@@ -37,14 +39,30 @@ def execute(block, computer):
                  'wa': block.get_double('cosmological_parameters', 'wa')}
     # SZ scaling relation parameters
     scaling = {}
-    for p in ['Asz', 'Bsz', 'Csz', 'Dsz', 'Esz', 'SPECS_calib', 'SZmPivot', 'zeta_min',
-              'Arichness', 'Brichness', 'Crichness', 'richmPivot']:
+    for p in ['Asz', 'Bsz', 'Csz', 'Dsz', 'Esz', 'SPECS_calib', 'SZmPivot', 'zeta_min',  'Delta_Csz_ECS', 'Delta_Csz_500d',
+              'Arichness', 'Brichness', 'Crichness',
+              'Arichness_ext', 'Brichness_ext', 'Crichness_ext',
+              'richmPivot']:
         scaling[p] = block.get_double('mor_parameters', p)
     # Convolved halo mass function
-    HMF = {'lnM_arr': block.get_double_array_1d('dN_dmultiobs', 'lnM_arr'),
-           'z_arr': block.get_double_array_1d('dN_dmultiobs', 'richness_SZ_z'),
-           'dNdlnM': block.get_double_array_nd('dN_dmultiobs', 'richness_SZ')}
-    HMF['len_z'] = len(HMF['z_arr'])
+    HMF = {'lnM_arr': block.get_double_array_1d('dN_dmultiobs', 'lnM_arr'),}
+    z, dNdlnM = {}, {}
+    for opt_survey in ['base', 'ext']:
+        if block.has_value('dN_dmultiobs', 'richness_SZ_%s_z'%opt_survey):
+            z[opt_survey] = block.get_double_array_1d('dN_dmultiobs', 'richness_SZ_%s_z'%opt_survey)
+        if block.has_value('dN_dmultiobs', 'richness_SZ_%s'%opt_survey):
+            dNdlnM[opt_survey] = block.get_double_array_nd('dN_dmultiobs', 'richness_SZ_%s'%opt_survey)
+    if 'base' in z.keys():
+        if 'ext' in z.keys():
+            HMF['richness_SZ_z'] = np.concatenate([z['base'][z['base']<computer.z_DESWISE], z['ext'][z['ext']>=computer.z_DESWISE]])
+            HMF['richness_SZ_dNdlnM'] = np.concatenate([dNdlnM['base'][z['base']<computer.z_DESWISE], dNdlnM['ext'][z['ext']>=computer.z_DESWISE]])
+        else:
+            HMF['richness_SZ_z'] = z['base']
+            HMF['richness_SZ_dNdlnM'] = dNdlnM['base']
+    else:
+        HMF['richness_SZ_z'] = z['ext']
+        HMF['richness_SZ_dNdlnM'] = dNdlnM['ext']
+    HMF['z_arr'] = HMF['richness_SZ_z']
     # Compute
     dN_dz, dN_dlambda = computer.run(HMF, cosmology, scaling)
     #for i,n in enumerate(dN_dz):
