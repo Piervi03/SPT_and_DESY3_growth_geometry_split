@@ -54,9 +54,9 @@ class DistCompute:
                 argin = zip([self]*num_fields, range(num_fields))
                 field_results = pool.map(unwrap_self_f, argin)
         dN_dz = np.array([field_results[i][0] for i in range(num_fields)]).sum(axis=0)
-        dN_dlambda = np.array([field_results[i][1] for i in range(num_fields)]).sum(axis=0)
+        dN_dlnlambda = np.array([field_results[i][1] for i in range(num_fields)]).sum(axis=0)
 
-        return dN_dz, dN_dlambda
+        return dN_dz, dN_dlnlambda
 
     ##########
 
@@ -96,7 +96,7 @@ class DistCompute:
         with np.errstate(divide='ignore'):
             lndN_dz_dlnrichness_grid = np.array([np.interp(self.lnlambda_bins, self.lnrichness_m[i], lndN_dz_dlnrichness[i]) for i in range(len(self.HMF['z_arr']))])
         # dN/dz and dN/dlambda
-        dN_dz = np.sum(np.exp(.5*(lndN_dz_dlnrichness[:,1:]+lndN_dz_dlnrichness[:,:-1])) * np.diff(self.lnrichness_m), axis=1)
-        dN_dz_out = interp1d(self.HMF['z_arr'], dN_dz, kind='linear')(self.z_bins_output)
-        dN_dlambda = (np.trapz(np.exp(lndN_dz_dlnrichness_grid), self.HMF['z_arr'], axis=0)/np.exp(self.lnlambda_bins))[::10]
-        return dN_dz_out, dN_dlambda
+        # dN_dz = np.sum(np.exp(.5*(lndN_dz_dlnrichness[:,1:]+lndN_dz_dlnrichness[:,:-1])) * np.diff(self.lnrichness_m), axis=1)
+        dN_dz_out = np.zeros(self.Nz)# interp1d(self.HMF['z_arr'], dN_dz, kind='linear')(self.z_bins_output)
+        dN_dlnlambda = (np.trapz(np.exp(lndN_dz_dlnrichness_grid), self.HMF['z_arr'], axis=0))[::10]
+        return dN_dz_out, dN_dlnlambda

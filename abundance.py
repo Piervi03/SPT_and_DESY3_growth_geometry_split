@@ -141,12 +141,13 @@ class NumberCount:
         Ntotal = np.trapz(dNdz, self.z_arr)
 
         # dN_dxi and dN_dz for output
-        dNdz_interp = interp1d(self.z_arr, dNdz, kind='cubic')
-        dN_dz_out = dNdz_interp(self.z_bins_output)
-        integrand = np.exp(lndNdxi(np.log(self.z_arr), np.log(self.xi_bins_output)))
-        dN_dxi_out = np.trapz(integrand, self.z_arr, axis=0)
-        integrand = np.exp(lndNdxi(np.log(self.z_arr), np.linspace(np.log(self.SPT_survey['XI_MIN'][fieldidx]), np.log(50), 11)))
-        dN_dxi_out_survey = np.trapz(integrand, self.z_arr, axis=0)
+        dN_dz_out = interp1d(self.z_arr, dNdz, kind='cubic')(self.z_bins_output)
+        # integrand = np.exp(lndNdxi(np.log(self.z_arr), np.log(self.xi_bins_output)))
+        dN_dz_dxi_binned = np.array([np.sum(integrand[:,((self.xi_bins_output[i]<=self.xi_arr[:-1])&(self.xi_arr[1:]<=self.xi_bins_output[i+1])).nonzero()[0]], axis=1)
+                                     for i in range(len(self.xi_bins_output)-1)])
+        dN_dxi_out = np.trapz(dN_dz_dxi_binned, self.z_arr, axis=1)
+        # integrand = np.exp(lndNdxi(np.log(self.z_arr), np.linspace(np.log(self.SPT_survey['XI_MIN'][fieldidx]), np.log(50), 11)))
+        dN_dxi_out_survey = None #np.trapz(integrand, self.z_arr, axis=0)
 
         # Likelihood contribution from Ntotal
         lnlike_this_field = -Ntotal
