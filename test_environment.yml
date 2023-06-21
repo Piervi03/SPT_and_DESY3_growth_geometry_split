@@ -8,6 +8,7 @@ dependencies:
   - flake8>=5
   - numpy=1.23.2
   - pip>=22
+  - progressbar>=2
   - pytest>=7
   - python=3.9
   - scikit-learn>=1
