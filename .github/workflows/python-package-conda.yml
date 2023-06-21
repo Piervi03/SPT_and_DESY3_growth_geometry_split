@@ -18,6 +18,8 @@ jobs:
         activate-environment: py39_test
         environment-file: test_environment.yml
         auto-activate-base: false
+    - name: manually install baccoemu
+      run: pip install baccoemu --no-dependencies
     - name: Compile cython extension
       run: python setup.py build_ext --inplace
     - name: Lint with flake8
