@@ -15,6 +15,5 @@ dependencies:
   - tensorflow>=2
   - xarray
   - pip:
-    - baccoemu
     - colossus
     - MiraTitanHMFemulator  
