@@ -1,20 +1,7 @@
-name: py39_test
+name: py311_test
 channels:
   - conda-forge
   - defaults
 dependencies:
-  - astropy>=5
-  - cython>=0.29
-  - flake8>=5
-  - numpy=1.23.2
-  - pip>=22
-  - pytest>=7
-  - python=3.9
-  - scikit-learn>=1
-  - scipy>=1.9
-  - tensorflow>=2
-  - xarray
-  - pip:
-    - baccoemu
-    - colossus
-    - MiraTitanHMFemulator  
+  - flake8>=6
+  - python=3.11
