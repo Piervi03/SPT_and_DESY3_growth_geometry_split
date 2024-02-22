@@ -15,7 +15,7 @@ jobs:
     - name: Set up conda environment
       uses: conda-incubator/setup-miniconda@v2
       with:
-        activate-environment: py39_test
+        activate-environment: py311_test
         environment-file: test_environment.yml
         auto-activate-base: false
     # - name: Compile cython extension
