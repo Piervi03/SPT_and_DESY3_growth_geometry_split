@@ -94,11 +94,18 @@ def main(configMod_file, catalog_name):
     for fieldidx,field in enumerate(SPT_survey['FIELD']):
         print(field, fieldidx, 'out of %d'%len(SPT_survey['FIELD']))
 
+        # Field-dependent Csz
+        if '_sptpol' in field:
+            SPTsurvey = 'ECS'
+        elif '500d' in field:
+            SPTsurvey = '500d'
+        else:
+            SPTsurvey = 'SZ'
         # Poisson realization
         N = rng.poisson(HMF_dNdM_V*SPT_survey['AREA'][fieldidx])
 
-        obs_0 = np.array([np.exp(scaling_relations.lnmass2lnobs(name, lnM_arr[None,:], z_arr[:,None], scaling, cosmology))
-                          for name in ('WLDES', configMod.Xray_obs, 'zeta', 'richness',)])
+        obs_0 = np.array([np.exp(scaling_relations.lnmass2lnobs(name, lnM_arr[None,:], z_arr[:,None], scaling, cosmology, SPTsurvey=SPTsurvey))
+                          for name in ('WLDES', configMod.Xray_obs, 'zeta', 'richness_base',)])
         obs_0 = np.concatenate((obs_0, M_arr*np.ones((len(z_arr), len(M_arr)))[None,:]))
 
         # Field depth
@@ -128,11 +135,11 @@ def main(configMod_file, catalog_name):
                         X = rng.lognormal(np.log(obs[k,1]), sigma=configMod.Xerr)
 
                         # Observed richness
+                        richness_err = 0.
                         if lambda_min==0.:
                             # No measurement here
                             richness_obs = 0.
                         else:
-                            richness_err = 0.
                             if configMod.richness_scatter_model=='lognormal':
                                 richness_obs = obs[k,3]
                             elif configMod.richness_scatter_model=='lognormalrelPoisson':

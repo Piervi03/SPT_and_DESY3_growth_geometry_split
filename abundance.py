@@ -60,9 +60,6 @@ class NumberCount:
         for tmp in ['SZ_lambdacut_shallow', 'SZ_lambdacut_deep', 'SZ']:
             self.dN_dlnzeta_unitSolidAng[tmp] = scaling_relations.dlnM_dlnobs('zeta', self.scaling) * np.exp(self.HMF['%s_dNdlnM'%tmp])
 
-        # zeta[z,M]
-        self.lnzeta_m = scaling_relations.lnmass2lnobs('zeta', self.HMF['lnM_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling, self.cosmology)
-
         ##### Evaluate (log)-likelihood for each SPT field (optional multiprocessing)
         num_fields = len(self.SPT_survey)
         if self.NPROC==0:
@@ -83,10 +80,14 @@ class NumberCount:
         # dN_dxi_500d = dN_dxi_survey[subsurveys=='SPTPOL_500d',:].sum(axis=0)
         # dN_dxi_SZ = dN_dxi_survey[subsurveys=='SZ',:].sum(axis=0)
         # dN_dxi_SPECS = dN_dxi_survey[subsurveys=='SPECS',:].sum(axis=0)
+        # dN/dxi
+        all_lndNdxi = np.zeros(len(self.catalog))
+        for i in range(num_fields):
+            all_lndNdxi[field_results[i][6]] = field_results[i][7]
 
         # print('abundance lnlike %.3f, Ntotal %.2f'%(lnlike, Ntotal))
 
-        return lnlike, dN_dz, dN_dxi, Ntotal
+        return lnlike, dN_dz, dN_dxi, Ntotal, all_lndNdxi
 
     ##########
 
@@ -103,17 +104,24 @@ class NumberCount:
         with np.errstate(divide='ignore'):
             lndN_dlnzeta = np.log(dN_dlnzeta)
 
-        # Apply field scaling factor
-        this_lnzeta_m = self.lnzeta_m + np.log(self.SPT_survey['GAMMA'][fieldidx])
+        # Scaling relation (depends on survey)
+        if '500d' in self.SPT_survey['FIELD'][fieldidx]:
+            SPTsurvey = '500d'
+        elif '_sptpol' in self.SPT_survey['FIELD'][fieldidx]:
+            SPTsurvey = 'ECS'
+        else:
+            SPTsurvey = 'SZ'
+        lnzeta_m = (np.log(self.SPT_survey['GAMMA'][fieldidx])
+                    + scaling_relations.lnmass2lnobs('zeta', self.HMF['lnM_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling, self.cosmology, SPTsurvey=SPTsurvey))
         if '_sptpol' in self.SPT_survey['FIELD'][fieldidx]:
-            this_lnzeta_m+= np.log(self.scaling['SPECS_calib'])
+            lnzeta_m+= np.log(self.scaling['SPECS_calib'])
 
         # dN/dxi = dN/dlnzeta dlnzeta/dxi (unconvolved)
         # Unfortunately, the zeta_m table is not regular
         # and repeated spline interp is way too slow (1.6sec per field)
         # So we do linear interpolation (in ln(M), and for ln(dN/dlnzeta))
         dN_dxi = (self.dlnzeta_dxi_arr
-                  * np.exp(np.array([np.interp(self.ln_zeta_xi_arr, this_lnzeta_m[i], lndN_dlnzeta[i])
+                  * np.exp(np.array([np.interp(self.ln_zeta_xi_arr, lnzeta_m[i], lndN_dlnzeta[i])
                                      for i in range(self.HMF['len_z'])])))
 
         # Convolve with unit scatter (measurement uncertainty)
@@ -133,12 +141,13 @@ class NumberCount:
         Ntotal = np.trapz(dNdz, self.z_arr)
 
         # dN_dxi and dN_dz for output
-        dNdz_interp = interp1d(self.z_arr, dNdz, kind='cubic')
-        dN_dz_out = dNdz_interp(self.z_bins_output)
-        integrand = np.exp(lndNdxi(np.log(self.z_arr), np.log(self.xi_bins_output)))
-        dN_dxi_out = np.trapz(integrand, self.z_arr, axis=0)
-        integrand = np.exp(lndNdxi(np.log(self.z_arr), np.linspace(np.log(self.SPT_survey['XI_MIN'][fieldidx]), np.log(50), 11)))
-        dN_dxi_out_survey = np.trapz(integrand, self.z_arr, axis=0)
+        dN_dz_out = interp1d(self.z_arr, dNdz, kind='cubic')(self.z_bins_output)
+        # integrand = np.exp(lndNdxi(np.log(self.z_arr), np.log(self.xi_bins_output)))
+        dN_dz_dxi_binned = np.array([np.sum(integrand[:,((self.xi_bins_output[i]<=self.xi_arr[:-1])&(self.xi_arr[1:]<=self.xi_bins_output[i+1])).nonzero()[0]], axis=1)
+                                     for i in range(len(self.xi_bins_output)-1)])
+        dN_dxi_out = np.trapz(dN_dz_dxi_binned, self.z_arr, axis=1)
+        # integrand = np.exp(lndNdxi(np.log(self.z_arr), np.linspace(np.log(self.SPT_survey['XI_MIN'][fieldidx]), np.log(50), 11)))
+        dN_dxi_out_survey = None #np.trapz(integrand, self.z_arr, axis=0)
 
         # Likelihood contribution from Ntotal
         lnlike_this_field = -Ntotal
@@ -150,11 +159,11 @@ class NumberCount:
                                     & (self.catalog['XI']<=self.surveyCutSZmax)
                                     & (self.catalog['REDSHIFT']>=self.surveyCutRedshift[0])
                                     & (self.catalog['REDSHIFT']<=self.surveyCutRedshift[1]))[0]
-        for i in thisfield_conf:
+        these_lndNdxi = lndNdxi(np.log(self.catalog['REDSHIFT'][thisfield_conf]), np.log(self.catalog['XI'][thisfield_conf]), grid=False) - np.log(self.SPT_survey['AREA'][fieldidx] * (np.pi/180)**2)
+        for n,i in enumerate(thisfield_conf):
             # spec-z: Evaluate dN/dxi/dz at exact location
             if self.catalog['REDSHIFT_UNC'][i]==0.:
-                this_lnlike = lndNdxi(np.log(self.catalog['REDSHIFT'][i]), np.log(self.catalog['XI'][i]))[0,0]
-                lnlike_this_field+= this_lnlike
+                lnlike_this_field+= these_lndNdxi[n]
             # photo-z: \int dz dN/dxi/dz, choose limits to encompass +/- 4 sigma of photo-z error
             elif self.catalog['REDSHIFT_UNC'][i]>0.:
                 zlo = min((.25, self.catalog['REDSHIFT'][i]-4*self.catalog['REDSHIFT_UNC'][i]))
@@ -164,4 +173,5 @@ class NumberCount:
                 this_lnlike = np.log(np.trapz(integrand, zarr))
                 lnlike_this_field+= this_lnlike
 
-        return lnlike_this_field, Ntotal, dN_dz_out, dN_dxi_out, dN_dxi_out_survey, self.SPT_survey['FIELD'][fieldidx]
+
+        return lnlike_this_field, Ntotal, dN_dz_out, dN_dxi_out, dN_dxi_out_survey, self.SPT_survey['FIELD'][fieldidx], thisfield_conf, these_lndNdxi

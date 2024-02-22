@@ -32,16 +32,12 @@ def execute(block, scaling_setter):
         # Put into block
         for p in ['bWL_Megacam', 'DWL_Megacam']:
             block.put_double('mor_parameters', p, scaling[p])
-        for p in ['cov_X_SZ', 'cov_richness_SZ', 'cov_Megacam_SZ', 'cov_Megacam_X_SZ']:
-            block.put_double_array_nd('mor_parameters', p, scaling[p])
         for name in scaling_setter.HSTcalib['SPT_ID']:
             block.put_double('mor_parameters', 'bWL_HST_%s'%name, scaling['bWL_HST'][name])
             block.put_double('mor_parameters', 'DWL_HST_%s'%name, scaling['DWL_HST'][name])
-            block.put_double_array_nd('mor_parameters', 'cov_HST_SZ_%s'%name, scaling['cov_HST_SZ_%s'%name])
-            block.put_double_array_nd('mor_parameters', 'cov_HST_X_SZ_%s'%name, scaling['cov_HST_X_SZ_%s'%name])
-            block.put_double_array_nd('mor_parameters', 'cov_HST_richness_SZ_%s'%name, scaling['cov_HST_richness_SZ_%s'%name])
         return 0
     else:
+        print("set scaling", flush=True)
         return 1
 
 

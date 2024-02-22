@@ -5,7 +5,6 @@ from scipy.interpolate import InterpolatedUnivariateSpline, RectBivariateSpline
 from multiprocessing import Pool
 
 import h5py
-import imp
 
 import cosmo, Mconversion_concentration, miscentering
 
@@ -33,39 +32,44 @@ def unwrap_self_one_cluster(arg):
 
 class SPTlensing:
 
-    def __init__(self, catalog, WLsimcalibfile,
-                 HSTfile, MegacamFile, DESfile,
-                 DESboostfile, DESboost_z_arr,
-                 DESmiscenterfile, DEScentertype,
-                 mcType,
-                 NPROC=0,
-                 save_shear_profiles=False):
-        WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
-        self.WLcalib = WLsimcalib.WLcalibration
+    def __init__(self, catalog, **kwargs):
         # Set up more stuff
-        self.save_shear_profiles = save_shear_profiles
-        self.NPROC = NPROC
-        self.mcType = mcType
+        self.save_shear_profiles = kwargs.pop('save_shear_profiles', False)
+        self.NPROC = kwargs.pop('NPROC', 0)
         # Read lensing data
-        readdata(catalog, HSTfile, MegacamFile, DESfile, self.save_shear_profiles)
+        self.DESfile = kwargs.pop('DESfile')
+        self.HSTfile = kwargs.pop('HSTfile')
+        self.MegacamFile = kwargs.pop('MegacamFile')
+        readdata(catalog,
+                 self.HSTfile,
+                 self.MegacamFile,
+                 self.DESfile,
+                 self.save_shear_profiles)
         # Redshift range of clusters with WL data
         self.WL_idx = (catalog['WLdata'] != None).nonzero()[0]
         self.z_cl_min = np.amin(catalog['REDSHIFT'][self.WL_idx])
         self.z_cl_max = np.amax(catalog['REDSHIFT'][self.WL_idx])
+        # Mass conversion for HST and Megacam (legacy)
+        if (self.HSTfile!='None') or (self.MegacamFile!='None'):
+            self.mcType = kwargs.pop('mcType')
+            self.Delta_crit = kwargs.pop('Delta_crit')
         # DES-specific stuff
-        if DESfile != 'None':
+        if self.DESfile != 'None':
             # source redshifts
-            with h5py.File(DESfile, 'r') as f:
+            with h5py.File(self.DESfile, 'r') as f:
                 self.DES = {'SOM_Z_MID': f['config/SOM_Z_MID'][:],
                             'SOM_BINs': f['config/SOM_BINs'][:][1:,:]}
             # Read boost chain
+            DESboostfile = kwargs.pop('DESboostfile')
             with open(DESboostfile, 'r') as f:
                 tmp = f.readline().split()[1:]
             dat = np.mean(np.loadtxt(DESboostfile), axis=0)
-            self.DES['boost_dict'] = {'z_arr': DESboost_z_arr}
+            self.DES['boost_dict'] = {'z_arr': kwargs.pop('DESboost_z_arr')}
             for n,name in enumerate(tmp):
                 self.DES['boost_dict'][name] = dat[n]
             # Initialize miscentering
+            DESmiscenterfile = kwargs.pop('DESmiscenterfile')
+            DEScentertype = kwargs.pop('DEScentertype')
             with open(DESmiscenterfile, 'r') as f:
                 tmp = f.readline().split()[1:]
             dat = np.mean(np.loadtxt(DESmiscenterfile), axis=0)
@@ -91,10 +95,14 @@ class SPTlensing:
         # t.append(time.time())
         self.cosmology = cosmology
         self.scaling = scaling
-        if self.mcType != 'None':
-            self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, self.cosmology,
-                                                                           setup_interp=True, interp_massdef=500)
-        self.MCrel_DES = Mconversion_concentration.ConcentrationConversion(3.5)
+        if (self.HSTfile!='None') or (self.MegacamFile!='None'):
+            if self.Delta_crit==200.:
+                self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, self.cosmology, setup_interp=False)
+            else:
+                self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, self.cosmology,
+                                                                               setup_interp=True, interp_massdef=self.Delta_crit)
+        if self.DESfile!='None':
+            self.MCrel_DES = Mconversion_concentration.ConcentrationConversion(3.5)
         self.lnM_arr = lnM_arr_default
         self.M_arr = np.exp(self.lnM_arr)
         # Pre-compute angular diameter distances
@@ -128,10 +136,14 @@ class SPTlensing:
         """Function name says it all. Call this function before calling
         `one_cluster` directly. Not relevant if you are calling `lnlike_all`."""
         self.cosmology = cosmology
-        if self.mcType != 'None':
-            self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, cosmology,
-                                                                           setup_interp=True, interp_massdef=500)
-        self.MCrel_DES = Mconversion_concentration.ConcentrationConversion(3.5)
+        if (self.HSTfile!='None') or (self.MegacamFile!='None'):
+            if self.Delta_crit==200.:
+                self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, cosmology, setup_interp=False)
+            else:
+                self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, cosmology,
+                                                                               setup_interp=True, interp_massdef=self.Delta_crit)
+        if self.DESfile!='None':
+            self.MCrel_DES = Mconversion_concentration.ConcentrationConversion(3.5)
         # Pre-compute angular diameter distances
         self.get_dAs(self.z_cl_min, self.z_cl_max, 5., cosmology)
 
@@ -214,7 +226,10 @@ class SPTlensing:
         Dl = np.exp(self.lndA_interp(np.log(self.cat_cl['REDSHIFT'])))
         # NFW halo stuff
         rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.cat_cl['REDSHIFT'], self.cosmology)**2  # [h^2 Msun/Mpc^3]
-        M200c = np.exp(self.MCrel.lnM_to_lnM200(self.cat_cl['REDSHIFT'], np.log(mass)))[0]
+        if self.Delta_crit==200.:
+            M200c = mass
+        else:
+            M200c = np.exp(self.MCrel.lnM_to_lnM200(self.cat_cl['REDSHIFT'], np.log(mass)))[0]
         r200c = (3*M200c/4/np.pi/200/rho_c_z)**(1/3)
         c200c = self.MCrel.calC200(M200c, self.cat_cl['REDSHIFT'])
         delta_c = 200/3 * c200c**3 / (np.log(1+c200c) - c200c/(1+c200c))
@@ -247,7 +262,10 @@ class SPTlensing:
         Dl = np.exp(self.lndA_interp(np.log(self.cat_cl['REDSHIFT'])))
         # NFW halo stuff
         rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.cat_cl['REDSHIFT'], self.cosmology)**2  # [h^2 Msun/Mpc^3]
-        M200c = np.exp(self.MCrel.lnM_to_lnM200(self.cat_cl['REDSHIFT'], np.log(mass)))[0]
+        if self.Delta_crit==200.:
+            M200c = mass
+        else:
+            M200c = np.exp(self.MCrel.lnM_to_lnM200(self.cat_cl['REDSHIFT'], np.log(mass)))[0]
         r200c = (3*M200c/4/np.pi/200/rho_c_z)**(1/3)
         c200c = self.MCrel.calC200(M200c, self.cat_cl['REDSHIFT'])
         delta_c = 200/3 * c200c**3 / (np.log(1+c200c) - c200c/(1+c200c))

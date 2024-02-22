@@ -47,13 +47,14 @@ def execute(block, HMF_calculator):
             'w0': block.get_double('cosmological_parameters', 'w'),
             'wa': block.get_double('cosmological_parameters', 'wa'),
             'HMFbias': block.get_double('cosmological_parameters', 'HMFbias', default=1.),
+            'HMFslope': block.get_double('cosmological_parameters', 'HMFslope', default=0.)
         }
         # cdm+bar power spectrum (w/o neutrinos)
         z, k, Pk = block.get_grid('cdm_baryon_power_lin', 'z', 'k_h', 'p_k')
         # Compute the HMF
         dNdlnM_noVol, dNdlnM = HMF_calculator.compute_HMF(cosmology, z, k, Pk)
-        dNdlnM_noVol*= cosmology['HMFbias']
-        dNdlnM*= cosmology['HMFbias']
+        dNdlnM_noVol*= cosmology['HMFbias'] + cosmology['HMFslope']*np.log(HMF_calculator.M_arr/1e14)
+        dNdlnM*= cosmology['HMFbias'] + cosmology['HMFslope']*np.log(HMF_calculator.M_arr/1e14)
         # Put it into block
         block.put_grid('HMF', 'z_arr', HMF_calculator.z_arr, 'M_arr', HMF_calculator.M_arr, 'dNdlnM', dNdlnM)
         block.put_double_array_nd('HMF', 'dNdlnM_unitVol', dNdlnM_noVol)

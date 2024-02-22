@@ -15,6 +15,7 @@ def setup(options):
     todo['lambda_min'] = options.get_bool(option_section, 'lambda_min')
     mcType = options.get_string(option_section, 'mcType')
     surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
+    z_DESWISE = options.get_double(option_section, 'z_DESWISE', default=surveyCutRedshift[1])
     # Data for optical cleaning
     if todo['lambda_min']:
         surveyCutLambda_file = options.get_string(option_section, 'MCMF_lambda_min')
@@ -24,45 +25,49 @@ def setup(options):
     else:
         surveyCutLambda = None
     richness_scatter_model = options.get_string(option_section, 'richness_scatter_model')
-    NPROC = options.get_int(option_section, 'NPROC')
+    NPROC = options.get_int(option_section, 'NPROC', default=0)
     # SPT survey
     SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
     # Cluster catalog
     SPTcatalogfile = options.get_string(option_section, 'SPTcatalogfile')
     # WL param file
-    WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
+    WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile', default='None')
     # HST file
-    HSTcalibfile = options.get_string(option_section, 'HSTcalibfile')
+    HSTcalibfile = options.get_string(option_section, 'HSTcalibfile', default='None')
     # Do stack lensing for validation
-    get_stacked_DES = options.get_bool(option_section, 'get_stacked_DES', False)
+    get_stacked_DES = options.get_bool(option_section, 'get_stacked_DES', default=False)
 
-    masscalibration = mass_calibration.MassCalibration(todo, mcType,
-                                                       surveyCutRedshift, surveyCutLambda, richness_scatter_model,
-                                                       SPT_survey_fields, SPTcatalogfile,
-                                                       HSTcalibfile,
-                                                       NPROC, get_stacked_DES=get_stacked_DES)
+    masscalibration = mass_calibration.MassCalibration(todo=todo,
+                                                       mcType=mcType,
+                                                       surveyCutRedshift=surveyCutRedshift, surveyCutRichness=surveyCutLambda, richness_scatter_model=richness_scatter_model,
+                                                       z_DESWISE=z_DESWISE,
+                                                       SPT_survey_fields=SPT_survey_fields, SPTcatalogfile=SPTcatalogfile,
+                                                       HSTcalibfile=HSTcalibfile,
+                                                       NPROC=NPROC, get_stacked_DES=get_stacked_DES)
     masscalibration.YXPARAM = options.get_string(option_section, 'YXPARAM')
 
     # Set up lensing code
     if todo['WL']:
-        # Lensing data
-        WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
-        HSTfile = options.get_string(option_section, 'HSTfile', default='None')
-        MegacamFile = options.get_string(option_section, 'MegacamFile', default='None')
-        DESfile = options.get_string(option_section, 'DESfile', default='None')
-        DESboostfile = options.get_string(option_section, 'DESboostfile')
-        DESboost_z_arr = options.get_double_array_1d(option_section, 'DESboost_z_arr')
-        DESmiscenterfile = options.get_string(option_section, 'DESmiscenterfile')
-        DEScentertype = options.get_string(option_section, 'DEScentertype')
-        masscalibration.WL = lensing.SPTlensing(masscalibration.catalog,
-                                                WLsimcalibfile,
-                                                HSTfile, MegacamFile, DESfile,
-                                                DESboostfile, DESboost_z_arr,
-                                                DESmiscenterfile, DEScentertype,
-                                                mcType,
-                                                NPROC, save_shear_profiles=get_stacked_DES)
+        # Data files
+        lensing_dict = {'HSTfile': options.get_string(option_section, 'HSTfile', default='None'),
+                        'MegacamFile': options.get_string(option_section, 'MegacamFile', default='None'),
+                        'DESfile': options.get_string(option_section, 'DESfile', default='None'),
+                        'NPROC': NPROC,
+                        'save_shear_profiles': get_stacked_DES,
+                        }
+        # DES specific
+        if lensing_dict['DESfile']!='None':
+            for name in ['DESboostfile', 'DESmiscenterfile', 'DEScentertype']:
+                lensing_dict[name] = options.get_string(option_section, name)
+            lensing_dict['DESboost_z_arr'] = options.get_double_array_1d(option_section, 'DESboost_z_arr')
+        # HST and Megacam specific
+        if (lensing_dict['HSTfile']!='None') or (lensing_dict['MegacamFile']!='None'):
+            lensing_dict['mcType'] = mcType
+            lensing_dict['Delta_crit'] = options.get_double(option_section, 'Delta_crit')
+        # Set up lensing module
+        masscalibration.WL = lensing.SPTlensing(masscalibration.catalog, **lensing_dict)
         # DES lensing priors
-        if DESfile=='None':
+        if lensing_dict['DESfile']=='None':
             DES_WL_prior = None
         else:
             DES_WL_priors_file = options.get_string(option_section, 'DES_WL_priors_file')
@@ -75,6 +80,8 @@ def setup(options):
             DES_WL_prior['bias_slope'][1] = np.sqrt(DES_WL_prior['bias_slope'][1]**2 + .018**2)
             DES_WL_prior['delta_lnsigma2'] = np.sqrt(DES_WL_prior['delta_lnsigma2']**2 + .25**2)
             DES_WL_prior['lnsigma2_slope'][1] = np.sqrt(DES_WL_prior['lnsigma2_slope'][1]**2 + .59**2)
+    else:
+        DES_WL_prior = None
 
     return masscalibration, DES_WL_prior
 
@@ -93,10 +100,12 @@ def execute(block, setup_stuff):
 
     scaling = {'YXPARAM': masscalibration.YXPARAM}
     for p in ['Asz', 'Bsz', 'Csz', 'Dsz', 'Bsz2', 'Csz2', 'Esz', 'SPECS_calib', 'SZmPivot', 'zeta_min',
+              'Delta_Csz_ECS', 'Delta_Csz_500d',
               'Ax', 'Bx', 'Cx', 'Ex', 'dlnMg_dlnr', 'XraymPivot',
-              'HSTscatterLSS', 'MegacamScatterLSS',
+              'MegacamScatterLSS',
               'bWL_Megacam', 'DWL_Megacam',
               'Arichness', 'Brichness', 'Crichness', 'Drichness', 'richmPivot',
+              'Arichness_ext', 'Brichness_ext', 'Crichness_ext', 'Drichness_ext',
               'rhoSZrichness', 'rhoWLrichness', 'rhoSZWL',
               'Adisp', 'Bdisp', 'Cdisp',]:
         scaling[p] = block.get_double('mor_parameters', p)
@@ -113,11 +122,6 @@ def execute(block, setup_stuff):
     for name in masscalibration.HSTcalib['SPT_ID']:
         scaling['bWL_HST'][name] = block.get_double('mor_parameters', 'bWL_HST_%s'%name)
         scaling['DWL_HST'][name] = block.get_double('mor_parameters', 'DWL_HST_%s'%name)
-        for c in ['cov_HST_SZ_%s'%name, 'cov_HST_X_SZ_%s'%name, 'cov_HST_richness_SZ_%s'%name]:
-            scaling[c] = block.get_double_array_nd('mor_parameters', c)
-    # Covariance matrices
-    for p in ['cov_X_SZ', 'cov_Megacam_SZ', 'cov_richness_SZ', 'cov_Megacam_X_SZ', ]:
-        scaling[p] = block.get_double_array_nd('mor_parameters', p)
 
     # Halo mass function
     z, M, N = block.get_grid('HMF', 'z_arr', 'M_arr', 'dNdlnM')
@@ -126,6 +130,10 @@ def execute(block, setup_stuff):
     ##### Setup lensing likelihoods
     if masscalibration.todo['WL']:
         masscalibration.WL.setup_one_cluster_mode(cosmology)
+
+    # lndN/dxi (computed in abundance)
+    if block.has_section('cat') and block.has_value('cat', 'lndNdxi'):
+        masscalibration.catalog['lndNdxi'] = block.get_double_array_1d('cat', 'lndNdxi')
 
     ##### Compute likelihood
     lnlike, DES_stack = masscalibration.lnlike(HMF, cosmology, scaling)
@@ -141,6 +149,7 @@ def execute(block, setup_stuff):
                     block.put_double('DES_stack', 'DeltaSigma_data_%s_%d'%(name,i), n)
         return 0
     else:
+        print("mass calibration", flush=True)
         return 1
 
 

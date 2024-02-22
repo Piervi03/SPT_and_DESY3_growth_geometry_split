@@ -46,17 +46,20 @@ def main():
     with h5py.File('mock_WL_HST_%s.hdf5'%datetime, 'w') as f:
         for i,name in enumerate(cat['SPT_ID']):
             if cat['Mwl_HST_200'][i]>0:
-                r_Mpch, r_deg, g_t, g_t_err, source_dist = mock_WL(cat[i])
+                res_dict = mock_WL(cat[i])
                 g = f.create_group(name)
                 g.attrs['center'] = 'SZ'
                 d = g.create_dataset('z_cluster', data=cat['REDSHIFT'][i])
-                d = g.create_dataset('shear_profile', data=[r_deg, g_t, g_t_err])
-                d = g.create_dataset('redshifts', data=source_dist[0])
-                d = g.create_dataset('magbinid', data=np.zeros(len(r_deg), dtype=int))
+                d = g.create_dataset('shear_profile', data=[res_dict['r_deg'], res_dict['shear'], res_dict['shear_err']])
+                d = g.create_dataset('shear_noerr', data=res_dict['shear_noerr'])
+                d = g.create_dataset('redshifts', data=res_dict['pz'][0])
+                d = g.create_dataset('magbinid', data=np.zeros(len(res_dict['r_deg']), dtype=int))
+                d = g.create_dataset('beta', data=res_dict['beta'])
+                d = g.create_dataset('beta2', data=res_dict['beta2'])
                 gg = g.create_group('magbindata')
                 ggg = gg.create_group('0')
                 ddd = ggg.create_dataset('magnificationcorr', data=corr)
-                ddd = ggg.create_dataset('pzs', data=source_dist[1])
+                ddd = ggg.create_dataset('pzs', data=res_dict['pz'][1])
 
 
 
@@ -74,7 +77,7 @@ class MockUpDESWL:
         with open(self.config_mod.DES['DESboostfile'], 'r') as f:
             tmp = f.readline().split()[1:]
         dat = np.mean(np.loadtxt(self.config_mod.DES['DESboostfile']), axis=0)
-        self.boost_dict = {'z_arr': np.linspace(.2, .9, 10)}
+        self.boost_dict = {'z_arr': np.linspace(.2, 1., 11)}
         for n,name in enumerate(tmp):
             self.boost_dict[name] = dat[n]
         # Initialize miscentering
@@ -299,19 +302,26 @@ class MockUpHSTWL:
         self.r_arcmin = self.r_arr / self.Dl * 60*180/np.pi
         self.r_deg = self.r_arcmin / 60
         self.r_arcmin_edges = these_edges / self.Dl * 60*180/np.pi
-
+        # Create shear profile
         N_r = self.get_N_source_gals()
         beta_avg, beta2_avg = self.get_beta(z_cl)
-        g_t = self.get_gt(z_cl, beta_avg, beta2_avg)
-
+        g_t_fid = self.get_gt(z_cl, beta_avg, beta2_avg)
         # Error on shear is shape_noise / sqrt(N(r))
         good_idx = (N_r>4).nonzero()[0]
-        g_t = g_t[good_idx]
+        g_t = g_t_fid[good_idx]
         g_t_err = self.config_mod.HST['shape_noise'] / np.sqrt(N_r[good_idx])
         g_t+= g_t_err*self.rng.standard_normal(len(g_t))
-
-        return self.r_arr[good_idx], self.r_deg[good_idx], g_t, g_t_err, self.pz
-
+        # Return dict
+        res_dict = {'r_Mpch': self.r_arr[good_idx],
+                    'r_deg': self.r_deg[good_idx],
+                    'shear_noerr': g_t_fid[good_idx],
+                    'shear': g_t,
+                    'shear_err': g_t_err,
+                    'pz': self.pz,
+                    'beta': beta_avg,
+                    'beta2': beta2_avg,
+                    }
+        return res_dict
 
 
 if __name__ == '__main__':
