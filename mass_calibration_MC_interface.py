@@ -6,7 +6,6 @@ from cosmosis.datablock import option_section
 import mass_calibration_MC as mass_calibration
 import lensing
 
-
 def setup(options):
     ##### Config parameters
     todo = {}
@@ -140,9 +139,9 @@ def execute(block, setup_stuff):
     if np.isfinite(lnlike):
         block.put_double('likelihoods', 'MASS_CALIBRATION_LIKE', lnlike)
         if masscalibration.get_stacked_DES:
-            for name in ['zloxilo', 'zloxihi', 'zmidxilo', 'zmidxihi', 'zhixilo', 'zhixihi']:
-                for i,n in enumerate(DES_stack['shear_%s'%name]):
-                    block.put_double('DES_stack', 'shear_%s_%d'%(name,i), n)
+            for name in DES_stack.keys():
+                for i,n in enumerate(DES_stack[name]):
+                    block.put_double('DES_stack', '%s_%d'%(name,i), n)
                 for i,n in enumerate(DES_stack['DeltaSigma_%s'%name]):
                     block.put_double('DES_stack', 'DeltaSigma_%s_%d'%(name,i), n)
                 for i,n in enumerate(DES_stack['DeltaSigma_data_%s'%name]):

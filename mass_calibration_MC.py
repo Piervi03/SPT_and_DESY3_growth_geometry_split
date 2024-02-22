@@ -20,10 +20,10 @@ ln2pi = np.log(2.*np.pi)
 sqrt2 = msqrt(2)
 
 # Limits for stack
-z_names = ['zlo', 'zmid', 'zhi']
+z_names = ['zlo', 'zhi']
 xi_names = ['xilo', 'xihi']
-z_lims = [.25, .4, .6, .95]
-xi_lims = [4.25, 5.5, 1e10]
+z_lims = [.25, .5, .95]
+xi_lims = [4.25, 5.6, 1e10]
 lnr_r200c_stack = np.linspace(np.log(.3), np.log(5), 16)
 
 scatter_dict = {'zeta': 'Dsz',
@@ -475,6 +475,8 @@ class MassCalibration:
         w = np.exp(lnweights_Pobsxi-max_lnweights_Pobsxi)
         sum_w = np.sum(w)
         if np.sum(w**2)/sum_w==sum_w:
+            print('bad mass post', self.catalog['SPT_ID'][dataID])
+            # np.save(self.catalog['SPT_ID'][dataID], [lnM, xi_lnweights, zeta_lnweights, mass_lnweights, lnlike_obs[0], lnlike_obs[1]])
             return -np.inf
         mean_lnM_obsxi = np.sum(w*lnM)/sum_w
         std_lnM_obsxi = np.sqrt(np.sum(w*(lnM-mean_lnM_obsxi)**2) / (sum_w - np.sum(w**2)/sum_w))
