@@ -1,5 +1,3 @@
-from __future__ import division
-
 from cosmosis.datablock import option_section
 
 import set_scaling

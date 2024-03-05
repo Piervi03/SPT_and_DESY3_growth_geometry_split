@@ -1,4 +1,3 @@
-from __future__ import division
 import numpy as np
 from scipy.interpolate import interp1d
 from cosmosis.datablock import option_section

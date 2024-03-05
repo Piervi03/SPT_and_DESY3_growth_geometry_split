@@ -1,4 +1,3 @@
-from __future__ import division
 import numpy as np
 from math import sqrt as msqrt
 from astropy.table import Table

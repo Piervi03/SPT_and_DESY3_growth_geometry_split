@@ -1,4 +1,3 @@
-from __future__ import division, print_function
 import numpy as np
 from numpy.lib import scimath as sm
 from scipy.interpolate import InterpolatedUnivariateSpline, RectBivariateSpline
