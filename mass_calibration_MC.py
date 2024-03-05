@@ -4,7 +4,9 @@ import warnings
 from math import sqrt as msqrt
 from multiprocessing import Pool
 from astropy.table import Table
-from scipy.special import erfinv, log_ndtr, ndtr
+from scipy.special import erfinv as erfinv_sp
+from scipy.special import log_ndtr as log_ndtr_sp
+from scipy.special import ndtr as ndtr_sp
 from scipy.interpolate import interp1d, RectBivariateSpline
 import Mconversion_concentration, scaling_relations
 
@@ -12,12 +14,19 @@ cosmologyRef = {'Omega_m':.272, 'Omega_l':.728, 'h':.702, 'w0':-1, 'wa':0}
 GETPULL = False
 Ndraw_ini = 2**11
 Ndraw = 2**15
-ndtr_min = ndtr(-5)
-ndtr_max = ndtr(4)
-ndtr_m3 = ndtr(-3)
-ndtr_p3 = ndtr(3)
 ln2pi = np.log(2.*np.pi)
 sqrt2 = msqrt(2)
+
+x = np.linspace(-3, 3, 512)
+y = ndtr_sp(x)
+ndtr_min = y[0]
+ndtr_max = y[-1]
+ndtr = interp1d(x, y, kind='linear', fill_value=(y[0],y[-1]), bounds_error=False)
+y = log_ndtr_sp(x)
+log_ndtr = interp1d(x, y, kind='linear', fill_value=(y[0],y[-1]), bounds_error=False)
+x = np.linspace(ndtr_min, ndtr_max, 512)
+y = erfinv_sp(x)
+erfinv = interp1d(x, y, kind='linear', fill_value=(y[0],y[-1]), bounds_error=False)
 
 # Limits for stack
 z_names = ['zlo', 'zhi']
@@ -276,8 +285,6 @@ class MassCalibration:
         xi_offset = -3/xi**2
         # xi_draw > xi_min, xi_draw > xi-5, xi_draw < xi+4
         r_min = ndtr(self.xi_min-(xi+xi_offset))
-        if r_min<ndtr_min:
-            r_min = ndtr_min
         r = r_min + (ndtr_max-r_min)*self.rng.random(Ndraw)
         # Percent point function (scipy stats is too slow)
         xi0 = erfinv(2*r-1)*sqrt2 + xi+xi_offset
@@ -292,8 +299,6 @@ class MassCalibration:
         offset = -3*SZscatter_lnM**2
         r_min = ndtr((self.lnM_arr[0]-(lnM_zeta+offset))/SZscatter_lnM)
         r_max = ndtr((self.lnM_arr[-1]-(lnM_zeta+offset))/SZscatter_lnM)
-        r_min[r_min<ndtr_min] = ndtr_min
-        r_max[r_max>ndtr_max] = ndtr_max
         r = r_min + (r_max-r_min)*self.rng.random(len(lnM_zeta))
         lnM = erfinv(2*r-1)*SZscatter_lnM*sqrt2 + lnM_zeta+offset
         # Probability of lnM draws and probability of zeta
@@ -303,7 +308,7 @@ class MassCalibration:
     def get_mass_function_lnweights(self, z, lnM):
         """Return log-probability of halo mass function
         ln(P(lnM)) = ln(dN/dlnM) at given `z` and array `lnM`."""
-        # Scipy.RectBivariateSpline only accepts sorted inputs
+        # RectBivariateSpline wants sorted inputs, but this is faster than `grid=False`
         idx = np.argsort(lnM)
         mass_lnweights = np.zeros(len(lnM))
         mass_lnweights[idx] = self.HMF_interp(z, lnM[idx])
@@ -313,8 +318,7 @@ class MassCalibration:
         """Return draws and associated weights from P(zeta|M,z)."""
         zeta_min_lnM = scaling_relations.obs2lnmass('zeta', self.scaling['zeta_min']/self.thisSPTfield_gamma, z, self.scaling, self.cosmology, SPTsurvey=self.SPTsurvey)
         r_min = ndtr((zeta_min_lnM-lnM)/SZscatter_lnM)
-        r_min[r_min<ndtr_m3] = ndtr_m3
-        r = r_min + (ndtr_p3-r_min)*self.rng.random(len(lnM))
+        r = r_min + (ndtr_max-r_min)*self.rng.random(len(lnM))
         lnM_zeta = erfinv(2*r-1)*SZscatter_lnM*sqrt2 + lnM
         lnw = log_ndtr((lnM-zeta_min_lnM)/SZscatter_lnM)
         return lnM_zeta, lnw
@@ -392,7 +396,6 @@ class MassCalibration:
             idx = (self.HSTcalib['SPT_ID']==self.catalog['SPT_ID'][dataID]).nonzero()[0]
             std = msqrt(self.HSTcalib['LSS'][idx]**2 + self.HSTcalib['LOS'][idx]**2)
             r_min = ndtr((1-obs)/std)
-            r_min[ndtr_min>r_min] = ndtr_min
             r = r_min + (ndtr_max-r_min)*self.rng.random(len(obs))
             lnobs = np.log(obs + erfinv(2*r-1)*std*sqrt2)
         # Lensing likelihood
@@ -461,11 +464,11 @@ class MassCalibration:
         lnweights_Pobsxi = xi_lnweights + zeta_lnweights + mass_lnweights + np.sum(lnlike_obs, axis=0)
         max_lnweights_Pobsxi = np.amax(lnweights_Pobsxi)
         # Check if we have enough "good" weights
-        idx = np.argsort(lnweights_Pobsxi)
-        if max_lnweights_Pobsxi-lnweights_Pobsxi[idx[-10]]>2.:
+        if (max_lnweights_Pobsxi-lnweights_Pobsxi<2).sum() < 10:
             # New mass draws uniform in log
-            lo = np.amin(lnM[idx[-10:]])
-            lnM = lo + (np.amax(lnM[idx[-10:]])-lo)*self.rng.random(Ndraw_ini)
+            idx = np.argsort(lnweights_Pobsxi)[-10:]
+            lo = np.amin(lnM[idx])
+            lnM = lo + (np.amax(lnM[idx])-lo)*self.rng.random(Ndraw_ini)
             # Likelihood
             xi_lnweights, zeta_lnweights, mass_lnweights, lnlike_obs = self.weights_for_mass_samples(lnM, obsnames, covmat, dlnM_dlnobs, dataID)
             # Mass|obs,xi
@@ -483,10 +486,6 @@ class MassCalibration:
         # Refined estimate P(obs,xi)
         r_min = ndtr((self.lnM_arr[0]-mean_lnM_obsxi)/std_lnM_obsxi)
         r_max = ndtr((self.lnM_arr[-1]-mean_lnM_obsxi)/std_lnM_obsxi)
-        if r_min<ndtr_m3:
-            r_min = ndtr_m3
-        if r_max>ndtr_p3:
-            r_max = ndtr_p3
         r = r_min + (r_max-r_min)*self.rng.random(Ndraw)
         lnM = erfinv(2*r-1)*std_lnM_obsxi*sqrt2 + mean_lnM_obsxi
         draw_lnweights = -(-.5*((lnM-mean_lnM_obsxi)/std_lnM_obsxi)**2 - .5*ln2pi - np.log(std_lnM_obsxi))
