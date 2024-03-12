@@ -192,7 +192,7 @@ class MockUpDESWL:
         r_min = .5
         r_max = 3.2 / (1+z_cl)
         all_edges = np.linspace(.5,2.6,8)
-        good_idx = ((r_min<=all_edges)&(all_edges<=r_max)).nonzero()[0]
+        good_idx = (r_min<=all_edges)&(all_edges<=r_max)
         these_edges = all_edges[good_idx]
         self.r_arr = 2/3 * (these_edges[1:]**3-these_edges[:-1]**3)/(these_edges[1:]**2-these_edges[:-1]**2)
         self.r_arcmin = self.r_arr / self.Dl * 60*180/np.pi
@@ -204,7 +204,7 @@ class MockUpDESWL:
         g_t_mis, g_t_cen, R_mis = self.get_gt(z_cl, beta_bin, w_r_bin)
         g_t_cont = self.apply_cl_mem_contamination(z_cl, R_mis, g_t_mis)
         # Error on shear is shape_noise / sqrt(N(r))
-        good_idx = (np.isfinite(g_t_cont)&(N_r>4)).nonzero()[0]
+        good_idx = np.isfinite(g_t_cont)&(N_r>4)
         g_t = g_t_cont[good_idx]
         g_t_err = self.config_mod.DES['shape_noise'] / np.sqrt(N_r[good_idx])
         g_t+= g_t_err*self.rng.standard_normal(len(g_t))
@@ -294,7 +294,7 @@ class MockUpHSTWL:
         r_min = .5
         r_max = 1.1
         all_edges = np.logspace(-1, 1, 21)*self.cosmology['h']
-        good_idx = ((r_min<=all_edges)&(all_edges<=r_max)).nonzero()[0]
+        good_idx = (r_min<=all_edges)&(all_edges<=r_max)
         these_edges = all_edges[good_idx]
         these_edges = np.append(np.insert(these_edges, 0, r_min), r_max)
         self.r_arr = 2/3 * (these_edges[1:]**3-these_edges[:-1]**3)/(these_edges[1:]**2-these_edges[:-1]**2)
@@ -306,7 +306,7 @@ class MockUpHSTWL:
         beta_avg, beta2_avg = self.get_beta(z_cl)
         g_t_fid = self.get_gt(z_cl, beta_avg, beta2_avg)
         # Error on shear is shape_noise / sqrt(N(r))
-        good_idx = (N_r>4).nonzero()[0]
+        good_idx = N_r>4
         g_t = g_t_fid[good_idx]
         g_t_err = self.config_mod.HST['shape_noise'] / np.sqrt(N_r[good_idx])
         g_t+= g_t_err*self.rng.standard_normal(len(g_t))

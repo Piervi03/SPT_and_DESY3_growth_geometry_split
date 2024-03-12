@@ -385,7 +385,7 @@ class MassCalibration:
                         lambda_min = self.surveyCutRichness['deep'](self.catalog['REDSHIFT'][dataID])
                     else:
                         lambda_min = self.surveyCutRichness['shallow'](self.catalog['REDSHIFT'][dataID])
-                    idx = (obsArrTemp>lambda_min).nonzero()[0]
+                    idx = obsArrTemp>lambda_min
                     Delta_x0 = lambda_min-obsArrTemp[idx[0]-1]
                     Delta_x = obsArrTemp[idx[0]]-obsArrTemp[idx[0]-1]
                     if i==0:

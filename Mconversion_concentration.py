@@ -95,7 +95,7 @@ class ConcentrationConversion:
         """Return concentration c_200c. Input mass M200c [Msun/h]."""
         if self.MCrelation=='Duffy08':
             m = np.atleast_1d(m)
-            m[np.where(m<1e9)] = 1e9
+            m[m<1e9] = 1e9
             #return 6.71*(m/2.e12)**(-0.091)*(1.+z)**(-0.44)  # relaxed samples
             return 5.71*(m/2.e12)**(-0.084)*(1.+z)**(-0.47)  # full sample
         elif self.MCrelation=='Child18_obs':

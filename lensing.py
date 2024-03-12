@@ -45,7 +45,7 @@ class SPTlensing:
                  self.DESfile,
                  self.save_shear_profiles)
         # Redshift range of clusters with WL data
-        self.WL_idx = (catalog['WLdata'] != None).nonzero()[0]
+        self.WL_idx = [dat is not None for dat in catalog['WLdata']]
         self.z_cl_min = np.amin(catalog['REDSHIFT'][self.WL_idx])
         self.z_cl_max = np.amax(catalog['REDSHIFT'][self.WL_idx])
         # Mass conversion for HST and Megacam (legacy)
@@ -298,7 +298,7 @@ class SPTlensing:
         cosmoRef = {'Omega_m':.3, 'Omega_l':.7, 'h':.7, 'w0':-1., 'wa':0}
         DlRef = cosmo.dA(self.cat_cl['REDSHIFT'], cosmoRef)
         rPhysRef = self.cat_cl['WLdata']['r_deg'] * DlRef * np.pi/180 /cosmoRef['h']
-        rInclude = np.where((rPhysRef>.5)&(rPhysRef<1.5))[0]
+        rInclude = (rPhysRef>.5)&(rPhysRef<1.5)
         # Model
         g_2d = self.shear_model_HST(M_arr)
         # Likelihood
@@ -337,9 +337,9 @@ class SPTlensing:
     def get_beta_DES(self, cosmology):
         """Return mean(beta) for each DES tomo bin."""
         beta = np.zeros(len(self.DES['SOM_Z_MID']))
-        bgIdx = (self.DES['SOM_Z_MID']>self.cat_cl['REDSHIFT']).nonzero()[0]
-        beta[bgIdx] = self.dA_twoz_interp(np.log(self.cat_cl['REDSHIFT']), np.log(self.DES['SOM_Z_MID'][bgIdx]))
-        beta[bgIdx]/= np.exp(self.lndA_interp(np.log(self.DES['SOM_Z_MID'][bgIdx])))
+        bgIdx = self.DES['SOM_Z_MID']>self.cat_cl['REDSHIFT']
+        beta[bgIdx] = (self.dA_twoz_interp(np.log(self.cat_cl['REDSHIFT']), np.log(self.DES['SOM_Z_MID'][bgIdx]))[0]
+                       / np.exp(self.lndA_interp(np.log(self.DES['SOM_Z_MID'][bgIdx]))))
         self.beta_avg = np.sum(self.DES['SOM_BINs']*beta[None,:], axis=1)/np.sum(self.DES['SOM_BINs'], axis=1)
         return 0
 
@@ -347,12 +347,12 @@ class SPTlensing:
         """Compute <beta> and <beta^2> from distribution of redshift galaxies."""
         ##### Only consider redshift bins behind the cluster
         betaArr = np.zeros(len(self.cat_cl['WLdata']['redshifts']))
-        bgIdx = np.where(self.cat_cl['WLdata']['redshifts']>self.cat_cl['REDSHIFT'])[0]
+        bgIdx = self.cat_cl['WLdata']['redshifts']>self.cat_cl['REDSHIFT']
 
         ##### Calculate beta(z_source)
         # beta = dA_ls / dA_l
-        betaArr[bgIdx] = self.dA_twoz_interp(np.log(self.cat_cl['REDSHIFT']), np.log(self.cat_cl['WLdata']['redshifts'][bgIdx]))
-        betaArr[bgIdx]/= np.exp(self.lndA_interp(np.log(self.cat_cl['WLdata']['redshifts'][bgIdx])))
+        betaArr[bgIdx] = (self.dA_twoz_interp(np.log(self.cat_cl['REDSHIFT']), np.log(self.cat_cl['WLdata']['redshifts'][bgIdx]))[0]
+                          / np.exp(self.lndA_interp(np.log(self.cat_cl['WLdata']['redshifts'][bgIdx]))))
 
         ##### Weight beta(z) with N(z) distribution to get <beta> and <beta^2>
         if self.cat_cl['WLdata']['datatype']=='Megacam':

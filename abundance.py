@@ -142,7 +142,7 @@ class NumberCount:
         # dN_dxi and dN_dz for output
         dN_dz_out = interp1d(self.z_arr, dNdz, kind='cubic')(self.z_bins_output)
         # integrand = np.exp(lndNdxi(np.log(self.z_arr), np.log(self.xi_bins_output)))
-        dN_dz_dxi_binned = np.array([np.sum(integrand[:,((self.xi_bins_output[i]<=self.xi_arr[:-1])&(self.xi_arr[1:]<=self.xi_bins_output[i+1])).nonzero()[0]], axis=1)
+        dN_dz_dxi_binned = np.array([np.sum(integrand[:,((self.xi_bins_output[i]<=self.xi_arr[:-1])&(self.xi_arr[1:]<=self.xi_bins_output[i+1]))], axis=1)
                                      for i in range(len(self.xi_bins_output)-1)])
         dN_dxi_out = np.trapz(dN_dz_dxi_binned, self.z_arr, axis=1)
         # integrand = np.exp(lndNdxi(np.log(self.z_arr), np.linspace(np.log(self.SPT_survey['XI_MIN'][fieldidx]), np.log(50), 11)))
@@ -152,14 +152,15 @@ class NumberCount:
         lnlike_this_field = -Ntotal
 
         ##### confirmed clusters
-        thisfield_conf = np.nonzero((self.catalog['FIELD']==self.SPT_survey['FIELD'][fieldidx])
-                                    & (self.catalog['COSMO_SAMPLE']==1)
-                                    & (self.catalog['XI']>=self.SPT_survey['XI_MIN'][fieldidx])
-                                    & (self.catalog['XI']<=self.surveyCutSZmax)
-                                    & (self.catalog['REDSHIFT']>=self.surveyCutRedshift[0])
-                                    & (self.catalog['REDSHIFT']<=self.surveyCutRedshift[1]))[0]
-        these_lndNdxi = lndNdxi(np.log(self.catalog['REDSHIFT'][thisfield_conf]), np.log(self.catalog['XI'][thisfield_conf]), grid=False) - np.log(self.SPT_survey['AREA'][fieldidx] * (np.pi/180)**2)
-        for n,i in enumerate(thisfield_conf):
+        thisfield_conf = ((self.catalog['FIELD']==self.SPT_survey['FIELD'][fieldidx])
+                          & (self.catalog['COSMO_SAMPLE']==1)
+                          & (self.catalog['XI']>=self.SPT_survey['XI_MIN'][fieldidx])
+                          & (self.catalog['XI']<=self.surveyCutSZmax)
+                          & (self.catalog['REDSHIFT']>=self.surveyCutRedshift[0])
+                          & (self.catalog['REDSHIFT']<=self.surveyCutRedshift[1]))
+        these_lndNdxi = (lndNdxi(np.log(self.catalog['REDSHIFT'][thisfield_conf]), np.log(self.catalog['XI'][thisfield_conf]), grid=False)
+                         - np.log(self.SPT_survey['AREA'][fieldidx] * (np.pi/180.)**2.))
+        for n,i in enumerate(thisfield_conf.nonzero()[0]):
             # spec-z: Evaluate dN/dxi/dz at exact location
             if self.catalog['REDSHIFT_UNC'][i]==0.:
                 lnlike_this_field+= these_lndNdxi[n]

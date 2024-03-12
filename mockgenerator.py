@@ -125,8 +125,8 @@ def main(configMod_file, catalog_name):
 
                 obs = np.exp(rng.multivariate_normal(np.log(obs_0[:,i,j]), covs[i,j], N[i,j]))
 
-                keep = (obs[:,2]>scaling['zeta_min']).nonzero()[0]
-                for k in keep:
+                keep = (obs[:,2]>scaling['zeta_min'])
+                for k in keep.nonzero()[0]:
                     # draw xi|zeta
                     xi = rng.normal(scaling_relations.zeta2xi(obs[k,2]), scale=1.)
                     if xi>=SPT_survey['XI_MIN'][fieldidx]:

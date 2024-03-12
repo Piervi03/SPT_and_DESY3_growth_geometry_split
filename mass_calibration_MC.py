@@ -92,7 +92,7 @@ class MassCalibration:
         ##### Set up interpolation for HMF
         HMF_in = HMF['dNdlnM']
         if np.any(HMF_in==0):
-            HMF_in[np.where(HMF_in==0)] = np.nextafter(0, 1)
+            HMF_in[HMF_in==0] = np.nextafter(0, 1)
         self.lnM_arr = HMF['lnM_arr']
         self.HMF_interp = RectBivariateSpline(HMF['z_arr'], self.lnM_arr, np.log(HMF_in), kx=1, ky=1)
 
@@ -129,8 +129,9 @@ class MassCalibration:
                 notNone = [this is not None for this in self.catalog['DES_shear_profile_mean']]
                 for i in range(len(z_lims)-1):
                     for j in range(len(xi_lims)-1):
-                        idx = (notNone&(self.catalog['REDSHIFT']>=z_lims[i])&(self.catalog['REDSHIFT']<z_lims[i+1])
-                                      &(self.catalog['XI']>=xi_lims[j])&(self.catalog['XI']<xi_lims[j+1])).nonzero()[0]
+                        idx = (notNone
+                               &(self.catalog['REDSHIFT']>=z_lims[i])&(self.catalog['REDSHIFT']<z_lims[i+1])
+                               &(self.catalog['XI']>=xi_lims[j])&(self.catalog['XI']<xi_lims[j+1]))
                         stack['shear_%s%s'%(z_names[i], xi_names[j])] = np.mean(self.catalog['DES_shear_profile_mean'][idx], axis=0)
                         stack['DeltaSigma_%s%s'%(z_names[i], xi_names[j])] = np.mean(self.catalog['DES_DeltaSigma_mean'][idx], axis=0)
                         tmp = np.array([x for x in self.catalog['DES_DeltaSigma_data_mean'][idx]])
@@ -392,7 +393,7 @@ class MassCalibration:
         # Draw from HST large-scale structure scatter
         if obsname=='WLHST':
             obs = np.exp(lnobs)
-            idx = (self.HSTcalib['SPT_ID']==self.catalog['SPT_ID'][dataID]).nonzero()[0]
+            idx = self.HSTcalib['SPT_ID']==self.catalog['SPT_ID'][dataID]
             std = msqrt(self.HSTcalib['LSS'][idx]**2 + self.HSTcalib['LOS'][idx]**2)
             r_min = ndtr((1-obs)/std)
             r = r_min + (ndtr_max-r_min)*self.rng.random(len(obs))
