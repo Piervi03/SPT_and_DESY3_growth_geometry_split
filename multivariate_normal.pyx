@@ -1,4 +1,14 @@
 import numpy as np
+ln2pi = np.log(2.*np.pi)
+
+def lnpdf(x, cov):
+    """Natural logarithm of zero-mean multivariate normal probability for vector
+    `x` and covariance matrix `cov`."""
+    vals, vecs = np.linalg.eigh(cov)
+    logdet     = np.sum(np.log(vals))
+    U          = vecs / np.sqrt(vals)
+    maha       = (np.matmul(x, U)**2.).sum(axis=-1)
+    return -.5 * (maha + logdet + len(vals)*ln2pi)
 
 def bivariate_normal(x, y, cov):
     """Return zero-mean bivariate normal distribution with covariance matrix
