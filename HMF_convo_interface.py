@@ -1,7 +1,9 @@
 import numpy as np
+import h5py
 from scipy.interpolate import interp1d
 from cosmosis.datablock import option_section
 import HMF_convo
+
 
 def setup(options):
     observable_pairs = options.get_string(option_section, 'observable_pairs').split()
@@ -18,6 +20,20 @@ def setup(options):
         assert len(pairs_Nz)==len(observable_pairs), "Bad length of pairs_Nz"
     NPROC = options.get_int(option_section, 'NPROC', 0)
 
+    if 'DESwl_richness_SZ_base' in observable_pairs:
+        DES_WL_priors_file = options.get_string(option_section, 'DES_WL_priors_file')
+        with h5py.File(DES_WL_priors_file, 'r') as f:
+            DES_WL_prior = {}
+            for k in f.keys():
+                DES_WL_prior[k] = f[k][()]
+        # Additional hydro uncertainty
+        DES_WL_prior['deltab_pc1'] = -np.sqrt(DES_WL_prior['deltab_pc1']**2 + .02**2)
+        DES_WL_prior['bias_slope'][1] = np.sqrt(DES_WL_prior['bias_slope'][1]**2 + .018**2)
+        DES_WL_prior['delta_lnsigma2'] = np.sqrt(DES_WL_prior['delta_lnsigma2']**2 + .25**2)
+        DES_WL_prior['lnsigma2_slope'][1] = np.sqrt(DES_WL_prior['lnsigma2_slope'][1]**2 + .59**2)
+    else:
+        DES_WL_prior = None
+
     surveyCutLambda_file = options.get_string(option_section, 'MCMF_lambda_min')
     tmp = np.loadtxt(surveyCutLambda_file, unpack=True)
     surveyCutLambda = {'shallow': interp1d(tmp[0], tmp[1], kind='linear'),
@@ -31,10 +47,12 @@ def setup(options):
                                                           do_bias,
                                                           NPROC)
 
-    return multi_obs_convolution
+    return multi_obs_convolution, DES_WL_prior
 
-def execute(block, multi_obs_convolution):
-    ##### Extract from datablock
+
+def execute(block, stuff):
+    multi_obs_convolution, DES_WL_prior = stuff
+    # Extract from datablock
     if multi_obs_convolution.do_bias:
         cosmology = {'Omega_l': block.get_double('cosmological_parameters', 'Omega_lambda'),
                      'h': block.get_double('cosmological_parameters', 'hubble')/100,
@@ -47,32 +65,30 @@ def execute(block, multi_obs_convolution):
     scaling = {}
     for p in ['Bsz', 'Bx', 'Dsz',
               'Arichness', 'Brichness', 'Crichness', 'Drichness', 'richmPivot',
+              'Arichness_ext', 'Brichness_ext', 'Crichness_ext', 'Drichness_ext',
               'rhoSZWL', 'rhoSZrichness', 'rhoWLrichness']:
         scaling[p] = block.get_double('mor_parameters', p)
     # DES lensing
-    if block.has_value('mor_parameters', 'DESwl_z'):
-        for p in ['DES_b_dev_0', 'DES_b_dev_1', 'DES_b_dev_2', 'DES_b_dev_m', 'DESwl_bias_m_mean', 'DESwl_bias_m_std',
-                  'DES_s_dev_0', 'DES_s_dev_1', 'DES_s_dev_2', 'DES_s_dev_m', 'DESwl_scatter_m_mean', 'DESwl_scatter_m_std',
+    if DES_WL_prior is not None:
+        for p in ['DES_b_dev_1', 'DES_b_dev_2', 'DES_b_dev_m',
+                  'DES_s_dev', 'DES_s_dev_m',
                   'DES_m_piv']:
             scaling[p] = block.get_double('mor_parameters', p)
-        for p in ['DESwl_z', 'DESwl_bias_mean', 'DESwl_bias_std', 'DESwl_scatter_mean', 'DESwl_scatter_std']:
-            scaling[p] = block.get_double_array_1d('mor_parameters', p)
-    # Covariance matrices
-    covmat = {}
-    for c in ['cov_X_SZ', 'cov_Megacam_SZ', 'cov_richness_SZ', 'cov_Megacam_X_SZ', ]:
-        covmat[c] = block.get_double_array_nd('mor_parameters', c)
+        for p in DES_WL_prior.keys():
+            scaling['DES_%s'%p] = DES_WL_prior[p]
     # Halo mass function
     z, M, N = block.get_grid('HMF', 'z_arr', 'M_arr', 'dNdlnM')
     HMF = {'z_arr': z, 'lnM_arr': np.log(M), 'dNdlnM': N}
 
-    ##### Compute the convolutions
-    dN_dmultiobs_dict = multi_obs_convolution.execute(HMF, scaling, covmat, cosmology)
+    # Compute the convolutions
+    dN_dmultiobs_dict = multi_obs_convolution.execute(HMF, scaling, cosmology)
     block.put_double_array_1d('dN_dmultiobs', 'lnM_arr', dN_dmultiobs_dict['lnM_arr'])
     for pair_name in multi_obs_convolution.observable_pairs:
         block.put_double_array_nd('dN_dmultiobs', pair_name, dN_dmultiobs_dict[pair_name])
         block.put_double_array_1d('dN_dmultiobs', '%s_z'%pair_name, dN_dmultiobs_dict['%s_z'%pair_name])
 
     return 0
+
 
 def cleanup(config):
     pass
