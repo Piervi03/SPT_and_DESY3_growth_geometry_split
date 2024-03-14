@@ -266,7 +266,7 @@ class MultiObsConvolution:
         # Main component
         cov_base = np.array([[1, self.scaling['rhoSZWL']*self.scaling['Dsz']],
                              [self.scaling['rhoSZWL']*self.scaling['Dsz'], self.scaling['Dsz']**2]])
-        DES_scatter = scaling_relations.WLscatter(self.HMF['lnM_arr'], z, self.scaling)
+        DES_scatter = scaling_relations.WLscatter('WLDES', self.HMF['lnM_arr'], z, self.scaling)
         covmat_main = (cov_base
                        * np.array([DES_scatter**2, DES_scatter, DES_scatter, np.ones(len(DES_scatter))]).T.reshape(len(DES_scatter),2,2))
         covmat = covmat_main
@@ -300,7 +300,7 @@ class MultiObsConvolution:
         # Mass function at this redshift
         lndN_dlnM = self.HMF_interp(z)
         # (Mass-dependent) covariance matrices in observable space
-        DES_scatter = scaling_relations.WLscatter(self.HMF['lnM_arr'], z, self.scaling)
+        DES_scatter = scaling_relations.WLscatter('WLDES', self.HMF['lnM_arr'], z, self.scaling)
         Drich = np.full(self.HMF['len_M'], self.scaling[richscatter[richness]])
         if self.richness_scatter_model=='lognormalrelPoisson':
             richness_ = np.exp(scaling_relations.lnmass2lnobs('richness_%s'%richness, self.HMF['lnM_arr'], z, self.scaling))
@@ -348,7 +348,7 @@ class MultiObsConvolution:
             cov_base = np.array([[1, self.scaling['rhoWLrichness']*self.scaling['Drichness'], self.scaling['rhoSZWL']*self.scaling['Dsz']],
                                  [self.scaling['rhoWLrichness']*self.scaling['Drichness'], self.scaling['Drichness']**2, self.scaling['rhoSZrichness']*self.scaling['Dsz']*self.scaling['Drichness']],
                                  [self.scaling['rhoSZWL']*self.scaling['Dsz'], self.scaling['rhoSZrichness']*self.scaling['Dsz']*self.scaling['Drichness'], self.scaling['Dsz']**2]])
-        DES_scatter = scaling_relations.WLscatter(self.HMF['lnM_arr'], z, self.scaling)
+        DES_scatter = scaling_relations.WLscatter('WLDES', self.HMF['lnM_arr'], z, self.scaling)
         covmat = cov_base * np.array([DES_scatter**2, DES_scatter, DES_scatter,
                                       DES_scatter, np.ones(len(DES_scatter)), np.ones(len(DES_scatter)),
                                       DES_scatter, np.ones(len(DES_scatter)), np.ones(len(DES_scatter))]).T.reshape(len(DES_scatter),3,3)

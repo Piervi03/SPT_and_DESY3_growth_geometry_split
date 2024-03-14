@@ -426,9 +426,9 @@ class MassCalibration:
             N_obs = len(obsnames)
             covmat_lnM = covmat * dlnM_dlnobs[:,None]*dlnM_dlnobs[None,:] * np.ones((len(lnM),N_obs,N_obs))
             if 'WLDES' in obsnames:
-                DES_scatter = scaling_relations.WLscatter(lnM, self.catalog['REDSHIFT'][dataID], self.scaling)
-                covmat_lnM[:,obsnames.index('WLDES'),:]*= DES_scatter[:,None]
-                covmat_lnM[:,:,obsnames.index('WLDES')]*= DES_scatter[:,None]
+                scatter = scaling_relations.WLscatter('WLDES', lnM, self.catalog['REDSHIFT'][dataID], self.scaling)
+                covmat_lnM[:,obsnames.index('WLDES'),:]*= scatter[:,None]
+                covmat_lnM[:,:,obsnames.index('WLDES')]*= scatter[:,None]
             elif 'WLHST' in obsnames:
                 scatter = self.scaling['DWL_HST'][self.catalog['SPT_ID'][dataID]]
                 covmat_lnM[:,obsnames.index('WLHST'),:]*= scatter
