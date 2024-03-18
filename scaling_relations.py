@@ -79,11 +79,10 @@ def lnmass2lnobs(name, lnmass, z, scaling, cosmology=None, cluster_ID=None, lnM5
                 + b_m*lnmass + np.log(scaling['DES_m_piv'])*(1-b_m))
     elif name=='WLEuclid':
         b_mean = np.interp(z, scaling['Euclid_zpivs'], scaling['Euclid_mean_b'])
-        pc1 = np.interp(z, scaling['Euclid_zpivs'], scaling['Euclid_deltab_pc1'])
-        pc2 = np.interp(z, scaling['Euclid_zpivs'], scaling['Euclid_deltab_pc2'])
+        pc = np.interp(z, scaling['Euclid_zpivs'], scaling['Euclid_deltab_pc'])
         b_m = scaling['Euclid_bias_slope'][0] + scaling['Euclid_b_dev_m']*scaling['Euclid_bias_slope'][1]
-        return (b_mean + scaling['Euclid_b_dev_1']*pc1 + scaling['Euclid_b_dev_2']*pc2
-                + b_m*lnmass + np.log(scaling['Euclid_m_piv'])*(1-b_m))
+        return (b_mean + scaling['Euclid_b_dev']*pc + b_m*lnmass
+                + np.log(scaling['Euclid_m_piv'])*(1-b_m))
     else:
         raise ValueError("Observable not known:", name)
 
@@ -122,10 +121,9 @@ def obs2lnmass(name, obs, z, scaling, cosmology=None, cluster_ID=None, SPTsurvey
                 - np.log(scaling['DES_m_piv'])*(1-b_m))/b_m)
     elif name=='WLEuclid':
         b_mean = np.interp(z, scaling['Euclid_zpivs'], scaling['Euclid_mean_b'])
-        pc1 = np.interp(z, scaling['Euclid_zpivs'], scaling['Euclid_deltab_pc1'])
-        pc2 = np.interp(z, scaling['Euclid_zpivs'], scaling['Euclid_deltab_pc2'])
+        pc = np.interp(z, scaling['Euclid_zpivs'], scaling['Euclid_deltab_pc'])
         b_m = scaling['Euclid_bias_slope'][0] + scaling['Euclid_b_dev_m']*scaling['Euclid_bias_slope'][1]
-        return ((np.log(obs) - b_mean - scaling['Euclid_b_dev_1']*pc1 - scaling['Euclid_b_dev_2']*pc2
+        return ((np.log(obs) - b_mean - scaling['Euclid_b_dev']*pc
                 - np.log(scaling['Euclid_m_piv'])*(1-b_m))/b_m)
     else:
         raise ValueError("Observable not known:", name)
