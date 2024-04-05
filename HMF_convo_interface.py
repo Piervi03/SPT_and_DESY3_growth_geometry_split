@@ -26,11 +26,6 @@ def setup(options):
             DES_WL_prior = {}
             for k in f.keys():
                 DES_WL_prior[k] = f[k][()]
-        # Additional hydro uncertainty
-        DES_WL_prior['deltab_pc1'] = -np.sqrt(DES_WL_prior['deltab_pc1']**2 + .02**2)
-        DES_WL_prior['bias_slope'][1] = np.sqrt(DES_WL_prior['bias_slope'][1]**2 + .018**2)
-        DES_WL_prior['delta_lnsigma2'] = np.sqrt(DES_WL_prior['delta_lnsigma2']**2 + .25**2)
-        DES_WL_prior['lnsigma2_slope'][1] = np.sqrt(DES_WL_prior['lnsigma2_slope'][1]**2 + .59**2)
     else:
         DES_WL_prior = None
 
