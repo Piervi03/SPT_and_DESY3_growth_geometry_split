@@ -105,7 +105,8 @@ def main(configMod_file, catalog_name):
         N = rng.poisson(HMF_dNdM_V*SPT_survey['AREA'][fieldidx])
 
         obs_0 = np.array([np.exp(scaling_relations.lnmass2lnobs(name, lnM_arr[None,:], z_arr[:,None], scaling, cosmology, SPTsurvey=SPTsurvey))
-                          for name in ('WLDES', configMod.Xray_obs, 'zeta', 'richness_base', 'WLHST', 'WLEuclid')])
+                          for name in ('WLDES', configMod.Xray_obs, 'zeta', 'richness_base', 'WLEuclid')])
+        obs_0 = np.append(obs_0, np.full(obs_0[0].shape, lnM_arr)[None,...], axis=0)
 
         # Field depth
         obs_0[2,:]*= SPT_survey['GAMMA'][fieldidx]
@@ -166,7 +167,7 @@ def main(configMod_file, catalog_name):
     nCluster = len(mock)
     mock = Table(rows=mock, names=['M_true', 'REDSHIFT', 'XI',
                                    configMod.Xray_obs,
-                                   'Mwl_DES_200', 'Mwl_HST_200', 'Mwl_Euclid_200',
+                                   'Mwl_DES_200', 'Mwl_Euclid_200', 'Mwl_HST_200',
                                    'richness', 'richness_err',
                                    'GAMMA_FIELD'])
     mock['SPT_ID'] = ['cluster%d'%i for i in range(nCluster)]

@@ -170,7 +170,7 @@ def WLscatter(name, lnmass, z, scaling):
         s_m = scaling['DES_lnsigma2_slope'][0] + scaling['DES_s_dev_m']*scaling['DES_lnsigma2_slope'][1]
         lnvar = s_mean + scaling['DES_s_dev']*s_std + s_m*(lnmass-np.log(scaling['DES_m_piv']))
     elif name=='WLEuclid':
-        s_mean = np.interp(z, scaling['Euclid_zpivs'], scaling['Euclid_mean_lnsimga2'])
+        s_mean = np.interp(z, scaling['Euclid_zpivs'], scaling['Euclid_mean_lnsigma2'])
         s_std = np.interp(z, scaling['Euclid_zpivs'], scaling['Euclid_delta_lnsigma2'])
         s_m = scaling['Euclid_lnsigma2_slope'][0] + scaling['Euclid_s_dev_m']*scaling['Euclid_lnsigma2_slope'][1]
         lnvar = s_mean + scaling['Euclid_s_dev']*s_std + s_m*(lnmass-np.log(scaling['Euclid_m_piv']))
