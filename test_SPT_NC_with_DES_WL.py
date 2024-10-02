@@ -19,7 +19,7 @@ class TestClass:
     cosmology['Omega_nu'] = cosmology['Omnuh2']/cosmology['h']**2
     cosmology['Omega_b'] = cosmology['Ombh2']/cosmology['h']**2
     scaling = {'Asz': .96, 'Bsz': 1.5, 'Csz': .5, 'Dsz': .2, 'zeta_min': 1., 'SPECS_calib': 1.,
-               'Bsz2': 0, 'Csz2':0, 'DszM':0, 'Esz':0,
+               'Esz':0,
                'Delta_Csz_ECS': -.09, 'Delta_Csz_500d': .26,
                'WLbias': 0., 'WLscatter': 0.,
                'HSTbias': 0., 'HSTscatterLSS':5.6e13,
