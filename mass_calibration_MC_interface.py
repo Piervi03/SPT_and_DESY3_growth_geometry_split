@@ -92,16 +92,27 @@ def execute(block, setup_stuff):
         cosmology[p] = block.get_double('cosmological_parameters', p)
 
     scaling = {'YXPARAM': masscalibration.YXPARAM}
-    for p in ['Asz', 'Bsz', 'Csz', 'Dsz', 'Esz', 'SPECS_calib', 'SZmPivot', 'zeta_min',
-              'Delta_Csz_ECS', 'Delta_Csz_500d',
-              'Ax', 'Bx', 'Cx', 'Ex', 'dlnMg_dlnr', 'XraymPivot',
-              'MegacamScatterLSS',
-              'bWL_Megacam', 'DWL_Megacam',
-              'Arichness', 'Brichness', 'Crichness', 'Drichness', 'richmPivot',
-              'Arichness_ext', 'Brichness_ext', 'Crichness_ext', 'Drichness_ext',
-              'rhoSZrichness', 'rhoWLrichness', 'rhoSZWL',
-              'Adisp', 'Bdisp', 'Cdisp',]:
+    for p in ['Asz', 'Bsz', 'Csz', 'Dsz', 'Esz', 'zeta_min', 'SZmPivot']:
         scaling[p] = block.get_double('mor_parameters', p)
+    for p in ['SPECS_calib', 'Delta_Csz_ECS', 'Delta_Csz_500d']:
+        if block.has_value('mor_parameters', p):
+            scaling[p] = block.get_double('mor_parameters', p)
+    if masscalibration.todo['Yx'] or masscalibration.todo['Mgas']:
+        for p in ['Ax', 'Bx', 'Cx', 'Ex', 'dlnMg_dlnr', 'XraymPivot', 'rhoSZX']:
+            scaling[p] = block.get_double('mor_parameters', p)
+    if masscalibration.todo['richness']:
+        for p in ['Arichness', 'Brichness', 'Crichness', 'Drichness',
+                  'Arichness_ext', 'Brichness_ext', 'Crichness_ext', 'Drichness_ext',
+                  'richmPivot', 'rhoSZrichness']:
+            scaling[p] = block.get_double('mor_parameters', p)
+    if masscalibration.todo['veldisp']:
+        for p in ['Adisp', 'Bdisp', 'Cdisp', 'rhoSZdisp']:
+            scaling[p] = block.get_double('mor_parameters', p)
+    if masscalibration.todo['WL']:
+        for p in ['MegacamScatterLSS', 'bWL_Megacam', 'DWL_Megacam', 'rhoSZWL']:
+            scaling[p] = block.get_double('mor_parameters', p)
+        if masscalibration.todo['richness']:
+            scaling['rhoWLrichness'] = block.get_double('mor_parameters', 'rhoWLrichness')
     # DES
     if DES_WL_prior is not None:
         for p in ['DES_b_dev_1', 'DES_b_dev_2', 'DES_b_dev_m',
