@@ -63,11 +63,9 @@ def execute(block, computer):
         HMF['richness_SZ_dNdlnM'] = dNdlnM['ext']
     HMF['z_arr'] = HMF['richness_SZ_z']
     # Compute
-    dN_dz, dN_dlambda = computer.run(HMF, cosmology, scaling)
-    #for i,n in enumerate(dN_dz):
-    #    block.put_double('dN', 'dN_dz_%d'%i, n)
-    for i,n in enumerate(dN_dlambda):
-        block.put_double('dN', 'dN_dlambda_%d'%i, n)
+    N_lambda = computer.run(HMF, cosmology, scaling)
+    for i,n in enumerate(N_lambda):
+        block.put_double('N', 'N_lambda_%d'%i, n)
     return 0
 
 
