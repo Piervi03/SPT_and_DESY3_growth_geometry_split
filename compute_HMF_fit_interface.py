@@ -1,14 +1,15 @@
-from __future__ import division
 import numpy as np
 import xarray as xr
 import os
 
 from cosmosis.datablock import option_section
 
-import compute_HMF_Bocquet16, compute_HMF_Tinker08
+import compute_HMF_Bocquet16, compute_HMF_Tinker08, compute_HMF_Tinker10
+
 
 class EmptyClass:
     pass
+
 
 def setup(options):
     # Print repository status
@@ -27,6 +28,8 @@ def setup(options):
     if recalc_HMF:
         if fitting_function=='Tinker08':
             HMF_calculator = compute_HMF_Tinker08.HMFCalculator(Deltacrit, z_arr, M_arr)
+        elif fitting_function=='Tinker10':
+            HMF_calculator = compute_HMF_Tinker10.HMFCalculator(Deltacrit, z_arr, M_arr)
         elif fitting_function=='Bocquet16':
             HMF_calculator = compute_HMF_Bocquet16.HMFCalculator(Deltacrit, z_arr, M_arr)
     else:
@@ -35,6 +38,7 @@ def setup(options):
     HMF_calculator.recalc_HMF = recalc_HMF
     HMF_calculator.save_HMF_to_disk = save_HMF_to_disk
     return HMF_calculator
+
 
 def execute(block, HMF_calculator):
     if HMF_calculator.recalc_HMF:
@@ -71,6 +75,7 @@ def execute(block, HMF_calculator):
                        'M_arr', np.array(HMF_calculator.HMF['m']),
                        'dNdlnM', np.array(HMF_calculator.HMF.to_array()[0]))
     return 0
+
 
 def cleanup(config):
     pass

@@ -1,12 +1,10 @@
-from __future__ import division
 import numpy as np
-from scipy.interpolate import interp1d
 
 import cosmo
 
 
 ####################
-##### xi--zeta relations
+# xi--zeta relations
 def xi2zeta(xi):
     return np.sqrt(xi**2 - 3)
 
@@ -58,7 +56,8 @@ def lnmass2lnobs(name, lnmass, z, scaling, cosmology=None, cluster_ID=None, lnM5
         lnM200c = lnM500_to_lnM200(z, lnmass)
         if len(lnM200c)==1:
             lnM200c = lnM200c[0]
-        return np.log(scaling['Adisp']) + (1/scaling['Bdisp'])*(lnM200c-np.log(1e15/cosmology['h'])) +scaling['Cdisp']*np.log(h70z)
+        return (np.log(scaling['Adisp']) + (1/scaling['Bdisp'])*(lnM200c-np.log(1e15/cosmology['h']))
+                +scaling['Cdisp']*np.log(h70z))
     elif name=='richness_base':
         return (scaling['Arichness']
                 + scaling['Brichness']*(lnmass-np.log(scaling['richmPivot']))
@@ -76,7 +75,14 @@ def lnmass2lnobs(name, lnmass, z, scaling, cosmology=None, cluster_ID=None, lnM5
         pc1 = np.interp(z, scaling['DES_zpivs'], scaling['DES_deltab_pc1'])
         pc2 = np.interp(z, scaling['DES_zpivs'], scaling['DES_deltab_pc2'])
         b_m = scaling['DES_bias_slope'][0] + scaling['DES_b_dev_m']*scaling['DES_bias_slope'][1]
-        return b_mean + scaling['DES_b_dev_1']*pc1 + scaling['DES_b_dev_2']*pc2 + b_m*lnmass + np.log(scaling['DES_m_piv'])*(1-b_m)
+        return (b_mean + scaling['DES_b_dev_1']*pc1 + scaling['DES_b_dev_2']*pc2
+                + b_m*lnmass + np.log(scaling['DES_m_piv'])*(1-b_m))
+    elif name=='WLEuclid':
+        b_mean = np.interp(z, scaling['Euclid_zpivs'], scaling['Euclid_mean_b'])
+        pc = np.interp(z, scaling['Euclid_zpivs'], scaling['Euclid_deltab_pc'])
+        b_m = scaling['Euclid_bias_slope'][0] + scaling['Euclid_b_dev_m']*scaling['Euclid_bias_slope'][1]
+        return (b_mean + scaling['Euclid_b_dev']*pc + b_m*lnmass
+                + np.log(scaling['Euclid_m_piv'])*(1-b_m))
     else:
         raise ValueError("Observable not known:", name)
 
@@ -95,10 +101,12 @@ def obs2lnmass(name, obs, z, scaling, cosmology=None, cluster_ID=None, SPTsurvey
         return (np.log(scaling['SZmPivot'])
                 + (np.log(obs) - scaling['Asz'] - Csz*lnE_z_term) / (scaling['Bsz'] + scaling['Esz']*lnE_z_term))
     elif name=='richness_base':
-        lnmass = np.log(scaling['richmPivot']) + (1/scaling['Brichness'])*(np.log(obs) - scaling['Arichness'] - scaling['Crichness']*np.log((1+z)/1.6))
+        lnmass = (np.log(scaling['richmPivot']) + (1/scaling['Brichness'])*(np.log(obs)
+                  - scaling['Arichness'] - scaling['Crichness']*np.log((1+z)/1.6)))
         return lnmass
     elif name=='richness_ext':
-        lnmass = np.log(scaling['richmPivot']) + (1/scaling['Brichness_ext'])*(np.log(obs) - scaling['Arichness_ext'] - scaling['Crichness_ext']*np.log((1+z)/1.6))
+        lnmass = (np.log(scaling['richmPivot']) + (1/scaling['Brichness_ext'])*(np.log(obs)
+                  - scaling['Arichness_ext'] - scaling['Crichness_ext']*np.log((1+z)/1.6)))
         return lnmass
     elif name=='WLMegacam':
         return np.log(obs/scaling['bWL_Megacam'])
@@ -109,7 +117,14 @@ def obs2lnmass(name, obs, z, scaling, cosmology=None, cluster_ID=None, SPTsurvey
         pc1 = np.interp(z, scaling['DES_zpivs'], scaling['DES_deltab_pc1'])
         pc2 = np.interp(z, scaling['DES_zpivs'], scaling['DES_deltab_pc2'])
         b_m = scaling['DES_bias_slope'][0] + scaling['DES_b_dev_m']*scaling['DES_bias_slope'][1]
-        return (np.log(obs) - b_mean - scaling['DES_b_dev_1']*pc1 - scaling['DES_b_dev_2']*pc2 - np.log(scaling['DES_m_piv'])*(1-b_m))/b_m
+        return ((np.log(obs) - b_mean - scaling['DES_b_dev_1']*pc1 - scaling['DES_b_dev_2']*pc2
+                - np.log(scaling['DES_m_piv'])*(1-b_m))/b_m)
+    elif name=='WLEuclid':
+        b_mean = np.interp(z, scaling['Euclid_zpivs'], scaling['Euclid_mean_b'])
+        pc = np.interp(z, scaling['Euclid_zpivs'], scaling['Euclid_deltab_pc'])
+        b_m = scaling['Euclid_bias_slope'][0] + scaling['Euclid_b_dev_m']*scaling['Euclid_bias_slope'][1]
+        return ((np.log(obs) - b_mean - scaling['Euclid_b_dev']*pc
+                - np.log(scaling['Euclid_m_piv'])*(1-b_m))/b_m)
     else:
         raise ValueError("Observable not known:", name)
 
@@ -135,6 +150,9 @@ def dlnM_dlnobs(name, scaling, cosmology=None, M0_arr=None, z=None):
     elif name=='WLDES':
         b_m = scaling['DES_bias_slope'][0] + scaling['DES_b_dev_m']*scaling['DES_bias_slope'][1]
         return 1/b_m
+    elif name=='WLEuclid':
+        b_m = scaling['Euclid_bias_slope'][0] + scaling['Euclid_b_dev_m']*scaling['Euclid_bias_slope'][1]
+        return 1/b_m
     elif name=='disp':
         dlnM = np.log(1.01)
         dlnobs = lnmass2lnobs('disp', np.log(1.01*M0_arr), z)-lnmass2lnobs('disp', np.log(M0_arr), z)
@@ -145,9 +163,15 @@ def dlnM_dlnobs(name, scaling, cosmology=None, M0_arr=None, z=None):
 
 
 ####################
-def WLscatter(lnmass, z, scaling):
-    s_mean = np.interp(z, scaling['DES_zpivs'], scaling['DES_mean_lnsimga2'])
-    s_std = np.interp(z, scaling['DES_zpivs'], scaling['DES_delta_lnsigma2'])
-    s_m = scaling['DES_lnsigma2_slope'][0] + scaling['DES_s_dev_m']*scaling['DES_lnsigma2_slope'][1]
-    lnvar = s_mean + scaling['DES_s_dev']*s_std + s_m*(lnmass-np.log(scaling['DES_m_piv']))
+def WLscatter(name, lnmass, z, scaling):
+    if name=='WLDES':
+        s_mean = np.interp(z, scaling['DES_zpivs'], scaling['DES_mean_lnsimga2'])
+        s_std = np.interp(z, scaling['DES_zpivs'], scaling['DES_delta_lnsigma2'])
+        s_m = scaling['DES_lnsigma2_slope'][0] + scaling['DES_s_dev_m']*scaling['DES_lnsigma2_slope'][1]
+        lnvar = s_mean + scaling['DES_s_dev']*s_std + s_m*(lnmass-np.log(scaling['DES_m_piv']))
+    elif name=='WLEuclid':
+        s_mean = np.interp(z, scaling['Euclid_zpivs'], scaling['Euclid_mean_lnsigma2'])
+        s_std = np.interp(z, scaling['Euclid_zpivs'], scaling['Euclid_delta_lnsigma2'])
+        s_m = scaling['Euclid_lnsigma2_slope'][0] + scaling['Euclid_s_dev_m']*scaling['Euclid_lnsigma2_slope'][1]
+        lnvar = s_mean + scaling['Euclid_s_dev']*s_std + s_m*(lnmass-np.log(scaling['Euclid_m_piv']))
     return np.exp(.5 * lnvar)

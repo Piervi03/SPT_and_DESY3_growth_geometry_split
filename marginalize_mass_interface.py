@@ -1,4 +1,3 @@
-from __future__ import division
 import numpy as np
 from cosmosis.datablock import option_section
 import marginalize_mass

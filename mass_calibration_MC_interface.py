@@ -1,11 +1,9 @@
-from __future__ import division
 import numpy as np
 from scipy.interpolate import interp1d
 import h5py
 from cosmosis.datablock import option_section
 import mass_calibration_MC as mass_calibration
 import lensing
-
 
 def setup(options):
     ##### Config parameters
@@ -75,11 +73,6 @@ def setup(options):
                 DES_WL_prior = {}
                 for k in f.keys():
                     DES_WL_prior[k] = f[k][()]
-            # Additional hydro uncertainty
-            DES_WL_prior['deltab_pc1'] = -np.sqrt(DES_WL_prior['deltab_pc1']**2 + .02**2)
-            DES_WL_prior['bias_slope'][1] = np.sqrt(DES_WL_prior['bias_slope'][1]**2 + .018**2)
-            DES_WL_prior['delta_lnsigma2'] = np.sqrt(DES_WL_prior['delta_lnsigma2']**2 + .25**2)
-            DES_WL_prior['lnsigma2_slope'][1] = np.sqrt(DES_WL_prior['lnsigma2_slope'][1]**2 + .59**2)
     else:
         DES_WL_prior = None
 
@@ -99,16 +92,27 @@ def execute(block, setup_stuff):
         cosmology[p] = block.get_double('cosmological_parameters', p)
 
     scaling = {'YXPARAM': masscalibration.YXPARAM}
-    for p in ['Asz', 'Bsz', 'Csz', 'Dsz', 'Bsz2', 'Csz2', 'Esz', 'SPECS_calib', 'SZmPivot', 'zeta_min',
-              'Delta_Csz_ECS', 'Delta_Csz_500d',
-              'Ax', 'Bx', 'Cx', 'Ex', 'dlnMg_dlnr', 'XraymPivot',
-              'MegacamScatterLSS',
-              'bWL_Megacam', 'DWL_Megacam',
-              'Arichness', 'Brichness', 'Crichness', 'Drichness', 'richmPivot',
-              'Arichness_ext', 'Brichness_ext', 'Crichness_ext', 'Drichness_ext',
-              'rhoSZrichness', 'rhoWLrichness', 'rhoSZWL',
-              'Adisp', 'Bdisp', 'Cdisp',]:
+    for p in ['Asz', 'Bsz', 'Csz', 'Dsz', 'Esz', 'zeta_min', 'SZmPivot']:
         scaling[p] = block.get_double('mor_parameters', p)
+    for p in ['SPECS_calib', 'Delta_Csz_ECS', 'Delta_Csz_500d']:
+        if block.has_value('mor_parameters', p):
+            scaling[p] = block.get_double('mor_parameters', p)
+    if masscalibration.todo['Yx'] or masscalibration.todo['Mgas']:
+        for p in ['Ax', 'Bx', 'Cx', 'Ex', 'dlnMg_dlnr', 'XraymPivot', 'rhoSZX']:
+            scaling[p] = block.get_double('mor_parameters', p)
+    if masscalibration.todo['richness']:
+        for p in ['Arichness', 'Brichness', 'Crichness', 'Drichness',
+                  'Arichness_ext', 'Brichness_ext', 'Crichness_ext', 'Drichness_ext',
+                  'richmPivot', 'rhoSZrichness']:
+            scaling[p] = block.get_double('mor_parameters', p)
+    if masscalibration.todo['veldisp']:
+        for p in ['Adisp', 'Bdisp', 'Cdisp', 'rhoSZdisp']:
+            scaling[p] = block.get_double('mor_parameters', p)
+    if masscalibration.todo['WL']:
+        for p in ['MegacamScatterLSS', 'bWL_Megacam', 'DWL_Megacam', 'rhoSZWL']:
+            scaling[p] = block.get_double('mor_parameters', p)
+        if masscalibration.todo['richness']:
+            scaling['rhoWLrichness'] = block.get_double('mor_parameters', 'rhoWLrichness')
     # DES
     if DES_WL_prior is not None:
         for p in ['DES_b_dev_1', 'DES_b_dev_2', 'DES_b_dev_m',
@@ -140,9 +144,9 @@ def execute(block, setup_stuff):
     if np.isfinite(lnlike):
         block.put_double('likelihoods', 'MASS_CALIBRATION_LIKE', lnlike)
         if masscalibration.get_stacked_DES:
-            for name in ['zloxilo', 'zloxihi', 'zmidxilo', 'zmidxihi', 'zhixilo', 'zhixihi']:
-                for i,n in enumerate(DES_stack['shear_%s'%name]):
-                    block.put_double('DES_stack', 'shear_%s_%d'%(name,i), n)
+            for name in DES_stack.keys():
+                for i,n in enumerate(DES_stack[name]):
+                    block.put_double('DES_stack', '%s_%d'%(name,i), n)
                 for i,n in enumerate(DES_stack['DeltaSigma_%s'%name]):
                     block.put_double('DES_stack', 'DeltaSigma_%s_%d'%(name,i), n)
                 for i,n in enumerate(DES_stack['DeltaSigma_data_%s'%name]):

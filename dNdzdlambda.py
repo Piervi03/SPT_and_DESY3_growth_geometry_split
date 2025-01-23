@@ -1,8 +1,7 @@
-from __future__ import division
 import numpy as np
 from multiprocessing import Pool
 from scipy.stats import norm
-from scipy.interpolate import interp1d
+from scipy.interpolate import InterpolatedUnivariateSpline
 import scaling_relations
 
 
@@ -24,13 +23,8 @@ class DistCompute:
         self.surveyCutRichness = surveyCutRichness
         self.z_DESWISE = z_DESWISE,
         self.NPROC = NPROC
-
-        ##### Observable arrays for output
-        self.lnlambda_bins = np.linspace(np.log(9), np.log(250), 151)
-        self.Nlambda = (len(self.lnlambda_bins)//10)+1
-        dz = .1
-        self.Nz = int((self.surveyCutRedshift[1]-self.surveyCutRedshift[0])/dz + 1)
-        self.z_bins_output = np.linspace(self.surveyCutRedshift[0], self.surveyCutRedshift[1], self.Nz)
+        # Observable arrays for output
+        self.lambda_bins_out = np.logspace(np.log10(8.4), np.log10(250), 16)
 
     def run(self, HMF, cosmology, scaling):
         """Return ln-likelihood for SPT cluster abundance."""
@@ -53,10 +47,9 @@ class DistCompute:
             with Pool(processes=self.NPROC) as pool:
                 argin = zip([self]*num_fields, range(num_fields))
                 field_results = pool.map(unwrap_self_f, argin)
-        dN_dz = np.array([field_results[i][0] for i in range(num_fields)]).sum(axis=0)
-        dN_dlnlambda = np.array([field_results[i][1] for i in range(num_fields)]).sum(axis=0)
+        N_lambda = np.array([field_results[i] for i in range(num_fields)]).sum(axis=0)
 
-        return dN_dz, dN_dlnlambda
+        return N_lambda
 
     ##########
 
@@ -64,7 +57,7 @@ class DistCompute:
         """Return dN/dz and dN/dlambda for a given SPT field (index)."""
         # Survey field
         if 'noMCMF' in self.SPT_survey['FIELD'][fieldidx]:
-            return np.zeros(self.Nz), np.zeros(self.Nlambda)
+            return np.zeros(len(self.lambda_bins_out)-1)
         elif self.SPT_survey['FIELD'][fieldidx]=='sptpol_500d_MCMF':
             this_lnzeta_m = self.lnzeta_m['500d'] + np.log(self.SPT_survey['GAMMA'][fieldidx])
         else:
@@ -89,14 +82,15 @@ class DistCompute:
             lambda_min = self.surveyCutRichness['deep'](self.HMF['z_arr'])
         else:
             lambda_min = self.surveyCutRichness['shallow'](self.HMF['z_arr'])
-        dN_dz_dlnrichness[self.lnrichness_m<np.log(lambda_min)[:,None]] = 0.
-        with np.errstate(all='ignore'):
-            lndN_dz_dlnrichness = np.log(dN_dz_dlnrichness)
-        # dN/dlambda go to fixed grid in z,lambda and integrate over z; return sparse array
-        with np.errstate(divide='ignore'):
-            lndN_dz_dlnrichness_grid = np.array([np.interp(self.lnlambda_bins, self.lnrichness_m[i], lndN_dz_dlnrichness[i]) for i in range(len(self.HMF['z_arr']))])
-        # dN/dz and dN/dlambda
-        # dN_dz = np.sum(np.exp(.5*(lndN_dz_dlnrichness[:,1:]+lndN_dz_dlnrichness[:,:-1])) * np.diff(self.lnrichness_m), axis=1)
-        dN_dz_out = np.zeros(self.Nz)# interp1d(self.HMF['z_arr'], dN_dz, kind='linear')(self.z_bins_output)
-        dN_dlnlambda = (np.trapz(np.exp(lndN_dz_dlnrichness_grid), self.HMF['z_arr'], axis=0))[::10]
-        return dN_dz_out, dN_dlnlambda
+        # N(Delta lnlambda)
+        N_z_lambda = np.zeros((len(self.HMF['z_arr']), len(self.lambda_bins_out)-1))
+        for i in range(len(self.HMF['z_arr'])):
+            f = InterpolatedUnivariateSpline(self.lnrichness_m[i,:], dN_dz_dlnrichness[i,:])
+            N_z_lambda[i] = np.array([f.integral(np.log(self.lambda_bins_out[j]), np.log(self.lambda_bins_out[j+1]))
+                                      for j in range(len(self.lambda_bins_out)-1)])
+            lambda_min_idx = np.digitize(lambda_min[i], self.lambda_bins_out)-1
+            N_z_lambda[i,:lambda_min_idx] = 0.
+            N_z_lambda[i,lambda_min_idx] = f.integral(np.log(lambda_min[i]), np.log(self.lambda_bins_out[lambda_min_idx+1]))
+        N_lambda = np.array([InterpolatedUnivariateSpline(self.HMF['z_arr'], N_z_lambda[:,i]).integral(self.surveyCutRedshift[0], self.surveyCutRedshift[1])
+                             for i in range(len(self.lambda_bins_out)-1)])
+        return N_lambda

@@ -1,10 +1,11 @@
-from __future__ import division, print_function
 import numpy as np
 import warnings
 from math import sqrt as msqrt
 from multiprocessing import Pool
 from astropy.table import Table
-from scipy.special import erfinv, log_ndtr, ndtr
+from scipy.special import log_ndtr
+from scipy.special import ndtr as ndtr_sp
+from scipy.special import ndtri
 from scipy.interpolate import interp1d, RectBivariateSpline
 import Mconversion_concentration, scaling_relations
 
@@ -12,18 +13,20 @@ cosmologyRef = {'Omega_m':.272, 'Omega_l':.728, 'h':.702, 'w0':-1, 'wa':0}
 GETPULL = False
 Ndraw_ini = 2**11
 Ndraw = 2**15
-ndtr_min = ndtr(-5)
-ndtr_max = ndtr(4)
-ndtr_m3 = ndtr(-3)
-ndtr_p3 = ndtr(3)
 ln2pi = np.log(2.*np.pi)
-sqrt2 = msqrt(2)
+
+# ndtr can be interpolated accurately and is only needed in finite range (-4, 3)
+# (This is not true for log_ndtr and ndtri.)
+x = np.logspace(0, np.log10(8), 1024) - 5.
+y = ndtr_sp(x)
+ndtr_max = y[-1]
+ndtr = interp1d(x, y, kind='linear', fill_value=(y[0], y[-1]), bounds_error=False)
 
 # Limits for stack
-z_names = ['zlo', 'zmid', 'zhi']
+z_names = ['zlo', 'zhi']
 xi_names = ['xilo', 'xihi']
-z_lims = [.25, .4, .6, .95]
-xi_lims = [4.25, 5.5, 1e10]
+z_lims = [.25, .5, .95]
+xi_lims = [4.25, 5.6, 1e10]
 lnr_r200c_stack = np.linspace(np.log(.3), np.log(5), 16)
 
 scatter_dict = {'zeta': 'Dsz',
@@ -84,7 +87,7 @@ class MassCalibration:
         ##### Set up interpolation for HMF
         HMF_in = HMF['dNdlnM']
         if np.any(HMF_in==0):
-            HMF_in[np.where(HMF_in==0)] = np.nextafter(0, 1)
+            HMF_in[HMF_in==0] = np.nextafter(0, 1)
         self.lnM_arr = HMF['lnM_arr']
         self.HMF_interp = RectBivariateSpline(HMF['z_arr'], self.lnM_arr, np.log(HMF_in), kx=1, ky=1)
 
@@ -121,8 +124,9 @@ class MassCalibration:
                 notNone = [this is not None for this in self.catalog['DES_shear_profile_mean']]
                 for i in range(len(z_lims)-1):
                     for j in range(len(xi_lims)-1):
-                        idx = (notNone&(self.catalog['REDSHIFT']>=z_lims[i])&(self.catalog['REDSHIFT']<z_lims[i+1])
-                                      &(self.catalog['XI']>=xi_lims[j])&(self.catalog['XI']<xi_lims[j+1])).nonzero()[0]
+                        idx = (notNone
+                               &(self.catalog['REDSHIFT']>=z_lims[i])&(self.catalog['REDSHIFT']<z_lims[i+1])
+                               &(self.catalog['XI']>=xi_lims[j])&(self.catalog['XI']<xi_lims[j+1]))
                         stack['shear_%s%s'%(z_names[i], xi_names[j])] = np.mean(self.catalog['DES_shear_profile_mean'][idx], axis=0)
                         stack['DeltaSigma_%s%s'%(z_names[i], xi_names[j])] = np.mean(self.catalog['DES_DeltaSigma_mean'][idx], axis=0)
                         tmp = np.array([x for x in self.catalog['DES_DeltaSigma_data_mean'][idx]])
@@ -276,11 +280,9 @@ class MassCalibration:
         xi_offset = -3/xi**2
         # xi_draw > xi_min, xi_draw > xi-5, xi_draw < xi+4
         r_min = ndtr(self.xi_min-(xi+xi_offset))
-        if r_min<ndtr_min:
-            r_min = ndtr_min
         r = r_min + (ndtr_max-r_min)*self.rng.random(Ndraw)
         # Percent point function (scipy stats is too slow)
-        xi0 = erfinv(2*r-1)*sqrt2 + xi+xi_offset
+        xi0 = ndtri(r) + xi+xi_offset
         # Probability of draws and probability of xi
         lnweights = -.5*(xi0-xi)**2 + .5*(xi0-(xi+xi_offset))**2
         zeta = scaling_relations.xi2zeta(xi0)
@@ -292,10 +294,8 @@ class MassCalibration:
         offset = -3*SZscatter_lnM**2
         r_min = ndtr((self.lnM_arr[0]-(lnM_zeta+offset))/SZscatter_lnM)
         r_max = ndtr((self.lnM_arr[-1]-(lnM_zeta+offset))/SZscatter_lnM)
-        r_min[r_min<ndtr_min] = ndtr_min
-        r_max[r_max>ndtr_max] = ndtr_max
         r = r_min + (r_max-r_min)*self.rng.random(len(lnM_zeta))
-        lnM = erfinv(2*r-1)*SZscatter_lnM*sqrt2 + lnM_zeta+offset
+        lnM = ndtri(r)*SZscatter_lnM + lnM_zeta+offset
         # Probability of lnM draws and probability of zeta
         lnweights = -.5/SZscatter_lnM**2 * ((lnM-lnM_zeta)**2 - (lnM-(lnM_zeta+offset))**2)
         return lnM, lnweights
@@ -303,7 +303,7 @@ class MassCalibration:
     def get_mass_function_lnweights(self, z, lnM):
         """Return log-probability of halo mass function
         ln(P(lnM)) = ln(dN/dlnM) at given `z` and array `lnM`."""
-        # Scipy.RectBivariateSpline only accepts sorted inputs
+        # RectBivariateSpline wants sorted inputs, but this is faster than `grid=False`
         idx = np.argsort(lnM)
         mass_lnweights = np.zeros(len(lnM))
         mass_lnweights[idx] = self.HMF_interp(z, lnM[idx])
@@ -313,9 +313,8 @@ class MassCalibration:
         """Return draws and associated weights from P(zeta|M,z)."""
         zeta_min_lnM = scaling_relations.obs2lnmass('zeta', self.scaling['zeta_min']/self.thisSPTfield_gamma, z, self.scaling, self.cosmology, SPTsurvey=self.SPTsurvey)
         r_min = ndtr((zeta_min_lnM-lnM)/SZscatter_lnM)
-        r_min[r_min<ndtr_m3] = ndtr_m3
-        r = r_min + (ndtr_p3-r_min)*self.rng.random(len(lnM))
-        lnM_zeta = erfinv(2*r-1)*SZscatter_lnM*sqrt2 + lnM
+        r = r_min + (ndtr_max-r_min)*self.rng.random(len(lnM))
+        lnM_zeta = ndtri(r)*SZscatter_lnM + lnM
         lnw = log_ndtr((lnM-zeta_min_lnM)/SZscatter_lnM)
         return lnM_zeta, lnw
 
@@ -389,12 +388,11 @@ class MassCalibration:
         # Draw from HST large-scale structure scatter
         if obsname=='WLHST':
             obs = np.exp(lnobs)
-            idx = (self.HSTcalib['SPT_ID']==self.catalog['SPT_ID'][dataID]).nonzero()[0]
+            idx = self.HSTcalib['SPT_ID']==self.catalog['SPT_ID'][dataID]
             std = msqrt(self.HSTcalib['LSS'][idx]**2 + self.HSTcalib['LOS'][idx]**2)
             r_min = ndtr((1-obs)/std)
-            r_min[ndtr_min>r_min] = ndtr_min
             r = r_min + (ndtr_max-r_min)*self.rng.random(len(obs))
-            lnobs = np.log(obs + erfinv(2*r-1)*std*sqrt2)
+            lnobs = np.log(obs + ndtri(r)*std)
         # Lensing likelihood
         if self.lensingres is None:
             self.lnMwl = np.linspace(np.amin(lnobs), np.amax(lnobs), 64)
@@ -423,9 +421,9 @@ class MassCalibration:
             N_obs = len(obsnames)
             covmat_lnM = covmat * dlnM_dlnobs[:,None]*dlnM_dlnobs[None,:] * np.ones((len(lnM),N_obs,N_obs))
             if 'WLDES' in obsnames:
-                DES_scatter = scaling_relations.WLscatter(lnM, self.catalog['REDSHIFT'][dataID], self.scaling)
-                covmat_lnM[:,obsnames.index('WLDES'),:]*= DES_scatter[:,None]
-                covmat_lnM[:,:,obsnames.index('WLDES')]*= DES_scatter[:,None]
+                scatter = scaling_relations.WLscatter('WLDES', lnM, self.catalog['REDSHIFT'][dataID], self.scaling)
+                covmat_lnM[:,obsnames.index('WLDES'),:]*= scatter[:,None]
+                covmat_lnM[:,:,obsnames.index('WLDES')]*= scatter[:,None]
             elif 'WLHST' in obsnames:
                 scatter = self.scaling['DWL_HST'][self.catalog['SPT_ID'][dataID]]
                 covmat_lnM[:,obsnames.index('WLHST'),:]*= scatter
@@ -461,11 +459,11 @@ class MassCalibration:
         lnweights_Pobsxi = xi_lnweights + zeta_lnweights + mass_lnweights + np.sum(lnlike_obs, axis=0)
         max_lnweights_Pobsxi = np.amax(lnweights_Pobsxi)
         # Check if we have enough "good" weights
-        idx = np.argsort(lnweights_Pobsxi)
-        if max_lnweights_Pobsxi-lnweights_Pobsxi[idx[-10]]>2.:
+        if (max_lnweights_Pobsxi-lnweights_Pobsxi<2).sum() < 10:
             # New mass draws uniform in log
-            lo = np.amin(lnM[idx[-10:]])
-            lnM = lo + (np.amax(lnM[idx[-10:]])-lo)*self.rng.random(Ndraw_ini)
+            idx = np.argsort(lnweights_Pobsxi)[-10:]
+            lo = np.amin(lnM[idx])
+            lnM = lo + (np.amax(lnM[idx])-lo)*self.rng.random(Ndraw_ini)
             # Likelihood
             xi_lnweights, zeta_lnweights, mass_lnweights, lnlike_obs = self.weights_for_mass_samples(lnM, obsnames, covmat, dlnM_dlnobs, dataID)
             # Mass|obs,xi
@@ -475,18 +473,16 @@ class MassCalibration:
         w = np.exp(lnweights_Pobsxi-max_lnweights_Pobsxi)
         sum_w = np.sum(w)
         if np.sum(w**2)/sum_w==sum_w:
+            print('bad mass post', self.catalog['SPT_ID'][dataID])
+            # np.save(self.catalog['SPT_ID'][dataID], [lnM, xi_lnweights, zeta_lnweights, mass_lnweights, lnlike_obs[0], lnlike_obs[1]])
             return -np.inf
         mean_lnM_obsxi = np.sum(w*lnM)/sum_w
         std_lnM_obsxi = np.sqrt(np.sum(w*(lnM-mean_lnM_obsxi)**2) / (sum_w - np.sum(w**2)/sum_w))
         # Refined estimate P(obs,xi)
         r_min = ndtr((self.lnM_arr[0]-mean_lnM_obsxi)/std_lnM_obsxi)
         r_max = ndtr((self.lnM_arr[-1]-mean_lnM_obsxi)/std_lnM_obsxi)
-        if r_min<ndtr_m3:
-            r_min = ndtr_m3
-        if r_max>ndtr_p3:
-            r_max = ndtr_p3
         r = r_min + (r_max-r_min)*self.rng.random(Ndraw)
-        lnM = erfinv(2*r-1)*std_lnM_obsxi*sqrt2 + mean_lnM_obsxi
+        lnM = ndtri(r)*std_lnM_obsxi + mean_lnM_obsxi
         draw_lnweights = -(-.5*((lnM-mean_lnM_obsxi)/std_lnM_obsxi)**2 - .5*ln2pi - np.log(std_lnM_obsxi))
         # Likelihood
         xi_lnweights, zeta_lnweights, mass_lnweights, lnlike_obs = self.weights_for_mass_samples(lnM, obsnames, covmat, dlnM_dlnobs, dataID)

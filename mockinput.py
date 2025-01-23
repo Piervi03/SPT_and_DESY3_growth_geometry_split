@@ -21,18 +21,21 @@ cosmology['Ommh2'] = cosmology['Omega_m']*cosmology['h']**2
 cosmology['Omega_l'] = 1-cosmology['Omega_m']
 
 scaling = {'Asz': .96, 'Bsz': 1.5, 'Csz': .5, 'Dsz': .2, 'zeta_min': 1.,
-           'Bsz2':0, 'Csz2':0, 'DszM':0, 'Esz':0,
+           'Esz':0,
            'Delta_Csz_ECS': -.09, 'Delta_Csz_500d': .26,
            'HSTbias': 0., 'HSTscatterLSS':5.6e13,
            'MegacamBias': 0., 'MegacamScatterLSS': 6.3e13,
            'DWL_Megacam': .3, 'bWL_Megacam': 1,
            'DESbias': 0., 'DESscatterLSS': 6.3e13,
 
-           'DWL_HST': .3,
+           'bWL_HST': 1., 'DWL_HST': .3,
 
            'DES_m_piv': 2e14,
            'DES_b_dev_1': 0., 'DES_b_dev_2': 0., 'DES_b_dev_m': 0.,
            'DES_s_dev': 0., 'DES_s_dev_m': 0.,
+           'Euclid_m_piv': 2e14,
+           'Euclid_b_dev': 0., 'Euclid_b_dev_m': 0.,
+           'Euclid_s_dev': 0., 'Euclid_s_dev_m': 0.,
 
            'Adisp':939., 'Bdisp':2.91, 'Cdisp':.33, 'Ddisp0':.2, 'DdispN':3.,
            'Arichness': 4.25, 'Brichness': 1., 'Crichness': 0., 'Drichness': .2,
@@ -48,9 +51,12 @@ scaling = {'Asz': .96, 'Bsz': 1.5, 'Csz': .5, 'Dsz': .2, 'zeta_min': 1.,
            }
 DES_WL_priors_file = './data/WLcalib_MCMF_dnf_500kpch.h5'
 with h5py.File(DES_WL_priors_file, 'r') as f:
-    DES_WL_prior = {}
     for k in f.keys():
         scaling['DES_%s'%k] = f[k][()]
+Euclid_WL_priors_file = './data/WLcalib_Euclid_baseline.h5'
+with h5py.File(Euclid_WL_priors_file, 'r') as f:
+    for k in f.keys():
+        scaling['Euclid_%s'%k] = f[k][()]
 
 # SPT survey cuts
 surveyCutRedshift = (0.25, 1.79)

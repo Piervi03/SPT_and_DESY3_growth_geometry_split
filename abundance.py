@@ -1,8 +1,7 @@
-from __future__ import division
 import numpy as np
 from multiprocessing import Pool
 from scipy.stats import norm
-from scipy.interpolate import interp1d, RectBivariateSpline
+from scipy.interpolate import interp1d, RectBivariateSpline, InterpolatedUnivariateSpline
 from scipy.ndimage import gaussian_filter1d
 import scaling_relations
 
@@ -26,9 +25,6 @@ class NumberCount:
 
         ##### Observable arrays
         # Arrays over which we'll integrate (survey cuts applied)
-        xi_min = np.amin(self.SPT_survey['XI_MIN'])
-        Nxi = int(np.log10(self.surveyCutSZmax/xi_min)/.005 + 1)
-        self.xi_arr = np.logspace(np.log10(xi_min), np.log10(self.surveyCutSZmax), Nxi)
         dz = .01
         Nz = int((self.surveyCutRedshift[1]-self.surveyCutRedshift[0])/dz + 1)
         self.z_arr = np.linspace(self.surveyCutRedshift[0], self.surveyCutRedshift[1], Nz)
@@ -140,12 +136,14 @@ class NumberCount:
         dNdz = np.sum(integrand, axis=1)
         Ntotal = np.trapz(dNdz, self.z_arr)
 
-        # dN_dxi and dN_dz for output
-        dN_dz_out = interp1d(self.z_arr, dNdz, kind='cubic')(self.z_bins_output)
-        # integrand = np.exp(lndNdxi(np.log(self.z_arr), np.log(self.xi_bins_output)))
-        dN_dz_dxi_binned = np.array([np.sum(integrand[:,((self.xi_bins_output[i]<=self.xi_arr[:-1])&(self.xi_arr[1:]<=self.xi_bins_output[i+1])).nonzero()[0]], axis=1)
-                                     for i in range(len(self.xi_bins_output)-1)])
-        dN_dxi_out = np.trapz(dN_dz_dxi_binned, self.z_arr, axis=1)
+        # dN_dxi and N(z) for output
+        f = InterpolatedUnivariateSpline(self.z_arr, dNdz)
+        N_z_out = np.array([f.integral(self.z_bins_output[i], self.z_bins_output[i+1]) for i in range(len(self.z_bins_output)-1)])
+        f = RectBivariateSpline(self.HMF['z_arr'], self.xi_bins, dN_dxi)
+        N_xi_out = np.array([f.integral(self.z_arr[0], self.z_arr[-1], self.xi_bins_output[i], self.xi_bins_output[i+1])
+                             for i in range(len(self.xi_bins_output)-1)])
+        if self.SPT_survey['XI_MIN'][fieldidx]!=self.xi_bins_output[0]:
+            N_xi_out[0] = f.integral(self.z_arr[0], self.z_arr[-1], self.SPT_survey['XI_MIN'][fieldidx], self.xi_bins_output[1])
         # integrand = np.exp(lndNdxi(np.log(self.z_arr), np.linspace(np.log(self.SPT_survey['XI_MIN'][fieldidx]), np.log(50), 11)))
         dN_dxi_out_survey = None #np.trapz(integrand, self.z_arr, axis=0)
 
@@ -153,14 +151,15 @@ class NumberCount:
         lnlike_this_field = -Ntotal
 
         ##### confirmed clusters
-        thisfield_conf = np.nonzero((self.catalog['FIELD']==self.SPT_survey['FIELD'][fieldidx])
-                                    & (self.catalog['COSMO_SAMPLE']==1)
-                                    & (self.catalog['XI']>=self.SPT_survey['XI_MIN'][fieldidx])
-                                    & (self.catalog['XI']<=self.surveyCutSZmax)
-                                    & (self.catalog['REDSHIFT']>=self.surveyCutRedshift[0])
-                                    & (self.catalog['REDSHIFT']<=self.surveyCutRedshift[1]))[0]
-        these_lndNdxi = lndNdxi(np.log(self.catalog['REDSHIFT'][thisfield_conf]), np.log(self.catalog['XI'][thisfield_conf]), grid=False) - np.log(self.SPT_survey['AREA'][fieldidx] * (np.pi/180)**2)
-        for n,i in enumerate(thisfield_conf):
+        thisfield_conf = ((self.catalog['FIELD']==self.SPT_survey['FIELD'][fieldidx])
+                          & (self.catalog['COSMO_SAMPLE']==1)
+                          & (self.catalog['XI']>=self.SPT_survey['XI_MIN'][fieldidx])
+                          & (self.catalog['XI']<=self.surveyCutSZmax)
+                          & (self.catalog['REDSHIFT']>=self.surveyCutRedshift[0])
+                          & (self.catalog['REDSHIFT']<=self.surveyCutRedshift[1]))
+        these_lndNdxi = (lndNdxi(np.log(self.catalog['REDSHIFT'][thisfield_conf]), np.log(self.catalog['XI'][thisfield_conf]), grid=False)
+                         - np.log(self.SPT_survey['AREA'][fieldidx] * (np.pi/180.)**2.))
+        for n,i in enumerate(thisfield_conf.nonzero()[0]):
             # spec-z: Evaluate dN/dxi/dz at exact location
             if self.catalog['REDSHIFT_UNC'][i]==0.:
                 lnlike_this_field+= these_lndNdxi[n]
@@ -174,4 +173,4 @@ class NumberCount:
                 lnlike_this_field+= this_lnlike
 
 
-        return lnlike_this_field, Ntotal, dN_dz_out, dN_dxi_out, dN_dxi_out_survey, self.SPT_survey['FIELD'][fieldidx], thisfield_conf, these_lndNdxi
+        return lnlike_this_field, Ntotal, N_z_out, N_xi_out, dN_dxi_out_survey, self.SPT_survey['FIELD'][fieldidx], thisfield_conf, these_lndNdxi

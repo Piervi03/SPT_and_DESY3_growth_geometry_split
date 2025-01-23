@@ -1,4 +1,3 @@
-from __future__ import division, print_function
 import numpy as np
 import sys
 import time
@@ -72,16 +71,17 @@ def main(configMod_file, catalog_name):
     HMF_dNdM_V[-1,:]*= .5
 
     # [DES WL, X-ray, SZ, richness, HST WL]
-    covs = np.empty((len(z_arr), len(M_arr), 5, 5))
+    covs = np.empty((len(z_arr), len(M_arr), 6, 6))
     for i, z in enumerate(z_arr):
         for j, M in enumerate(M_arr):
-            scaling['DWL_DES'] = scaling_relations.WLscatter(np.log(M), z, scaling)
-            covs[i,j,:,:] = [[scaling['DWL_DES']**2, scaling['rhoWLX']*scaling['DWL_DES']*scaling['Dx'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_DES'], scaling['rhoWLrichness']*scaling['DWL_DES']*scaling['Drichness'], 0],
-                             [scaling['rhoWLX']*scaling['DWL_DES']*scaling['Dx'], scaling['Dx']**2, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['rhoXrichness']*scaling['Dx']*scaling['Drichness'], scaling['rhoWLX']*scaling['DWL_HST']*scaling['Dx']],
-                             [scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_DES'], scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2, scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_HST']],
-                             [scaling['rhoWLrichness']*scaling['DWL_DES']*scaling['Drichness'], scaling['rhoXrichness']*scaling['Dx']*scaling['Drichness'], scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness'], scaling['Drichness']**2, scaling['rhoWLrichness']*scaling['DWL_HST']*scaling['Drichness']],
-                             [0, scaling['rhoWLX']*scaling['DWL_HST']*scaling['Dx'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_HST'], scaling['rhoWLrichness']*scaling['DWL_HST']*scaling['Drichness'], scaling['DWL_HST']**2]]
-
+            scaling['DWL_DES'] = scaling_relations.WLscatter('WLDES', np.log(M), z, scaling)
+            scaling['DWL_Euclid'] = scaling_relations.WLscatter('WLEuclid', np.log(M), z, scaling)
+            covs[i,j,:,:] = [[scaling['DWL_DES']**2, scaling['rhoWLX']*scaling['DWL_DES']*scaling['Dx'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_DES'], scaling['rhoWLrichness']*scaling['DWL_DES']*scaling['Drichness'], 0, 0],
+                             [scaling['rhoWLX']*scaling['DWL_DES']*scaling['Dx'], scaling['Dx']**2, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['rhoXrichness']*scaling['Dx']*scaling['Drichness'], scaling['rhoWLX']*scaling['DWL_HST']*scaling['Dx'], scaling['rhoWLX']*scaling['DWL_Euclid']*scaling['Dx']],
+                             [scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_DES'], scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2, scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_HST'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_Euclid']],
+                             [scaling['rhoWLrichness']*scaling['DWL_DES']*scaling['Drichness'], scaling['rhoXrichness']*scaling['Dx']*scaling['Drichness'], scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness'], scaling['Drichness']**2, scaling['rhoWLrichness']*scaling['DWL_HST']*scaling['Drichness'], scaling['rhoWLrichness']*scaling['DWL_Euclid']*scaling['Drichness']],
+                             [0, scaling['rhoWLX']*scaling['DWL_HST']*scaling['Dx'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_HST'], scaling['rhoWLrichness']*scaling['DWL_HST']*scaling['Drichness'], scaling['DWL_HST']**2, 0],
+                             [0, scaling['rhoWLX']*scaling['DWL_Euclid']*scaling['Dx'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_Euclid'], scaling['rhoWLrichness']*scaling['DWL_Euclid']*scaling['Drichness'], 0, scaling['DWL_Euclid']**2]]
 
     # Get the mock catalog
     # The HMF is in units [Msun/h]
@@ -105,8 +105,8 @@ def main(configMod_file, catalog_name):
         N = rng.poisson(HMF_dNdM_V*SPT_survey['AREA'][fieldidx])
 
         obs_0 = np.array([np.exp(scaling_relations.lnmass2lnobs(name, lnM_arr[None,:], z_arr[:,None], scaling, cosmology, SPTsurvey=SPTsurvey))
-                          for name in ('WLDES', configMod.Xray_obs, 'zeta', 'richness_base',)])
-        obs_0 = np.concatenate((obs_0, M_arr*np.ones((len(z_arr), len(M_arr)))[None,:]))
+                          for name in ('WLDES', configMod.Xray_obs, 'zeta', 'richness_base', 'WLEuclid')])
+        obs_0 = np.append(obs_0, np.full(obs_0[0].shape, lnM_arr)[None,...], axis=0)
 
         # Field depth
         obs_0[2,:]*= SPT_survey['GAMMA'][fieldidx]
@@ -126,8 +126,8 @@ def main(configMod_file, catalog_name):
 
                 obs = np.exp(rng.multivariate_normal(np.log(obs_0[:,i,j]), covs[i,j], N[i,j]))
 
-                keep = (obs[:,2]>scaling['zeta_min']).nonzero()[0]
-                for k in keep:
+                keep = (obs[:,2]>scaling['zeta_min'])
+                for k in keep.nonzero()[0]:
                     # draw xi|zeta
                     xi = rng.normal(scaling_relations.zeta2xi(obs[k,2]), scale=1.)
                     if xi>=SPT_survey['XI_MIN'][fieldidx]:
@@ -153,7 +153,7 @@ def main(configMod_file, catalog_name):
                             if richness_obs<lambda_min:
                                 continue
 
-                        mock.append([M, z, xi, X, obs[k,0], obs[k,4], richness_obs, richness_err, SPT_survey['GAMMA'][fieldidx]])
+                        mock.append([M, z, xi, X, obs[k,0], obs[k,4], obs[k,5], richness_obs, richness_err, SPT_survey['GAMMA'][fieldidx]])
                         fieldnames.append(field)
 
         # False detections
@@ -167,7 +167,7 @@ def main(configMod_file, catalog_name):
     nCluster = len(mock)
     mock = Table(rows=mock, names=['M_true', 'REDSHIFT', 'XI',
                                    configMod.Xray_obs,
-                                   'Mwl_DES_200', 'Mwl_HST_200',
+                                   'Mwl_DES_200', 'Mwl_Euclid_200', 'Mwl_HST_200',
                                    'richness', 'richness_err',
                                    'GAMMA_FIELD'])
     mock['SPT_ID'] = ['cluster%d'%i for i in range(nCluster)]

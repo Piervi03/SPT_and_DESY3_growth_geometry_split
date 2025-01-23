@@ -1,4 +1,3 @@
-from __future__ import division, print_function
 import numpy as np
 from math import sqrt as msqrt
 
@@ -184,9 +183,9 @@ class MultiObsConvolution:
         elif self.richness_scatter_model=='lognormalrelPoisson':
             richness_ = np.exp(scaling_relations.lnmass2lnobs('richness_%s'%richness, self.HMF['lnM_arr'], z, self.scaling))
             Drich = np.sqrt(Drich**2 + 1/richness_)
-            covmat = np.array([[1., self.scaling['rhoSZrichness']*Dsz],
-                               [self.scaling['rhoSZrichness']*Dsz, Dsz**2]])[None,:,:]\
-                     * np.ones((len(richness_),2,2))
+            covmat = (np.array([[1., self.scaling['rhoSZrichness']*Dsz],
+                               [self.scaling['rhoSZrichness']*Dsz, Dsz**2]])[None,:,:]
+                      * np.ones((len(richness_),2,2)))
             covmat[:,0,:]*= Drich[:,None]
             covmat[:,:,0]*= Drich[:,None]
         covmat_lnM = covmat * Jacobian[None,:,:]
