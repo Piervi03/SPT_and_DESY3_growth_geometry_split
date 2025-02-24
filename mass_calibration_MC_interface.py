@@ -147,10 +147,6 @@ def execute(block, setup_stuff):
             for name in DES_stack.keys():
                 for i,n in enumerate(DES_stack[name]):
                     block.put_double('DES_stack', '%s_%d'%(name,i), n)
-                for i,n in enumerate(DES_stack['DeltaSigma_%s'%name]):
-                    block.put_double('DES_stack', 'DeltaSigma_%s_%d'%(name,i), n)
-                for i,n in enumerate(DES_stack['DeltaSigma_data_%s'%name]):
-                    block.put_double('DES_stack', 'DeltaSigma_data_%s_%d'%(name,i), n)
         return 0
     else:
         print("mass calibration", flush=True)
