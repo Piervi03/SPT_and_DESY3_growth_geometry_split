@@ -1,16 +1,14 @@
 import numpy as np
 from math import sqrt as msqrt
 from astropy.table import Table
-import imp
 
 import scaling_relations
 
 
 class SetScaling:
 
-    def __init__(self, WLsimcalibfile, HSTcalibfile):
-        WLsimcalib = imp.load_source('WLsimcalib', WLsimcalibfile)
-        self.WLcalib = WLsimcalib.WLcalibration
+    def __init__(self, Megacamcalib, HSTcalibfile):
+        self.WLcalib = Megacamcalib
         self.HSTcalib = Table.read(HSTcalibfile, format='ascii.commented_header')
 
     def execute(self, todo, scaling):
@@ -54,7 +52,7 @@ class SetScaling:
                 if todo['Yx'] or todo['Mgas']:
                     cov = [[DWL_HST**2, scaling['rhoWLX']*DWL_HST*scaling['Dx'], scaling['rhoSZWL']*scaling['Dsz']*DWL_HST],
                            [scaling['rhoWLX']*DWL_HST*scaling['Dx'], scaling['Dx']**2, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx']],
-                       [scaling['rhoSZWL']*scaling['Dsz']*DWL_HST, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2]]
+                           [scaling['rhoSZWL']*scaling['Dsz']*DWL_HST, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2]]
                     if np.linalg.det(cov)<=0.:
                         return False
                     scaling['cov_HST_X_SZ_%s'%name] = np.array(cov)
@@ -66,7 +64,6 @@ class SetScaling:
                     if np.linalg.det(cov)<=0.:
                         return False
                     scaling['cov_HST_richness_SZ_%s'%name] = np.array(cov)
-
 
         # X-ray
         if todo['Yx'] or todo['Mgas']:
@@ -96,13 +93,12 @@ class SetScaling:
         if 'DES_m_piv' in scaling.keys():
             z = np.array([.25, .25, .85, .85])
             M = np.array([1e13, 1e16, 1e13, 1e16])
-            DES_scatter = scaling_relations.WLscatter('DESWL', np.log(M), z, scaling)
+            DES_scatter = scaling_relations.WLscatter('WLDES', np.log(M), z, scaling)
             dets = [np.linalg.det([[DES_scatter[i]**2, scaling['rhoSZWL']*scaling['Dsz']*DES_scatter[i]],
                                    [scaling['rhoSZWL']*scaling['Dsz']*DES_scatter[i], scaling['Dsz']**2]])
                     for i in range(4)]
             if np.any(np.array(dets)<=0.):
                 return False
-
 
         # X-ray and WL: Megacam
         if todo['WL'] and (todo['Yx'] or todo['Mgas']):

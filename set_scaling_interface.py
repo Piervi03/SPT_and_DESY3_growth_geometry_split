@@ -7,9 +7,13 @@ def setup(options):
     todo = {}
     for opt in ['doWL', 'doYx', 'doMgas', 'doveldisp', 'dorichness']:
         todo[opt[2:]] = options.get_bool(option_section, opt)
-    WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
+    Megacamcalib = {}
+    for key in ['MegacamSim', 'Megacam_LSS']:
+        Megacamcalib[key] = options.get_double_array_1d(option_section, key)
+    for key in ['MegacamMcErr', 'MegacamCenterErr', 'MegacamShearErr', 'MegacamzDistErr', 'MegacamContamCorr']:
+        Megacamcalib[key] = options.get_double(option_section, key)
     HSTcalibfile = options.get_string(option_section, 'HSTcalibfile')
-    scaling_setter = set_scaling.SetScaling(WLsimcalibfile, HSTcalibfile)
+    scaling_setter = set_scaling.SetScaling(Megacamcalib, HSTcalibfile)
     return scaling_setter, todo
 
 
