@@ -52,7 +52,7 @@ class SetScaling:
                 if todo['Yx'] or todo['Mgas']:
                     cov = [[DWL_HST**2, scaling['rhoWLX']*DWL_HST*scaling['Dx'], scaling['rhoSZWL']*scaling['Dsz']*DWL_HST],
                            [scaling['rhoWLX']*DWL_HST*scaling['Dx'], scaling['Dx']**2, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx']],
-                       [scaling['rhoSZWL']*scaling['Dsz']*DWL_HST, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2]]
+                           [scaling['rhoSZWL']*scaling['Dsz']*DWL_HST, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2]]
                     if np.linalg.det(cov)<=0.:
                         return False
                     scaling['cov_HST_X_SZ_%s'%name] = np.array(cov)
@@ -64,7 +64,6 @@ class SetScaling:
                     if np.linalg.det(cov)<=0.:
                         return False
                     scaling['cov_HST_richness_SZ_%s'%name] = np.array(cov)
-
 
         # X-ray
         if todo['Yx'] or todo['Mgas']:
@@ -100,7 +99,6 @@ class SetScaling:
                     for i in range(4)]
             if np.any(np.array(dets)<=0.):
                 return False
-
 
         # X-ray and WL: Megacam
         if todo['WL'] and (todo['Yx'] or todo['Mgas']):
