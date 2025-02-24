@@ -68,8 +68,6 @@ class MassCalibration:
         # Init data structures for lensing stacks
         if self.get_stacked_DES:
             self.catalog['DES_shear_profile_mean'] = [None for i in range(len(self.catalog))]
-            self.catalog['DES_DeltaSigma_mean'] = [None for i in range(len(self.catalog))]
-            self.catalog['DES_DeltaSigma_data_mean'] = [None for i in range(len(self.catalog))]
         # Safety first
         if not kwargs=={}:
             print("Unknown keyword arguments in", kwargs)
@@ -128,9 +126,6 @@ class MassCalibration:
                                &(self.catalog['REDSHIFT']>=z_lims[i])&(self.catalog['REDSHIFT']<z_lims[i+1])
                                &(self.catalog['XI']>=xi_lims[j])&(self.catalog['XI']<xi_lims[j+1]))
                         stack['shear_%s%s'%(z_names[i], xi_names[j])] = np.mean(self.catalog['DES_shear_profile_mean'][idx], axis=0)
-                        stack['DeltaSigma_%s%s'%(z_names[i], xi_names[j])] = np.mean(self.catalog['DES_DeltaSigma_mean'][idx], axis=0)
-                        tmp = np.array([x for x in self.catalog['DES_DeltaSigma_data_mean'][idx]])
-                        stack['DeltaSigma_data_%s%s'%(z_names[i], xi_names[j])] = np.nanmean(tmp, axis=0)
             return lnlike, stack
         else:
             return lnlike, None
@@ -402,9 +397,6 @@ class MassCalibration:
         # Shear profile for DES stacks
         if self.get_stacked_DES & (obsname=='WLDES'):
             self.DES_shear_profile_MC = interp1d(self.lnMwl, self.lensingres[1], axis=0, fill_value='extrapolate')(lnobs)
-            self.DES_DeltaSigma_MC = interp1d(self.lnMwl, self.lensingres[2], axis=0)(lnobs)
-            self.DES_r_r200c_MC = interp1d(self.lnMwl, self.lensingres[3], axis=0)(lnobs)
-            self.DES_DeltaSigma_data_MC = interp1d(self.lnMwl, self.lensingres[4], axis=0)(lnobs)
         return lnlike, lnM_lensing
 
     def weights_for_mass_samples(self, lnM, obsnames, covmat, dlnM_dlnobs, dataID, do_obs=True):
@@ -499,14 +491,4 @@ class MassCalibration:
             profile_interp = interp1d(self.catalog['WLdata'][dataID]['r_arcmin'], self.DES_shear_profile_MC, fill_value='extrapolate')
             profile_interpolated = profile_interp(self.catalog['WLdata'][dataID]['r_arcmin_stack'])
             self.catalog['DES_shear_profile_mean'][dataID] = np.sum(profile_interpolated*weights[:,None], axis=0)/sum_weights
-            # DeltaSigma model
-            DeltaSigma_mean = np.sum(self.DES_DeltaSigma_MC*weights[:,None], axis=0)/sum_weights
-            r_r200c_mean = np.sum(self.DES_r_r200c_MC*weights[:,None], axis=0)/sum_weights
-            DeltaSigma_interp = interp1d(np.log(r_r200c_mean), np.log(DeltaSigma_mean), fill_value='extrapolate')
-            self.catalog['DES_DeltaSigma_mean'][dataID] = np.exp(DeltaSigma_interp(lnr_r200c_stack))
-            # DeltaSigma data
-            DeltaSigma_data_mean = np.sum(self.DES_DeltaSigma_data_MC*weights[:,None], axis=0)/sum_weights
-            DeltaSigma_interp = interp1d(np.log(r_r200c_mean), DeltaSigma_data_mean, bounds_error=False)
-            self.catalog['DES_DeltaSigma_data_mean'][dataID] = DeltaSigma_interp(lnr_r200c_stack)
-
         return lndNdobsxi
