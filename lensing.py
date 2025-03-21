@@ -152,7 +152,7 @@ class SPTlensing:
         self.lnM_arr = lnM_arr_default
         self.M_arr = np.exp(self.lnM_arr)
         # Pre-compute angular diameter distances
-        self.get_dAs(self.z_cl_min, self.z_cl_max, 5., cosmology)
+        self.lndA_interp, self.dA_twoz_interp = cosmo.get_dAs(self.z_cl_min, self.z_cl_max, 5., cosmology)
         # t.append(time.time())
 
         if self.NPROC==0:
@@ -186,7 +186,7 @@ class SPTlensing:
         if self.DESfile!='None':
             self.MCrel_DES = Mconversion_concentration.ConcentrationConversion(3.5)
         # Pre-compute angular diameter distances
-        self.get_dAs(self.z_cl_min, self.z_cl_max, 5., cosmology)
+        self.lndA_interp, self.dA_twoz_interp = cosmo.get_dAs(self.z_cl_min, self.z_cl_max, 5., cosmology)
 
     def one_cluster(self, data, M_arr=None):
         """Process the cluster given by `data`. Return ln-likelihood of shear
@@ -215,39 +215,21 @@ class SPTlensing:
         # print('done', t[-1]-t[0], np.diff(t))
         return res
 
-    def shear_model_flatNFW_clmemcont(self, mass):
-        """Return shear model given mass. Sigma follows an NFW that is constant
-        within R_mis. Cluster member contamination is applied."""
-        # Sigma_crit in each source bin, with c^2/4piG [h Msun/Mpc^2]
+    def DESEuclid_cluster(self, M_arr):
+        """Return array lnP(DES data|Mwl) and optionally the model shear profiles."""
+        # Model
         Dl = np.exp(self.lndA_interp(np.log(self.cat_cl['REDSHIFT'])))
-        invSigma_c = Dl*self.beta_avg/cosmo.c2_4piG
-        # NFW halo stuff
-        rho_c_z = cosmo.RHOCRIT * cosmo.Ez(self.cat_cl['REDSHIFT'], self.cosmology)**2
-        r200c = (3*mass/4/np.pi/200/rho_c_z)**(1/3)
-        c200c = self.MCrel_DES.calC200(mass, self.cat_cl['REDSHIFT']) * np.ones(len(mass))
-        delta_c = 200/3 * c200c**3 / (np.log(1+c200c) - c200c/(1+c200c))
-        r_s = r200c/c200c
-        # Get miscentering radius
-        R_mis = self.modeldict['miscenterer'].get_mean_Rmis(self.cat_cl, self.cosmology)
-        # NFW surface mass densities [mass][radius]
         r_Mpch = self.cat_cl['WLdata']['r_arcmin'] * Dl * np.pi/60/180
-        Sigma_mis = get_Sigma_mis(r_Mpch[None,:], r_s[:,None], rho_c_z, delta_c[:,None], R_mis)
-        DeltaSigma_mis = get_DeltaSigma_mis(r_Mpch[None,:], r_s[:,None], rho_c_z, delta_c[:,None], R_mis)
-        # Reduced shear profile [mass][radius][bin]
-        reduced_shear_bins = DeltaSigma_mis[:,:,None]*invSigma_c[None,None,:] / (1 - Sigma_mis[:,:,None]*invSigma_c[None,None,:])
-        # Rescaled averaging [mass][radius]
-        reduced_shear = (np.sum(self.cat_cl['WLdata']['tomo_rescale'][None,None,:]*self.cat_cl['WLdata']['tomo_weights'][None,:,:]*reduced_shear_bins, axis=2)
-                         /np.sum(self.cat_cl['WLdata']['tomo_weights'], axis=1))
+        invSigma_c = Dl*self.beta_avg/cosmo.c2_4piG
+        R_mis = self.modeldict['miscenterer'].get_mean_Rmis(self.cat_cl, self.cosmology)
+        c200c = self.MCrel_DES.calC200(M_arr, self.cat_cl['REDSHIFT']) * np.ones(len(M_arr))
+        reduced_shear_bins = shear_model_flatNFW_clmemcont(M_arr, self.cat_cl['REDSHIFT'], c200c, r_Mpch, invSigma_c, R_mis, self.cosmology)
+        reduced_shear = (np.sum(self.cat_cl['WLdata']['tomo_rescale'][:, None, None] * self.cat_cl['WLdata']['tomo_weights'].T[:,None,:] * reduced_shear_bins, axis=0)
+                         / np.sum(self.cat_cl['WLdata']['tomo_weights'], axis=1))
         # Cluster member contamination
         A = boost_get_A(self.modeldict['boost_dict'], 'Gausssmooth', self.modeldict['boost_dict']['z_arr'],
                         self.cat_cl['REDSHIFT'], self.cat_cl['richness'], r_Mpch, R_mis)
         reduced_shear_cont = 1/(1+A) * reduced_shear
-        return reduced_shear_cont
-
-    def DESEuclid_cluster(self, M_arr):
-        """Return array lnP(DES data|Mwl) and optionally the model shear profiles."""
-        # Model
-        reduced_shear_cont = self.shear_model_flatNFW_clmemcont(M_arr)
         # Likelihood
         lnP_DES_Mwl = -.5*np.sum(((reduced_shear_cont-self.cat_cl['WLdata']['shear'])/self.cat_cl['WLdata']['shear_err'])**2, axis=1)
         if self.save_shear_profiles:
@@ -340,20 +322,6 @@ class SPTlensing:
             return lnpOfMass, g_2d
         else:
             return lnpOfMass, None
-
-    def get_dAs(self, z_cl_min, z_cl_max, z_s_max, cosmology):
-        """Precompute angular diameter distances for an array of redshifts and
-        set up spline interpolation. Units [Mpc/h]."""
-        # Angular diameter distance to redshift z
-        z = np.logspace(np.log10(z_cl_min), np.log10(z_s_max), 32)
-        dA = np.array([cosmo.dA(z_, cosmology) for z_ in z])
-        self.lndA_interp = InterpolatedUnivariateSpline(np.log(z), np.log(dA))
-        # Angular diameter distance from redshift z_cl to z_s
-        z_cl = np.logspace(np.log10(z_cl_min), np.log10(z_cl_max), 32)
-        z_s = np.logspace(np.log10(z_cl_min), np.log10(z_s_max), 32)
-        tmp = np.array([cosmo.dA_two_z(z_cl_, z_s_, cosmology) for z_cl_ in z_cl for z_s_ in z_s]).reshape(32,32)
-        self.dA_twoz_interp = RectBivariateSpline(np.log(z_cl), np.log(z_s), tmp)
-        return 0
 
     def get_beta(self, cosmology):
         if self.cat_cl['WLdata']['datatype']=='DES':
@@ -480,6 +448,35 @@ def boost_get_A(params, method, z_arr, z, lam, r_Mpc_over_h, Rmis):
     # Put it all together [r]
     A = A_z*A_lambda*P_r
     return A
+
+
+def shear_model_flatNFW_clmemcont(mass, z, c200c, r_Mpch, invSigma_c, R_mis, cosmology):
+    """Return shear model [tomobin][mass][radius] given `mass`. Sigma follows an NFW that is constant
+    within `R_mis`."""
+    # NFW halo stuff
+    rho_c_z = cosmo.RHOCRIT * cosmo.Ez(z, cosmology)**2
+    r200c = (3*mass/4/np.pi/200/rho_c_z)**(1/3)
+    delta_c = 200/3 * c200c**3 / (np.log(1+c200c) - c200c/(1+c200c))
+    r_s = r200c/c200c
+    # NFW surface mass densities
+    r_Mpch = np.atleast_2d(r_Mpch)
+    Sigma_mis = get_Sigma_mis(r_Mpch[:, None, :], r_s[None, :, None], rho_c_z, delta_c[None, :, None], R_mis)
+    DeltaSigma_mis = get_DeltaSigma_mis(r_Mpch[:, None, :], r_s[None, :, None], rho_c_z, delta_c[None, :, None], R_mis)
+    # Reduced shear profile
+    invSigma_c = np.atleast_1d(invSigma_c)
+    reduced_shear = DeltaSigma_mis*invSigma_c[:, None, None] / (1 - Sigma_mis*invSigma_c[:, None, None])
+    return reduced_shear
+
+
+def get_invSigmac_DES(z, SOM_Z_MID, SOM_BINs, lndA_interp, dA_twoz_interp):
+    """Return mean(invSigmac) for each DES tomo bin."""
+    beta = np.zeros(len(SOM_Z_MID))
+    bgIdx = SOM_Z_MID>z
+    beta[bgIdx] = (dA_twoz_interp(np.log(z), np.log(SOM_Z_MID[bgIdx]))[0]
+                   / np.exp(lndA_interp(np.log(SOM_Z_MID[bgIdx]))))
+    beta_avg = np.sum(SOM_BINs*beta[None,:], axis=1)/np.sum(SOM_BINs, axis=1)
+    invSigmac = np.exp(lndA_interp(np.log(z))) * beta_avg / cosmo.c2_4piG
+    return invSigmac
 
 
 ######################################################################################
