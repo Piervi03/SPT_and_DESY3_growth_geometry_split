@@ -34,8 +34,8 @@ def dA_two_z(z1, z2, cosmology):
 
 def deltaV(z, cosmology):
     """Return solid angle volume as a function of redshift `z` [(Mpc/h)^3]."""
-    dA = [dA(z_, cosmology) for z_ in z]
-    return DIST_H * ((1+z)*dA)**2 / Ez(z, cosmology)
+    dA_ = [dA(z_, cosmology) for z_ in z]
+    return DIST_H * ((1+z)*dA_)**2 / Ez(z, cosmology)
 
 
 def get_dAs(z_cl_min, z_cl_max, z_s_max, cosmology, num_z_DA=32, num_z_Dl=32, num_z_Ds=32):
