@@ -229,8 +229,9 @@ class SPTlensing:
         reduced_shear = (np.sum(self.cat_cl['WLdata']['tomo_rescale'][:, None, None] * self.cat_cl['WLdata']['tomo_weights'].T[:, None, :] * reduced_shear_bins, axis=0)
                          / np.sum(self.cat_cl['WLdata']['tomo_weights'], axis=1))
         # Cluster member contamination
-        A = boost_get_A(self.modeldict['boost_dict'], 'Gausssmooth', self.modeldict['boost_dict']['z_arr'],
-                        self.cat_cl['REDSHIFT'], self.cat_cl['richness'], r_Mpch, R_mis)
+        A = boost_get_A('Gausssmooth',
+                        self.cat_cl['REDSHIFT'], self.cat_cl['richness'], r_Mpch, R_mis,
+                        **{'params': self.modeldict['boost_dict'], 'z_arr': self.modeldict['boost_dict']['z_arr']})
         reduced_shear_cont = 1/(1+A) * reduced_shear
         # Likelihood
         lnP_DES_Mwl = -.5*np.sum(((reduced_shear_cont-self.cat_cl['WLdata']['shear'])/self.cat_cl['WLdata']['shear_err'])**2, axis=1)
@@ -432,14 +433,16 @@ def get_DeltaSigma_mis(r_Mpch, r_s, rho_c_z, delta_c, R_mis):
     return DeltaSigma
 
 
-def boost_get_A(params, method, z_arr, z, lam, r_Mpc_over_h, Rmis):
+def boost_get_A(method, z, lam, r, Rmis, **kwargs):
     """Compute A(z, lambda, r) where fcl = A/(1+A)."""
+    z_arr = kwargs.pop('z_arr')
+    params = kwargs.pop('params')
     # Radial dependence normalized to 1 at 1Mpc/h [r]
     r_s = (lam/60)**(1/3) / 10**params['logc']
-    P_r = get_Sigma(r_Mpc_over_h/r_s, r_s, 1, 1)/get_Sigma(1/r_s, r_s, 1, 1)
+    P_r = get_Sigma(r/r_s, r_s, 1, 1) / get_Sigma(1/r_s, r_s, 1, 1)
     # Simplified model for miscentered profile
-    P_at_Rmis = get_Sigma(Rmis/r_s, r_s, 1, 1)/get_Sigma(1/r_s, r_s, 1, 1)
-    P_r[r_Mpc_over_h < Rmis] = P_at_Rmis
+    P_at_Rmis = get_Sigma(Rmis/r_s, r_s, 1, 1) / get_Sigma(1/r_s, r_s, 1, 1)
+    P_r[r < Rmis] = P_at_Rmis
     # Redshift dependence
     if method == 'z_bins':
         z_idx = np.digitize(z, z_arr)-1
@@ -447,10 +450,16 @@ def boost_get_A(params, method, z_arr, z, lam, r_Mpc_over_h, Rmis):
     elif method == 'Gausssmooth':
         amps = [params['A_%d' % i] for i in range(len(z_arr))]
         A_z = np.exp(params['A_inf'] + np.sum(amps * np.exp(-.5*(z-z_arr)**2/params['corr_len']**2)))
+    elif method == 'Gauss_step':
+        z_step = kwargs.pop('z_step')
+        z_step_idx = np.digitize(z, z_step)-1
+        z_arr_idx = (z_arr >= z_step[z_step_idx]) & (z_arr < z_step[z_step_idx+1]).nonzero()[0]
+        amps = [params['A_{}'.format(i)] for i in z_arr_idx]
+        A_z = np.exp(params['A_inf'] + np.sum(amps * np.exp(-.5*(z-z_arr)**2/params['corr_len']**2)))
     # Richness dependence
     A_lambda = (lam/60)**params['Blambda']
     # Put it all together [r]
-    A = A_z*A_lambda*P_r
+    A = A_z * A_lambda * P_r
     return A
 
 
