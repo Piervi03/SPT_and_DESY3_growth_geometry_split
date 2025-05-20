@@ -13,17 +13,18 @@ def unwrap_self_f(arg):
 
 class NumberCount:
 
-    def __init__(self, catalog, SPT_survey, covmat_sv,
+    def __init__(self, **kwargs):catalog, SPT_survey, covmat_sv,
                  surveyCutSZmax, surveyCutRedshift,
                  NPROC):
-        self.catalog = catalog
-        self.SPT_survey = SPT_survey
-        self.surveyCutSZmax = surveyCutSZmax
-        self.surveyCutRedshift = surveyCutRedshift
-        self.NPROC = NPROC
+        # self.catalog = catalog
+        self.SPT_survey = kwargs.pop('SPT_survey')
+        #self.surveyCutSZmax = surveyCutSZmax
+        #self.surveyCutRedshift = surveyCutRedshift
+        self.NPROC = kwargs.pop('NPROC', 0)
         self.covmat_sv = covmat_sv
 
-        ##### Observable arrays
+
+        SPT_survey = kwargs.pop('SPT_survey')
         # Arrays over which we'll integrate (survey cuts applied)
         xi_min = np.amin(self.SPT_survey['XI_MIN'])
         Nxi = int(np.log10(self.surveyCutSZmax/xi_min)/.005 + 1)
@@ -35,15 +36,17 @@ class NumberCount:
         dz = .1
         Nz = int((self.surveyCutRedshift[1]-self.surveyCutRedshift[0])/dz + 1)
         self.z_bins_output = np.linspace(self.surveyCutRedshift[0], self.surveyCutRedshift[1], Nz)
-        print('self.z_bins_output', self.z_bins_output)
-        self.xi_bins_output = np.logspace(np.log10(4.25), np.log10(self.surveyCutSZmax), 11)
-        self.xi_bins_survey = {'SPTPOL_500d': self.xi_bins_output,
+        # self.xi_bins_output = np.logspace(np.log10(4.25), np.log10(self.surveyCutSZmax), 11)
+        # self.xi_bins_survey = {'SPTPOL_500d': self.xi_bins_output,
                                'SZ': np.logspace(np.log10(4.5), np.log10(self.surveyCutSZmax), 11),
                                'SPECS': np.logspace(np.log10(5), np.log10(self.surveyCutSZmax), 11)}
-        self.z_bins_4 = np.array([.25, .45, .65, .95, 2])
-        self.snr_bins_3 = np.array([1.55, 3.17, 4.67, 50])
-        self.binned_cat,_,_ = np.histogram2d(catalog['REDSHIFT'], np.sqrt(catalog['XI']**2-3)/catalog['GAMMA_FIELD'],
-                                             bins=(self.z_bins_4, self.snr_bins_3))
+        self.obs_bins_z = np.array([.25, .5, .95, 1.79])
+        self.obs_bins_xi = np.array([4.25, 5.6, 50.])
+        self.obs_bin_shape = [len(self.obs_bins_z)-1, len(self.obs_bins_xi)-1]
+        self.binned_cat,_,_ = np.histogram2d(catalog['REDSHIFT'], catalog['XI'],
+                                             bins=(self.obs_bins_z, self.obs_bins_xi))
+        # self.binned_cat,_,_ = np.histogram2d(catalog['REDSHIFT'], np.sqrt(catalog['XI']**2-3)/catalog['GAMMA_FIELD'],
+        #                                      bins=(self.z_bins_4, self.snr_bins_3))
 
 
     def lnlike(self, HMF, cosmology, scaling):
@@ -63,9 +66,6 @@ class NumberCount:
         self.dN_dlnzeta_unitSolidAng = {}
         for tmp in ['SZ_lambdacut_shallow', 'SZ_lambdacut_deep', 'SZ']:
             self.dN_dlnzeta_unitSolidAng[tmp] = scaling_relations.dlnM_dlnobs('zeta', self.scaling) * np.exp(self.HMF['%s_dNdlnM'%tmp])
-
-        # zeta[z,M]
-        self.lnzeta_m = scaling_relations.lnmass2lnobs('zeta', self.HMF['lnM_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling, self.cosmology)
 
         ##### Evaluate (log)-likelihood for each SPT field (optional multiprocessing)
         num_fields = len(self.SPT_survey)
@@ -88,9 +88,6 @@ class NumberCount:
         # dN_dxi_SZ = dN_dxi_survey[subsurveys=='SZ',:].sum(axis=0)
         # dN_dxi_SPECS = dN_dxi_survey[subsurveys=='SPECS',:].sum(axis=0)
 
-        #for n,name in enumerate(subsurveys):
-        #    if name=='SPTPOL_500d':
-        #        print(np.sum(N_bins, axis=0).flatten())
         # Likelihood
         model = np.sum(N_bins, axis=0).flatten()
         diff = model-self.binned_cat.flatten()
@@ -98,7 +95,7 @@ class NumberCount:
         chi2 = np.dot(diff, np.linalg.solve(covmat, diff))
         lnlike = -.5*np.log(np.linalg.det(2*np.pi*covmat)) - .5*chi2
 
-        return lnlike, dN_dz, dN_dxi, N_total
+        return lnlike, dN_dz, dN_dxi, N_total, None
 
 
     ##########
@@ -116,17 +113,24 @@ class NumberCount:
         with np.errstate(divide='ignore'):
             lndN_dlnzeta = np.log(dN_dlnzeta)
 
-        # Apply field scaling factor
-        this_lnzeta_m = self.lnzeta_m + np.log(self.SPT_survey['GAMMA'][fieldidx])
+        # Scaling relation (depends on survey)
+        if '500d' in self.SPT_survey['FIELD'][fieldidx]:
+            SPTsurvey = '500d'
+        elif '_sptpol' in self.SPT_survey['FIELD'][fieldidx]:
+            SPTsurvey = 'ECS'
+        else:
+            SPTsurvey = 'SZ'
+        lnzeta_m = (np.log(self.SPT_survey['GAMMA'][fieldidx])
+                    + scaling_relations.lnmass2lnobs('zeta', self.HMF['lnM_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling, self.cosmology, SPTsurvey=SPTsurvey))
         if '_sptpol' in self.SPT_survey['FIELD'][fieldidx]:
-            this_lnzeta_m+= np.log(self.scaling['SPECS_calib'])
+            lnzeta_m+= np.log(self.scaling['SPECS_calib'])
 
         # dN/dxi = dN/dlnzeta dlnzeta/dxi (unconvolved)
         # Unfortunately, the zeta_m table is not regular
         # and repeated spline interp is way too slow (1.6sec per field)
         # So we do linear interpolation (in ln(M), and for ln(dN/dlnzeta))
         dN_dxi = (self.dlnzeta_dxi_arr
-                  * np.exp(np.array([np.interp(self.ln_zeta_xi_arr, this_lnzeta_m[i], lndN_dlnzeta[i])
+                  * np.exp(np.array([np.interp(self.ln_zeta_xi_arr, lnzeta_m[i], lndN_dlnzeta[i])
                                      for i in range(self.HMF['len_z'])])))
 
         # Convolve with unit scatter (measurement uncertainty)
@@ -153,6 +157,19 @@ class NumberCount:
         dN_dxi_out_survey = np.trapz(integrand, self.z_arr, axis=0)
 
         # In bins
+        N_bins = np.zeros(self.obs_bin_shape)
+        for i in range(self.obs_bin_shape[0]):
+            z_arr = np.linspace(self.obs_bins_z[i], self.obs_bins_z[i+1], 50)
+            for j in range(self.obs_bin_shape[1]):
+                xi_min = self.obs_bins_xi[j]
+                if self.obs_bins_xi[j]<self.SPT_survey['XI_MIN'][fieldidx]:
+                    xi_min = self.SPT_survey['XI_MIN'][fieldidx]
+                xi_max = self.obs_bins_xi[j+1]
+                xi_arr = np.logspace(np.log10(xi_min), np.log10(xi_max), 200)
+                integrand = np.exp(.5*(lndNdxi(np.log(z_arr), np.log(xi_arr[1:])) + lndNdxi(np.log(z_arr), np.log(xi_arr[:-1])))) * (xi_arr[1:]-xi_arr[:-1])
+                N_bins[i,j] = np.trapz(np.sum(integrand, axis=1), z_arr)
+        return N_bins, dN_dz_out, dN_dxi_out, dN_dxi_out_survey, self.SPT_survey['FIELD'][fieldidx]
+
         N_bins = np.zeros((4,3))
         for i in range(4):
             z_arr = np.linspace(self.z_bins_4[i], self.z_bins_4[i+1], 50)
