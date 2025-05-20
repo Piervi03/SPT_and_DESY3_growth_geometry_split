@@ -435,10 +435,15 @@ def get_DeltaSigma_mis(r_Mpch, r_s, rho_c_z, delta_c, R_mis):
 
 def boost_get_A(method, z, lam, r, Rmis, **kwargs):
     """Compute A(z, lambda, r) where fcl = A/(1+A)."""
-    z_arr = kwargs.pop('z_arr')
-    params = kwargs.pop('params')
+    if method in ['z_bins', 'Gausssmooth', 'Gauss_step']:
+        z_arr = kwargs.pop('z_arr')
+        if method in ['Gauss_step', 'Gausssmooth']:
+            A_inf = kwargs.pop('A_inf')
+            corr_len = kwargs.pop('corr_len')
+    logc = kwargs.pop('logc')
+    Blambda = kwargs.pop('Blambda')
     # Radial dependence normalized to 1 at 1Mpc/h [r]
-    r_s = (lam/60)**(1/3) / 10**params['logc']
+    r_s = (lam/60)**(1/3) / 10**logc
     P_r = get_Sigma(r/r_s, r_s, 1, 1) / get_Sigma(1/r_s, r_s, 1, 1)
     # Simplified model for miscentered profile
     P_at_Rmis = get_Sigma(Rmis/r_s, r_s, 1, 1) / get_Sigma(1/r_s, r_s, 1, 1)
@@ -446,18 +451,20 @@ def boost_get_A(method, z, lam, r, Rmis, **kwargs):
     # Redshift dependence
     if method == 'z_bins':
         z_idx = np.digitize(z, z_arr)-1
-        A_z = np.exp(params['A_%d' % z_idx])
+        A_z = np.exp(kwargs.pop('A_%d' % z_idx))
     elif method == 'Gausssmooth':
-        amps = [params['A_%d' % i] for i in range(len(z_arr))]
-        A_z = np.exp(params['A_inf'] + np.sum(amps * np.exp(-.5*(z-z_arr)**2/params['corr_len']**2)))
+        amps = [kwargs.pop('A_%d' % i) for i in range(len(z_arr))]
+        A_z = np.exp(A_inf + np.sum(amps * np.exp(-.5*(z-z_arr)**2/corr_len**2)))
     elif method == 'Gauss_step':
         z_step = kwargs.pop('z_step')
         z_step_idx = np.digitize(z, z_step)-1
-        z_arr_idx = (z_arr >= z_step[z_step_idx]) & (z_arr < z_step[z_step_idx+1]).nonzero()[0]
-        amps = [params['A_{}'.format(i)] for i in z_arr_idx]
-        A_z = np.exp(params['A_inf'] + np.sum(amps * np.exp(-.5*(z-z_arr)**2/params['corr_len']**2)))
+        z_arr_idx = ((z_arr >= z_step[z_step_idx]) & (z_arr < z_step[z_step_idx+1])).nonzero()[0]
+        amps = [kwargs['A_{}'.format(i)] for i in z_arr_idx]
+        A_z = np.exp(A_inf + np.sum(amps * np.exp(-.5*(z-z_arr[z_arr_idx])**2/corr_len**2)))
+    elif method == 'const':
+        A_z = np.exp(kwargs.pop('lnA'))
     # Richness dependence
-    A_lambda = (lam/60)**params['Blambda']
+    A_lambda = (lam/60)**Blambda
     # Put it all together [r]
     A = A_z * A_lambda * P_r
     return A
