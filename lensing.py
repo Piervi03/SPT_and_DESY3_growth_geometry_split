@@ -1,5 +1,6 @@
 import numpy as np
 from numpy.lib import scimath as sm
+from scipy.interpolate import CubicSpline
 from multiprocessing import Pool
 import h5py
 
@@ -435,11 +436,12 @@ def get_DeltaSigma_mis(r_Mpch, r_s, rho_c_z, delta_c, R_mis):
 
 def boost_get_A(method, z, lam, r, Rmis, **kwargs):
     """Compute A(z, lambda, r) where fcl = A/(1+A)."""
-    if method in ['z_bins', 'Gausssmooth', 'Gauss_step']:
+    if method in ['z_bins', 'Gausssmooth', 'Gauss_step', 'spline']:
         z_arr = kwargs.pop('z_arr')
-        if method in ['Gauss_step', 'Gausssmooth']:
-            A_inf = kwargs.pop('A_inf')
+        if method in ['Gauss_step', 'Gausssmooth', 'spline']:
             corr_len = kwargs.pop('corr_len')
+            if method in ['Gauss_step', 'Gausssmooth']:
+                A_inf = kwargs.pop('A_inf')
     logc = kwargs.pop('logc')
     Blambda = kwargs.pop('Blambda')
     # Radial dependence normalized to 1 at 1Mpc/h [r]
@@ -461,6 +463,12 @@ def boost_get_A(method, z, lam, r, Rmis, **kwargs):
         z_arr_idx = ((z_arr >= z_step[z_step_idx]) & (z_arr < z_step[z_step_idx+1])).nonzero()[0]
         amps = [kwargs['A_{}'.format(i)] for i in z_arr_idx]
         A_z = np.exp(A_inf + np.sum(amps * np.exp(-.5*(z-z_arr[z_arr_idx])**2/corr_len**2)))
+    elif method == 'spline':
+        z_step = kwargs.pop('z_step')
+        z_step_idx = np.digitize(z, z_step)-1
+        z_arr_idx = ((z_arr >= z_step[z_step_idx]) & (z_arr < z_step[z_step_idx+1])).nonzero()[0]
+        amps = np.array([kwargs['A_{}'.format(i)] for i in z_arr_idx])
+        A_z = np.exp(CubicSpline(z_arr[z_arr_idx], amps)(z))
     elif method == 'const':
         A_z = np.exp(kwargs.pop('lnA'))
     # Richness dependence
