@@ -1,0 +1,33 @@
+name: py312_cosmosis
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - astropy>=7
+  - cosmosis>=3
+  - cosmosis-build-standard-library>=1.2
+  - cython>=3
+  - gcc_linux-64>=13
+  - gfortran_linux-64>=13
+  - gxx_linux-64>=13
+  - h5py>=3.10
+  - matplotlib>=3.8
+  - mpi4py>=4
+  - mpich>=4.0
+  - numpy>=2.2
+  - pip>=25
+  - pytest>=8
+  - python=3.12
+  - pytorch
+  - scikit-learn>=1.5
+  - scipy>=1.14
+  - setuptools>=75
+  - tensorflow>=2.16
+  - tensorflow-estimator>=2.16
+  - tensorflow-probability>=0.22
+  - xarray>=2025
+  - pip:
+    - baccoemu
+    - colossus
+    - cosmopower
+    - MiraTitanHMFemulator  
