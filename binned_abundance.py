@@ -1,15 +1,28 @@
 import numpy as np
 from multiprocessing import Pool
-from scipy.special import ndtr
+from scipy.interpolate import interp1d
+from scipy.special import ndtr as ndtr_sp
 
 import scaling_relations
 
 
-def execute(HMF, cosmology, scaling, SPT_survey_tab, z_bins, SNR_bins, NPROC=0):
+# ndtr can be interpolated accurately and is only needed in finite range (-5, 3)
+# (This is not true for log_ndtr and ndtri.)
+x = np.logspace(0, np.log10(8), 1024) - 5.
+y = ndtr_sp(x)
+ndtr_max = y[-1]
+ndtr = interp1d(x, y, kind='linear', fill_value=(y[0], y[-1]), bounds_error=False)
+
+
+def execute(HMF,
+            cosmology, scaling,
+            SPT_survey_tab,
+            z_bins, SNR_bins,
+            NPROC=0):
     """Returns number of clusters within `z_bins` and `SNR_bins` over the whole survey."""
     lndN_dz_dlnzeta_unitSolidAng = {}
     for tmp in ['SZ_lambdacut_shallow', 'SZ_lambdacut_deep', 'SZ']:
-        lndN_dz_dlnzeta_unitSolidAng[tmp] = np.log(scaling_relations.dlnM_dlnobs('zeta', scaling)) + HMF['%s_dNdlnM' % tmp]
+        lndN_dz_dlnzeta_unitSolidAng[tmp] = np.log(scaling_relations.dlnM_dlnobs('zeta', scaling)) + HMF['{}_lndNdlnM'.format(tmp)]
     if NPROC == 0:
         N_field = np.array([process_field(SPT_survey_tab[i],
                                           HMF['z_arr'], HMF['lnM_arr'], lndN_dz_dlnzeta_unitSolidAng,
@@ -69,8 +82,9 @@ def process_field(SPT_field,
     for i in range(num_z_bins):
         z_idx = (z_arr >= z_bins[i]) & (z_arr < z_bins[i+1])
         for j in range(num_SNR_bins):
-            P_xi = ndtr(xi[z_idx, :] - xi_bins[j+1]) - ndtr(xi[z_idx, :] - xi_bins[j])
-            lnitg = lndN_dz_dxi[z_idx, :] * np.log(P_xi)
+            P_xi = ndtr(xi_bins[j+1] - xi[z_idx, :]) - ndtr(xi_bins[j] - xi[z_idx, :])
+            with np.errstate(divide='ignore'):
+                lnitg = lndN_dz_dxi[z_idx, :] + np.log(P_xi)
             dN_dz = np.sum(np.exp(.5 * (lnitg[:, :-1] + lnitg[:, 1:])) * (xi[z_idx, 1:] - xi[z_idx, :-1]), axis=1)
             N[i*num_SNR_bins + j] = np.sum(.5 * (dN_dz[:-1] + dN_dz[1:]) * (z_arr[z_idx][1:] - z_arr[z_idx][:-1]))
     return N
