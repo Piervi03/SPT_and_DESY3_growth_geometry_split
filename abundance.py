@@ -54,7 +54,7 @@ class NumberCount:
 
         self.dN_dlnzeta_unitSolidAng = {}
         for tmp in ['SZ_lambdacut_shallow', 'SZ_lambdacut_deep', 'SZ']:
-            self.dN_dlnzeta_unitSolidAng[tmp] = scaling_relations.dlnM_dlnobs('zeta', self.scaling) * np.exp(self.HMF['%s_dNdlnM'%tmp])
+            self.dN_dlnzeta_unitSolidAng[tmp] = scaling_relations.dlnM_dlnobs('zeta', self.scaling) * np.exp(self.HMF['%s_lndNdlnM'%tmp])
 
         ##### Evaluate (log)-likelihood for each SPT field (optional multiprocessing)
         num_fields = len(self.SPT_survey)
@@ -118,7 +118,7 @@ class NumberCount:
         # So we do linear interpolation (in ln(M), and for ln(dN/dlnzeta))
         dN_dxi = (self.dlnzeta_dxi_arr
                   * np.exp(np.array([np.interp(self.ln_zeta_xi_arr, lnzeta_m[i], lndN_dlnzeta[i])
-                                     for i in range(self.HMF['len_z'])])))
+                                     for i in range(len(self.HMF['z_arr']))])))
 
         # Convolve with unit scatter (measurement uncertainty)
         dN_dxi = gaussian_filter1d(dN_dxi, 1/self.dxi, axis=1, mode='constant')

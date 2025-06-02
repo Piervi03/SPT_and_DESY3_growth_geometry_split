@@ -13,10 +13,8 @@ def unwrap_self_f(arg):
 
 class NumberCount:
 
-    def __init__(self, **kwargs):catalog, SPT_survey, covmat_sv,
-                 surveyCutSZmax, surveyCutRedshift,
-                 NPROC):
-        # self.catalog = catalog
+    def __init__(self, **kwargs):
+        catalog = kwargs.pop('catalog')
         self.SPT_survey = kwargs.pop('SPT_survey')
         #self.surveyCutSZmax = surveyCutSZmax
         #self.surveyCutRedshift = surveyCutRedshift
@@ -38,8 +36,8 @@ class NumberCount:
         self.z_bins_output = np.linspace(self.surveyCutRedshift[0], self.surveyCutRedshift[1], Nz)
         # self.xi_bins_output = np.logspace(np.log10(4.25), np.log10(self.surveyCutSZmax), 11)
         # self.xi_bins_survey = {'SPTPOL_500d': self.xi_bins_output,
-                               'SZ': np.logspace(np.log10(4.5), np.log10(self.surveyCutSZmax), 11),
-                               'SPECS': np.logspace(np.log10(5), np.log10(self.surveyCutSZmax), 11)}
+        #                        'SZ': np.logspace(np.log10(4.5), np.log10(self.surveyCutSZmax), 11),
+        #                        'SPECS': np.logspace(np.log10(5), np.log10(self.surveyCutSZmax), 11)}
         self.obs_bins_z = np.array([.25, .5, .95, 1.79])
         self.obs_bins_xi = np.array([4.25, 5.6, 50.])
         self.obs_bin_shape = [len(self.obs_bins_z)-1, len(self.obs_bins_xi)-1]
@@ -131,7 +129,7 @@ class NumberCount:
         # So we do linear interpolation (in ln(M), and for ln(dN/dlnzeta))
         dN_dxi = (self.dlnzeta_dxi_arr
                   * np.exp(np.array([np.interp(self.ln_zeta_xi_arr, lnzeta_m[i], lndN_dlnzeta[i])
-                                     for i in range(self.HMF['len_z'])])))
+                                     for i in range(len(self.HMF['z_arr']))])))
 
         # Convolve with unit scatter (measurement uncertainty)
         dN_dxi = gaussian_filter1d(dN_dxi, 1/self.dxi, axis=1, mode='constant')

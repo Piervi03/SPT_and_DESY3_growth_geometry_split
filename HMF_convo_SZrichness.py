@@ -13,8 +13,6 @@ from colossus.lss import bias
 import multivariate_normal as cy_multivariate_normal
 import convolution, scaling_relations
 
-richscatter = {'base': 'Drichness',
-               'ext': 'Drichness_ext'}
 
 # Because multiprocessing within classes doesn't really work...
 def unwrap_self_f(arg):
@@ -25,7 +23,7 @@ def unwrap_self_f(arg):
 class MultiObsConvolution:
 
     def __init__(self, observable_pairs,
-                 pairs_zmin, pairs_zmax, pairs_Nz,
+                 zmin, zmax, Nz,
                  lambda_cut, richness_scatter_model,
                  do_bias=False,
                  NPROC=0):
@@ -43,17 +41,11 @@ class MultiObsConvolution:
         self.do_bias = do_bias
 
         all_pairnames = ['SZ',
-                         'SZ_lambdacut_base_shallow', 'SZ_lambdacut_base_deep',
-                         'SZ_lambdacut_ext_shallow', 'SZ_lambdacut_ext_deep',
-                         'richness_SZ_base', 'richness_SZ_ext',]
+                         'SZ_lambdacut_shallow', 'SZ_lambdacut_deep',
+                         'richness_SZ']
 
-        self.observable_pairs, self.pairs_zmin, self.pairs_zmax, self.pairs_Nz = [], [], [], []
-        for pair, zmin, zmax, Nz in zip(observable_pairs, pairs_zmin, pairs_zmax, pairs_Nz):
-            if pair in all_pairnames:
-                self.observable_pairs.append(pair)
-                self.pairs_zmin.append(zmin)
-                self.pairs_zmax.append(zmax)
-                self.pairs_Nz.append(Nz)
+        self.observable_pairs = observable_pairs
+        self.z_arr = np.linspace(zmin, zmax, Nz)
 
 
     ############################################################################
@@ -70,7 +62,7 @@ class MultiObsConvolution:
         self.Delta_lnM = HMF['lnM_arr'][1]-self.HMF['lnM_arr'][0]
         # Check length of HMF mass array for compression factor
         self.HMF['len_M'] = len(self.HMF['lnM_arr'])
-        assert (self.HMF['len_M']-1)%self.compression==0, "HMF has non-standard shape"
+        assert (self.HMF['len_M']-1)%self.compression == 0, "HMF has non-standard shape"
         # Needed for halo bias
         if self.do_bias:
             colossus_params = {'flat': True,
@@ -81,27 +73,25 @@ class MultiObsConvolution:
                                'ns': cosmology['n_s']}
             this_colossus_cosmo = colossus_cosmology.setCosmology('myCosmo', colossus_params)
         # Pre-compute the intrinsic scatter convolutions
-        output_dict = {'lnM_arr': HMF['lnM_arr'][::self.compression]}
+        output_dict = {'lnM_arr': HMF['lnM_arr'][::self.compression],
+                       'z_arr': self.z_arr}
         for pair_idx,pair_name in enumerate(self.observable_pairs):
-            z_arr = np.linspace(self.pairs_zmin[pair_idx], self.pairs_zmax[pair_idx], self.pairs_Nz[pair_idx])
-            output_dict[pair_name] = self.get_P_multiobs_allz(pairname=pair_name,
-                                                              z_arr=z_arr)
-            output_dict['%s_z'%pair_name] = z_arr
+            output_dict['{}_lndNdlnM'.format(pair_name)] = self.get_P_multiobs_allz(pairname=pair_name)
         return output_dict
 
-    def get_P_multiobs_allz(self, pairname, z_arr):
+    def get_P_multiobs_allz(self, pairname):
         """Return P(obs, xi | M, z, p) for each redshift in z_arr. Optional
         multiprocess."""
         # Write to self to make function pickleable for multiprocessing
         self.pairname = pairname
 
-        if self.NPROC==0:
+        if self.NPROC == 0:
             # Iterate through redshift array
-            P_obs_grid = np.array([self.get_P_multiobs_z(z) for z in z_arr])
+            P_obs_grid = np.array([self.get_P_multiobs_z(z) for z in self.z_arr])
         else:
             # Launch and execute a multiprocessing pool
             with Pool(processes=self.NPROC) as pool:
-                argin = zip([self]*len(z_arr), z_arr)
+                argin = zip([self]*len(self.z_arr), self.z_arr)
                 P_obs_grid = np.array(pool.map(unwrap_self_f, argin))
         return P_obs_grid
 
@@ -109,24 +99,19 @@ class MultiObsConvolution:
         """Decide whether it's a 2D or 3D observable array or whether it's the
         fancy DES stuff."""
         # Which HMF convolution?
-        if self.pairname=='SZ':
+        if self.pairname == 'SZ':
             return self.get_P_zeta_z(z)
         else:
-            # Which richness--mass relation
-            if 'base' in self.pairname:
-                richness = 'base'
-            elif 'ext' in self.pairname:
-                richness = 'ext'
             # dN/dlnzeta/dlnlambda
-            if self.pairname in ['richness_SZ_base', 'richness_SZ_ext']:
-                return self.get_P_zeta_lambda_lognormal_z(z, richness)
+            if self.pairname == 'richness_SZ':
+                return self.get_P_zeta_lambda_lognormal_z(z)
             # dN/dlnzeta given lambda>lambda_min
             else:
                 if 'shallow' in self.pairname:
                     survey = 'shallow'
                 elif 'deep' in self.pairname:
                     survey = 'deep'
-                return self.get_P_zeta_lambdacut_z(z, survey, richness)
+                return self.get_P_zeta_lambdacut_z(z, survey)
 
     def get_Nbins_array(self, std):
         """Return number of bins and array that satisfy that std/Delta_lnM is
@@ -145,7 +130,7 @@ class MultiObsConvolution:
         array of `std`. Too slow so propably shouldn't be used. 0 is
         Nbins_hilo[1] first element."""
         Nbins_hilo = (self.N_sigma[None,:] * std[:,None] / self.Delta_lnM).astype(int) +1
-        Nbins_hilo[(Nbins_hilo[:,0]+Nbins_hilo[:,1]+1)%2==0,0]+= 1
+        Nbins_hilo[(Nbins_hilo[:,0]+Nbins_hilo[:,1]+1)%2 == 0,0]+= 1
         lnobs_arr = [self.Delta_lnM * np.linspace(-Nbins_hilo[i,0], Nbins_hilo[i,1], Nbins_hilo[i,0]+Nbins_hilo[i,1]+1)
                      for i in range(len(Nbins_hilo))]
         return Nbins_hilo, lnobs_arr
@@ -163,7 +148,7 @@ class MultiObsConvolution:
             lnHMF_1d = np.log(HMF_1d)
         return lnHMF_1d
 
-    def get_P_zeta_lambdacut_z(self, z, SZsurvey, richness):
+    def get_P_zeta_lambdacut_z(self, z, SZsurvey):
         """Return dN/dlnzeta accounting for richness confirmation."""
         dN_dlnM = np.exp(self.HMF_interp(z))
         # Halo bias
@@ -172,16 +157,16 @@ class MultiObsConvolution:
             dN_dlnM*= Tinker_bias
         # Convert observable covmat into covmat in mass
         dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
-        dlnM_dlnobs = scaling_relations.dlnM_dlnobs('richness_%s'%richness, self.scaling)
+        dlnM_dlnobs = scaling_relations.dlnM_dlnobs('richness', self.scaling, z=z)
         Jacobian = np.array([[dlnM_dlnobs**2, dlnM_dlnobs*dlnM_dlnzeta],
                              [dlnM_dlnobs*dlnM_dlnzeta, dlnM_dlnzeta**2]])
         Dsz = self.scaling['Dsz']
-        Drich = self.scaling[richscatter[richness]]
+        Drich = scaling_relations.richnessscatter(z, self.scaling)
         if self.richness_scatter_model in ['lognormal', 'lognormalGaussPoisson']:
             covmat = np.array([[Drich**2, self.scaling['rhoSZrichness']*Drich*Dsz],
                                [self.scaling['rhoSZrichness']*Drich*Dsz, Dsz**2]])[None,:,:]
-        elif self.richness_scatter_model=='lognormalrelPoisson':
-            richness_ = np.exp(scaling_relations.lnmass2lnobs('richness_%s'%richness, self.HMF['lnM_arr'], z, self.scaling))
+        elif self.richness_scatter_model == 'lognormalrelPoisson':
+            richness_ = np.exp(scaling_relations.lnmass2lnobs('richness', self.HMF['lnM_arr'], z, self.scaling))
             Drich = np.sqrt(Drich**2 + 1/richness_)
             covmat = (np.array([[1., self.scaling['rhoSZrichness']*Dsz],
                                [self.scaling['rhoSZrichness']*Dsz, Dsz**2]])[None,:,:]
@@ -193,13 +178,13 @@ class MultiObsConvolution:
         Nbins_zeta, lnzeta_arr = self.get_Nbins_array(msqrt(np.amax(covmat_lnM[:,1,1])))
         Nbins_zeta = Nbins_zeta[None,:] * np.ones((self.HMF['len_M'], 2), dtype=int)
         lnmass_lambda_mean = self.HMF['lnM_arr'][:,None] + (covmat_lnM[:,0,1]/covmat_lnM[:,1,1])[:,None]*lnzeta_arr[None,:]
-        lnlambda_mean = scaling_relations.lnmass2lnobs('richness_%s'%richness, lnmass_lambda_mean, z, self.scaling)
+        lnlambda_mean = scaling_relations.lnmass2lnobs('richness', lnmass_lambda_mean, z, self.scaling)
         lnmass_lambda_std = np.sqrt(covmat_lnM[:,0,0] - covmat_lnM[:,0,1]**2/covmat_lnM[:,1,1])
         lnlambda_std = lnmass_lambda_std/dlnM_dlnobs
         # Cumulative Gaussian
         if self.richness_scatter_model in ['lognormal', 'lognormalrelPoisson']:
             P_lambda_gtr_cut = ndtr((lnlambda_mean-np.log(self.lambda_cut[SZsurvey](z)))/lnlambda_std[:,None])
-        elif self.richness_scatter_model=='lognormalGaussPoisson':
+        elif self.richness_scatter_model == 'lognormalGaussPoisson':
             lnlambda_arr = np.linspace(lnlambda_mean-3*lnlambda_std, lnlambda_mean+3*lnlambda_std, 32)
             lambda_arr = np.exp(lnlambda_arr)
             P_lambda_intrinsic = np.exp(-.5*(lnlambda_arr-lnlambda_mean)**2/lnlambda_std**2) / (msqrt(2*np.pi)*lambda_arr*lnlambda_std)
@@ -216,16 +201,16 @@ class MultiObsConvolution:
             lnHMF_1d = np.log(HMF_1d)
         return lnHMF_1d
 
-    def get_P_zeta_lambda_lognormal_z(self, z, richness):
+    def get_P_zeta_lambda_lognormal_z(self, z):
         """Return P(obs, zeta | M, z[z_id], p) for constant correlated
         scatter."""
         dN_dlnM = np.exp(self.HMF_interp(z))
         # Convert observable covmat into covmat in mass
         dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
-        dlnM_dlnobs = scaling_relations.dlnM_dlnobs('richness_%s'%richness, self.scaling)
+        dlnM_dlnobs = scaling_relations.dlnM_dlnobs('richness', self.scaling, z=z)
         Jacobian = np.array([[dlnM_dlnobs**2, dlnM_dlnobs*dlnM_dlnzeta],
                              [dlnM_dlnobs*dlnM_dlnzeta, dlnM_dlnzeta**2]])
-        Drich = self.scaling[richscatter[richness]]
+        Drich = scaling_relations.richnessscatter(z, self.scaling)
         Dsz = self.scaling['Dsz']
         covmat = np.array([[Drich**2, self.scaling['rhoSZrichness']*Drich*Dsz],
                            [self.scaling['rhoSZrichness']*Drich*Dsz, Dsz**2]])

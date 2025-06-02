@@ -49,36 +49,13 @@ def execute(block, args):
         scaling[p] = block.get_double('mor_parameters', p)
     # Convolved halo mass function
     HMF = {'lnM_arr': block.get_double_array_1d('dN_dmultiobs', 'lnM_arr'),
-           'z_arr': block.get_double_array_1d('dN_dmultiobs', 'SZ_z'),
-           'SZ_dNdlnM': block.get_double_array_nd('dN_dmultiobs', 'SZ')}
-    if do_lambda_min:
-        for depth in ['shallow', 'deep']:
-            z, dNdlnM = {}, {}
-            for opt_survey in ['base', 'ext']:
-                if block.has_value('dN_dmultiobs', 'SZ_lambdacut_%s_%s_z'%(opt_survey, depth)):
-                    z[opt_survey] = block.get_double_array_1d('dN_dmultiobs', 'SZ_lambdacut_%s_%s_z'%(opt_survey, depth))
-                if block.has_value('dN_dmultiobs', 'SZ_lambdacut_%s_%s'%(opt_survey, depth)):
-                    dNdlnM[opt_survey] = block.get_double_array_nd('dN_dmultiobs', 'SZ_lambdacut_%s_%s'%(opt_survey, depth))
-            if 'base' in z.keys():
-                if 'ext' in z.keys():
-                    HMF['SZ_lambdacut_%s_z'%depth] = np.concatenate([z['base'][z['base']<z_DESWISE], z['ext'][z['ext']>=z_DESWISE]])
-                    HMF['SZ_lambdacut_%s_dNdlnM'%depth] = np.concatenate([dNdlnM['base'][z['base']<z_DESWISE], dNdlnM['ext'][z['ext']>=z_DESWISE]])
-                else:
-                    HMF['SZ_lambdacut_%s_z'%depth] = z['base']
-                    HMF['SZ_lambdacut_%s_dNdlnM'%depth] = dNdlnM['base']
-            else:
-                HMF['SZ_lambdacut_%s_z'%depth] = z['ext']
-                HMF['SZ_lambdacut_%s_dNdlnM'%depth] = dNdlnM['ext']
-            if not np.all(np.isclose(HMF['z_arr'], HMF['SZ_lambdacut_%s_z'%depth])):
-                print("HMF z arrays do not match", depth)
-                print(HMF['z_arr'])
-                print(HMF['SZ_lambdacut_%s_z'%depth])
-                return 1
-    else:
-        for tmp in ['SZ_lambdacut_shallow', 'SZ_lambdacut_deep']:
-            HMF['%s_z'] = HMF['z_arr']
-            HMF['%s_dNdlnM'%tmp] = HMF['SZ_dNdlnM']
-    HMF['len_z'] = len(HMF['z_arr'])
+           'z_arr': block.get_double_array_1d('dN_dmultiobs', 'z_arr'),
+           'SZ_lndNdlnM': block.get_double_array_nd('dN_dmultiobs', 'SZ_lndNdlnM')}
+    for name in ['SZ_lambdacut_shallow_lndNdlnM', 'SZ_lambdacut_deep_lndNdlnM']:
+        if do_lambda_min:
+            HMF[name] = block.get_double_array_nd('dN_dmultiobs', name)
+        else:
+            HMF[name] = HMF['SZ_lndNdlnM']
     # Compute the likelihood
     lnlike, N_z, N_xi, N_total, all_lndNdxi = number_count.lnlike(HMF, cosmology, scaling)
     if np.isneginf(lnlike):
