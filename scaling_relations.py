@@ -74,14 +74,18 @@ def lnmass2lnobs(name, lnmass, z, scaling,
                 + scaling['Brichness_ext']*(lnmass-np.log(scaling['richmPivot']))
                 + scaling['Crichness_ext']*np.log((1+z)/1.6))
     elif name == 'richness':
-        if z < scaling['z_DESWISE']:
-            return (scaling['Arichness']
-                    + scaling['Brichness']*(lnmass-np.log(scaling['richmPivot']))
-                    + scaling['Crichness']*np.log((1+z)/1.6))
-        else:
-            return (scaling['Arichness_ext']
-                    + scaling['Brichness_ext']*(lnmass-np.log(scaling['richmPivot']))
-                    + scaling['Crichness_ext']*np.log((1+z)/1.6))
+        z_arr = np.atleast_1d(z)
+        A = np.full(z_arr.shape, scaling['Arichness'])
+        A[z_arr >= scaling['z_DESWISE']] = scaling['Arichness_ext']
+        B = np.full(z_arr.shape, scaling['Brichness'])
+        B[z_arr >= scaling['z_DESWISE']] = scaling['Brichness_ext']
+        C = np.full(z_arr.shape, scaling['Crichness'])
+        C[z_arr >= scaling['z_DESWISE']] = scaling['Crichness_ext']
+        if np.isscalar(z):
+            A = A[0]
+            B = B[0]
+            C = C[0]
+        return A + B*(lnmass-np.log(scaling['richmPivot'])) + C*np.log((1+z)/1.6)
     elif name == 'WLMegacam':
         return np.log(scaling['bWL_Megacam']) + lnmass
     elif name == 'WLHST':
@@ -165,10 +169,11 @@ def dlnM_dlnobs(name, scaling,
     elif name == 'richness_ext':
         return 1/scaling['Brichness_ext']
     elif name == 'richness':
-        if z < scaling['z_DESWISE']:
-            return 1/scaling['Brichness']
-        else:
-            return 1/scaling['Brichness_ext']
+        z_arr = np.atleast_1d(z)
+        B_ = np.full(z_arr.shape, scaling['Brichness'])
+        B_[z_arr >= scaling['z_DESWISE']] = scaling['Brichness_ext']
+        tmp = B_[0] if np.isscalar(z) else B_
+        return 1/B_
     elif name == 'Yx':
         if scaling['YXPARAM'] == 'SPT_XVP':
             return 1/(1/scaling['Bx'] - scaling['dlnMg_dlnr']/3)
