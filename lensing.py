@@ -232,7 +232,7 @@ class SPTlensing:
         # Cluster member contamination
         A = boost_get_A('Gausssmooth',
                         self.cat_cl['REDSHIFT'], self.cat_cl['richness'], r_Mpch, R_mis,
-                        **{'params': self.modeldict['boost_dict'], 'z_arr': self.modeldict['boost_dict']['z_arr']})
+                        **self.modeldict['boost_dict'])
         reduced_shear_cont = 1/(1+A) * reduced_shear
         # Likelihood
         lnP_DES_Mwl = -.5*np.sum(((reduced_shear_cont-self.cat_cl['WLdata']['shear'])/self.cat_cl['WLdata']['shear_err'])**2, axis=1)
