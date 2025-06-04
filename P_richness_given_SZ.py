@@ -47,19 +47,8 @@ def process_field(SPT_field, catalog, surveyCutRichness,
     else:
         lambda_min = surveyCutRichness['shallow']
     # zeta-mass relation (depends on survey)
-    if '3G' in SPT_field['FIELD']:
-        SPTsurvey = '3G'
-    elif '500d' in SPT_field['FIELD']:
-        SPTsurvey = '500d'
-    elif '_sptpol' in SPT_field['FIELD']:
-        SPTsurvey = 'ECS'
-    else:
-        SPTsurvey = 'SZ'
-    lnzeta_m = (np.log(SPT_field['GAMMA'])
-                + scaling_relations.lnmass2lnobs('zeta', lnM_arr[None, :], z_arr[:, None],
-                                                 scaling, cosmology, SPTsurvey=SPTsurvey))
-    if '_sptpol' in SPT_field['FIELD']:
-        lnzeta_m += np.log(scaling['SPECS_calib'])
+    lnzeta_m = scaling_relations.lnmass2lnobs('zeta', lnM_arr[None, :], z_arr[:, None],
+                                              scaling, cosmology, SPTfield=SPT_field)
     lnzeta_m_interp = interp1d(z_arr, lnzeta_m, axis=0)
     # zeta_min
     lndN_dz_dlnrichness_dlnzeta[lnzeta_m < np.log(scaling['zeta_min'])] = -np.inf

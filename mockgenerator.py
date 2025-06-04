@@ -96,18 +96,10 @@ def main(configMod_file, catalog_name):
 
     for fieldidx, field in enumerate(SPT_survey['FIELD']):
         print(field, fieldidx, 'out of %d' % len(SPT_survey['FIELD']))
-
-        # Field-dependent Csz
-        if '_sptpol' in field:
-            SPTsurvey = 'ECS'
-        elif '500d' in field:
-            SPTsurvey = '500d'
-        else:
-            SPTsurvey = 'SZ'
         # Poisson realization
         N = rng.poisson(HMF_dNdM_V*SPT_survey['AREA'][fieldidx])
 
-        obs_0 = np.array([np.exp(scaling_relations.lnmass2lnobs(name, lnM_arr[None, :], z_arr[:, None], scaling, cosmology, SPTsurvey=SPTsurvey))
+        obs_0 = np.array([np.exp(scaling_relations.lnmass2lnobs(name, lnM_arr[None, :], z_arr[:, None], scaling, cosmology, SPTfield=SPT_survey[fieldidx]))
                           for name in ('WLDES', configMod.Xray_obs, 'zeta', 'richness_base', 'WLHST', 'WLEuclid')])
         obs_0 = np.append(obs_0, np.full(obs_0[0].shape, lnM_arr)[None, ...], axis=0)
 
@@ -115,7 +107,7 @@ def main(configMod_file, catalog_name):
         obs_0[2, :] *= SPT_survey['GAMMA'][fieldidx]
 
         for i, z in enumerate(z_arr):
-            if SPT_survey['FIELD'][fieldidx] == 'sptpol_500d_MCMF':
+            if SPT_survey['FIELD'][fieldidx] in ['spt3g_main_MCMF', 'sptpol_500d_MCMF']:
                 lambda_min = surveyCutLambda['deep'](z)
             elif '_MCMF' in SPT_survey['FIELD'][fieldidx]:
                 lambda_min = surveyCutLambda['shallow'](z)

@@ -174,16 +174,6 @@ class MassCalibration:
         if nobs==0:
             return 0.
 
-        ##### Set SPT field scaling factor
-        self.thisSPTfield_gamma = float(self.SPT_survey['GAMMA'][self.SPT_survey['FIELD']==self.catalog['FIELD'][i]])
-        if '_sptpol' in self.catalog['FIELD'][i]:
-            self.thisSPTfield_gamma*= self.scaling['SPECS_calib']
-            self.SPTsurvey = 'ECS'
-        elif '500d' in self.catalog['FIELD'][i]:
-            self.SPTsurvey = '500d'
-        else:
-            self.SPTsurvey = 'SZ'
-
         ##### Set up random number generator and get likelihood
         seed = np.abs(int(123456.*(i+1)*np.prod([self.scaling[key]+1. for key in ['Asz', 'Bsz', 'Csz', 'Dsz']])))
         self.rng = np.random.default_rng(seed)
@@ -265,7 +255,7 @@ class MassCalibration:
         """Returns mass draws given xi for cluster `dataID`. Prior P(M) is not
         accounted for."""
         zeta, lnweights = self.get_zeta_draws(self.catalog['XI'][dataID])
-        lnM = scaling_relations.obs2lnmass('zeta', zeta/self.thisSPTfield_gamma, self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, SPTsurvey=self.SPTsurvey)
+        lnM = scaling_relations.obs2lnmass('zeta', zeta, self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, SPTfield=self.SPT_survey[self.SPT_survey['FIELD']==self.catalog['FIELD'][dataID]])
         return zeta, lnM, lnweights
 
     def get_zeta_draws(self, xi):
@@ -304,9 +294,9 @@ class MassCalibration:
         mass_lnweights[idx] = self.HMF_interp(z, lnM[idx])
         return mass_lnweights
 
-    def draw_lnzeta_given_lnM(self, lnM, z, SZscatter_lnM):
+    def draw_lnzeta_given_lnM(self, lnM, dataID, SZscatter_lnM):
         """Return draws and associated weights from P(zeta|M,z)."""
-        zeta_min_lnM = scaling_relations.obs2lnmass('zeta', self.scaling['zeta_min']/self.thisSPTfield_gamma, z, self.scaling, self.cosmology, SPTsurvey=self.SPTsurvey)
+        zeta_min_lnM = scaling_relations.obs2lnmass('zeta', self.scaling['zeta_min'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, SPTfield=self.SPT_survey[self.SPT_survey['FIELD']==self.catalog['FIELD'][dataID]])
         r_min = ndtr((zeta_min_lnM-lnM)/SZscatter_lnM)
         r = r_min + (ndtr_max-r_min)*self.rng.random(len(lnM))
         lnM_zeta = ndtri(r)*SZscatter_lnM + lnM
@@ -315,7 +305,7 @@ class MassCalibration:
 
     def P_xi_zeta(self, lnM_zeta, dataID):
         """Return probability P(xi|zeta) for cluster `dataID`."""
-        zeta = self.thisSPTfield_gamma*np.exp(scaling_relations.lnmass2lnobs('zeta', lnM_zeta, self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, SPTsurvey=self.SPTsurvey))
+        zeta = np.exp(scaling_relations.lnmass2lnobs('zeta', lnM_zeta, self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, SPTfield=self.SPT_survey[self.SPT_survey['FIELD']==self.catalog['FIELD'][dataID]]))
         xi = scaling_relations.zeta2xi(zeta)
         lnP = -.5*(self.catalog['XI'][dataID]-xi)**2 - .5*ln2pi
         return lnP
@@ -403,7 +393,7 @@ class MassCalibration:
         """Return weights for P(xi,obs|M,z,p)"""
         # Draw zeta, and compute P(xi)
         i = obsnames.index('zeta')
-        lnM_zeta, zeta_lnweights = self.draw_lnzeta_given_lnM(lnM, self.catalog['REDSHIFT'][dataID], np.sqrt(covmat[i,i])*dlnM_dlnobs[i])
+        lnM_zeta, zeta_lnweights = self.draw_lnzeta_given_lnM(lnM, dataID, np.sqrt(covmat[i,i])*dlnM_dlnobs[i])
         xi_lnweights = self.P_xi_zeta(lnM_zeta, dataID)
         # Weight with mass function
         mass_lnweights = self.get_mass_function_lnweights(self.catalog['REDSHIFT'][dataID], lnM)

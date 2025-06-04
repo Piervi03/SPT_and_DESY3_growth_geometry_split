@@ -112,16 +112,7 @@ class NumberCount:
             lndN_dlnzeta = np.log(dN_dlnzeta)
 
         # Scaling relation (depends on survey)
-        if '500d' in self.SPT_survey['FIELD'][fieldidx]:
-            SPTsurvey = '500d'
-        elif '_sptpol' in self.SPT_survey['FIELD'][fieldidx]:
-            SPTsurvey = 'ECS'
-        else:
-            SPTsurvey = 'SZ'
-        lnzeta_m = (np.log(self.SPT_survey['GAMMA'][fieldidx])
-                    + scaling_relations.lnmass2lnobs('zeta', self.HMF['lnM_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling, self.cosmology, SPTsurvey=SPTsurvey))
-        if '_sptpol' in self.SPT_survey['FIELD'][fieldidx]:
-            lnzeta_m+= np.log(self.scaling['SPECS_calib'])
+        lnzeta_m = scaling_relations.lnmass2lnobs('zeta', self.HMF['lnM_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling, self.cosmology, SPTfield=self.SPT_survey[fieldidx])
 
         # dN/dxi = dN/dlnzeta dlnzeta/dxi (unconvolved)
         # Unfortunately, the zeta_m table is not regular

@@ -26,21 +26,19 @@ def lnmass2lnobs(name, lnmass, z, scaling,
                  cosmology=None,
                  cluster_ID=None,
                  lnM500_to_lnM200=None,
-                 SPTsurvey=None,
+                 SPTfield=None,
                  SZ_Ez=True):
     """Returns ln-observable given (lnmass, z) using scaling relation."""
     if name == 'zeta':
-        if SPTsurvey == 'SZ':
-            Csz = scaling['Csz']
-        elif SPTsurvey == 'ECS':
-            Csz = scaling['Csz'] + scaling['Delta_Csz_ECS']
-        elif SPTsurvey == '500d':
-            Csz = scaling['Csz'] + scaling['Delta_Csz_500d']
+        Asz = scaling['Asz'] + np.log(SPTfield['GAMMA'])
+        if '_sptpol' in SPTfield['FIELD']:
+            Asz += np.log(scaling['SPECS_calib'])
+        Csz = scaling['Csz'] + SPTfield['DELTA_CSZ']
         if SZ_Ez:
             ln_z_term = np.log(cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology))
         else:
             ln_z_term = np.log((1+z)/1.6)
-        return (scaling['Asz']
+        return (Asz
                 + scaling['Bsz'] * (lnmass-np.log(scaling['SZmPivot']))
                 + Csz * ln_z_term
                 + scaling['Esz'] * (lnmass-np.log(scaling['SZmPivot'])) * ln_z_term)
@@ -111,22 +109,20 @@ def lnmass2lnobs(name, lnmass, z, scaling,
 def obs2lnmass(name, obs, z, scaling,
                cosmology=None,
                cluster_ID=None,
-               SPTsurvey=None,
+               SPTfield=None,
                SZ_Ez=True):
     """Return lnmass given observable and z."""
     if name == 'zeta':
-        if SPTsurvey == 'SZ':
-            Csz = scaling['Csz']
-        elif SPTsurvey == 'ECS':
-            Csz = scaling['Csz'] + scaling['Delta_Csz_ECS']
-        elif SPTsurvey == '500d':
-            Csz = scaling['Csz'] + scaling['Delta_Csz_500d']
+        Asz = scaling['Asz'] + np.log(SPTfield['GAMMA'])
+        if '_sptpol' in SPTfield['FIELD']:
+            Asz += np.log(scaling['SPECS_calib'])
+        Csz = scaling['Csz'] + SPTfield['DELTA_CSZ']
         if SZ_Ez:
             ln_z_term = np.log(cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology))
         else:
             ln_z_term = np.log((1+z)/1.6)
         return (np.log(scaling['SZmPivot'])
-                + (np.log(obs) - scaling['Asz'] - Csz*ln_z_term) / (scaling['Bsz'] + scaling['Esz']*ln_z_term))
+                + (np.log(obs) - Asz - Csz*ln_z_term) / (scaling['Bsz'] + scaling['Esz']*ln_z_term))
     elif name == 'richness_base':
         lnmass = (np.log(scaling['richmPivot']) + (1/scaling['Brichness'])*(np.log(obs)
                   - scaling['Arichness'] - scaling['Crichness']*np.log((1+z)/1.6)))
@@ -172,8 +168,8 @@ def dlnM_dlnobs(name, scaling,
         z_arr = np.atleast_1d(z)
         B_ = np.full(z_arr.shape, scaling['Brichness'])
         B_[z_arr >= scaling['z_DESWISE']] = scaling['Brichness_ext']
-        tmp = B_[0] if np.isscalar(z) else B_
-        return 1/B_
+        B = B_[0] if np.isscalar(z) else B_
+        return 1/B
     elif name == 'Yx':
         if scaling['YXPARAM'] == 'SPT_XVP':
             return 1/(1/scaling['Bx'] - scaling['dlnMg_dlnr']/3)

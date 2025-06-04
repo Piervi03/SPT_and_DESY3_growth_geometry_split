@@ -22,7 +22,6 @@ cosmology['Omega_l'] = 1-cosmology['Omega_m']
 
 scaling = {'Asz': .96, 'Bsz': 1.5, 'Csz': .5, 'Dsz': .2, 'zeta_min': 1.,
            'Esz':0,
-           'Delta_Csz_ECS': -.09, 'Delta_Csz_500d': .26,
            'HSTbias': 0., 'HSTscatterLSS':5.6e13,
            'MegacamBias': 0., 'MegacamScatterLSS': 6.3e13,
            'DWL_Megacam': .3, 'bWL_Megacam': 1,
@@ -38,7 +37,11 @@ scaling = {'Asz': .96, 'Bsz': 1.5, 'Csz': .5, 'Dsz': .2, 'zeta_min': 1.,
            'Euclid_s_dev': 0., 'Euclid_s_dev_m': 0.,
 
            'Adisp':939., 'Bdisp':2.91, 'Cdisp':.33, 'Ddisp0':.2, 'DdispN':3.,
+
            'Arichness': 4.25, 'Brichness': 1., 'Crichness': 0., 'Drichness': .2,
+           'Arichnessext': 4.25, 'Brichnessext': 1., 'Crichnessext': 0., 'Drichnessext': .2,
+           'z_DESWISE': 1.1,
+
            'Ax': 6.5, 'Bx': .57, 'Cx': -.4, 'Dx': .12, 'Ex':0,
            'slope_MgR': 1.16, 'slope_MgR_std': .016,
            'rhoSZrichness': 0., 'rhoSZdisp': 0., 'rhoSZX': 0., 'rhoSZWL': 0.,

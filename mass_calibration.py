@@ -129,11 +129,6 @@ class MassCalibration:
         if nobs==0:
             return 1.
 
-        ##### Set SPT field scaling factor
-        self.thisSPTfield_gamma = float(self.SPT_survey['GAMMA'][self.SPT_survey['FIELD']==self.catalog['FIELD'][i]])
-        if '_sptpol' in self.catalog['FIELD'][i]:
-            self.thisSPTfield_gamma*= self.scaling['SPECS_calib']
-
         #####
         if nobs==1:
             # Get the name of the multi-obs HMF
@@ -281,7 +276,7 @@ class MassCalibration:
         lnobsArr = np.log(obsArr)
 
         ##### SZ array
-        zeta_arr = self.thisSPTfield_gamma * np.exp(scaling_relations.lnmass2lnobs('zeta', self.HMF_convos['lnM_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology))
+        zeta_arr = np.exp(scaling_relations.lnmass2lnobs('zeta', self.HMF_convos['lnM_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, SPTfield=self.SPT_survey[self.SPT_survey['FIELD']==self.catalog['FIELD'][dataID]]))
         lnzeta_arr = np.log(zeta_arr)
         xi_arr = scaling_relations.zeta2xi(zeta_arr)
         if (xi_arr[0]>2.7)|(self.catalog['XI'][dataID]>xi_arr[-1]-2):
@@ -403,7 +398,7 @@ class MassCalibration:
             lnobsArr.append(np.log(obsArrTemp))
 
         ##### SZ arrays
-        zeta_arr = self.thisSPTfield_gamma * np.exp(scaling_relations.lnmass2lnobs('zeta', self.HMF_convos['lnM_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology))
+        zeta_arr = np.exp(scaling_relations.lnmass2lnobs('zeta', self.HMF_convos['lnM_arr'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, SPTfield=self.SPT_survey[self.SPT_survey['FIELD']==self.catalog['FIELD'][dataID]]))
         lnzeta_arr = np.log(zeta_arr)
         xi_arr = scaling_relations.zeta2xi(zeta_arr)
         if (xi_arr[0]>2.7)|(self.catalog['XI'][dataID]>xi_arr[-1]-2):

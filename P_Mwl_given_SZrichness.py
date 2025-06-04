@@ -37,24 +37,14 @@ def draw_SPTfield_gamma(N, rng, SPT_field):
     return field
 
 
-def draw_lnobs_intrinsic_given_lnmass(rng, z, lnM, scaling, cosmology, covmat, SPT_field, SPT_field_tab):
+def draw_lnobs_intrinsic_given_lnmass(rng, z, lnM, scaling, cosmology, covmat, SPT_field):
     """Return draws of ln[zeta, richness, DESWL] given `lnM`."""
     # Draw observable
     lnobs_draw_lnM = rng.multivariate_normal(lnM, covmat)
     # Convert to observable space
     lnrichness = scaling_relations.lnmass2lnobs('richness_base', lnobs_draw_lnM[1], z, scaling)
     lnMwl = scaling_relations.lnmass2lnobs('WLDES', lnobs_draw_lnM[2], z, scaling)
-    gamma = SPT_field['GAMMA'][SPT_field['FIELD'] == SPT_field]
-    if '3G' in SPT_field:
-        SPTsurvey = '3G'
-    elif '500d' in SPT_field:
-        SPTsurvey = '500d'
-    elif '_sptpol' in SPT_field:
-        SPTsurvey = 'ECS'
-        gamma *= scaling['SPECS_calib']
-    else:
-        SPTsurvey = 'SZ'
-    lnzeta = scaling_relations.lnmass2lnobs('zeta', lnobs_draw_lnM[0], z, scaling, cosmology, SPTsurvey) + np.log(gamma)
+    lnzeta = scaling_relations.lnmass2lnobs('zeta', lnobs_draw_lnM[0], z, scaling, cosmology, SPTfield=SPT_field)
     return lnzeta, lnrichness, lnMwl
 
 
