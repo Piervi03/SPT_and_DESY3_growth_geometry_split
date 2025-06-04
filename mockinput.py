@@ -21,6 +21,7 @@ cosmology['Ommh2'] = cosmology['Omega_m']*cosmology['h']**2
 cosmology['Omega_l'] = 1-cosmology['Omega_m']
 
 scaling = {'Asz': .96, 'Bsz': 1.5, 'Csz': .5, 'Dsz': .2, 'zeta_min': 1.,
+           'SPECS_calib': 1.05,
            'Esz':0,
            'HSTbias': 0., 'HSTscatterLSS':5.6e13,
            'MegacamBias': 0., 'MegacamScatterLSS': 6.3e13,
