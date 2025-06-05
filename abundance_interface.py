@@ -14,7 +14,6 @@ def setup(options):
     NPROC = options.get_int(option_section, 'NPROC')
     surveyCutSZmax = options.get_double(option_section, 'surveyCutSZmax')
     surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
-    z_DESWISE = options.get_double(option_section, 'z_DESWISE', default=surveyCutRedshift[1])
     # SPT survey
     SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
     SPT_survey = Table.read(SPT_survey_fields, format='ascii.commented_header')
@@ -32,11 +31,11 @@ def setup(options):
         number_count = abundance_poisson.NumberCount(catalog, SPT_survey,
                                                      surveyCutSZmax, surveyCutRedshift,
                                                      NPROC)
-    return [number_count, do_lambda_min, z_DESWISE]
+    return [number_count, do_lambda_min]
 
 
 def execute(block, args):
-    number_count, do_lambda_min, z_DESWISE = args
+    number_count, do_lambda_min = args
     # Only need cosmo for E(z)-type stuff
     cosmology = {
         'Omega_m': block.get_double('cosmological_parameters', 'Omega_m'),

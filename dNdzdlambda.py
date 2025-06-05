@@ -16,12 +16,10 @@ class DistCompute:
     def __init__(self, SPT_survey,
                  surveyCutRedshift,
                  surveyCutRichness,
-                 z_DESWISE,
                  NPROC):
         self.SPT_survey = SPT_survey
         self.surveyCutRedshift = surveyCutRedshift
         self.surveyCutRichness = surveyCutRichness
-        self.z_DESWISE = z_DESWISE,
         self.NPROC = NPROC
         # Observable arrays for output
         self.lambda_bins_out = np.logspace(np.log10(8.4), np.log10(250), 16)
@@ -32,10 +30,7 @@ class DistCompute:
         self.cosmology = cosmology
         self.scaling = scaling
         # observables[z,M]
-        self.lnrichness_m = scaling_relations.lnmass2lnobs('richness_base', self.HMF['lnM_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling)
-        lnrichness_m_ext = scaling_relations.lnmass2lnobs('richness_ext', self.HMF['lnM_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling)
-        self.lnrichness_m[self.HMF['z_arr']>self.z_DESWISE,:] = lnrichness_m_ext[self.HMF['z_arr']>self.z_DESWISE,:]
-
+        self.lnrichness_m = scaling_relations.lnmass2lnobs('richness', self.HMF['lnM_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling)
         ##### Compute distribution for each SPT field (optional multiprocessing)
         num_fields = len(self.SPT_survey)
         if self.NPROC==0:
@@ -57,9 +52,10 @@ class DistCompute:
             return np.zeros(len(self.lambda_bins_out)-1)
         lnzeta_m = scaling_relations.lnmass2lnobs('zeta', self.HMF['lnM_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling, self.cosmology, SPTfield=self.SPT_survey[fieldidx])
         # dN/dlnlambda/dlnzeta
-        dN_dz_dlnobs = np.exp(self.HMF['richness_SZ_dNdlnM']) * scaling_relations.dlnM_dlnobs('zeta', self.scaling) * (np.pi/180)**2 * self.SPT_survey['AREA'][fieldidx]
-        dN_dz_dlnobs[self.HMF['z_arr']<self.z_DESWISE,:,:]*= scaling_relations.dlnM_dlnobs('richness_base', self.scaling)
-        dN_dz_dlnobs[self.HMF['z_arr']>=self.z_DESWISE,:,:]*= scaling_relations.dlnM_dlnobs('richness_ext', self.scaling)
+        dN_dz_dlnobs = (np.exp(self.HMF['richness_SZ_dNdlnM'])
+                        * scaling_relations.dlnM_dlnobs('zeta', self.scaling)
+                        * scaling_relations.dlnM_dlnobs('richness', self.scaling, z=self.HMF['z_arr'])
+                        * (np.pi/180)**2 * self.SPT_survey['AREA'][fieldidx])
         # xi|M
         this_xi_m = scaling_relations.zeta2xi(np.exp(lnzeta_m))
         # Cut in zeta

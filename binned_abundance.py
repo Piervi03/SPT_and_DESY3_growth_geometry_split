@@ -41,19 +41,19 @@ def execute(HMF,
     return N_survey
 
 
-def process_field(SPT_field,
+def process_field(SPTfield,
                   z_arr, lnM_arr, lndN_dz_dlnzeta_unitSolidAng,
                   scaling, cosmology,
                   z_bins, SNR_bins):
     """Returns number of clusters within `z_bins` and `SNR_bins` for the given SPT field."""
     # dN/dz/dln(zeta)
-    if SPT_field['FIELD'] == 'sptpol_500d_MCMF':
+    if SPTfield['FIELD'] == 'sptpol_500d_MCMF':
         tmp = 'SZ_lambdacut_deep'
-    elif '_MCMF' in SPT_field['FIELD']:
+    elif '_MCMF' in SPTfield['FIELD']:
         tmp = 'SZ_lambdacut_shallow'
     else:
         tmp = 'SZ'
-    lndN_dz_dlnzeta = lndN_dz_dlnzeta_unitSolidAng[tmp] + np.log(SPT_field['AREA'] * (np.pi/180)**2)
+    lndN_dz_dlnzeta = lndN_dz_dlnzeta_unitSolidAng[tmp] + np.log(SPTfield['AREA'] * (np.pi/180)**2)
     # zeta-mass relation (depends on field)
     lnzeta_m = scaling_relations.lnmass2lnobs('zeta', lnM_arr[None, :], z_arr[:, None],
                                               scaling, cosmology, SPTfield=SPTfield)
@@ -64,7 +64,7 @@ def process_field(SPT_field,
     # dN/dxi = dN/dln(zeta) * dln(zeta)/dxi
     lndN_dz_dxi = lndN_dz_dlnzeta + np.log(scaling_relations.dlnzeta_dxi_given_xi(xi))
     # Integrate
-    xi_bins = scaling_relations.zeta2xi(SNR_bins/SPT_field['GAMMA'])
+    xi_bins = scaling_relations.zeta2xi(SNR_bins/SPTfield['GAMMA'])
     num_z_bins = len(z_bins) - 1
     num_SNR_bins = len(SNR_bins) - 1
     N = np.empty(num_z_bins * num_SNR_bins)
