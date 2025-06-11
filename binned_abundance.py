@@ -61,15 +61,21 @@ def process_field(SPTfield,
     xi = scaling_relations.zeta2xi(np.exp(lnzeta_m))
     # dN/dxi = dN/dln(zeta) * dln(zeta)/dxi
     lndN_dz_dxi = lndN_dz_dlnzeta + np.log(scaling_relations.dlnzeta_dxi_given_xi(xi))
-    # Integrate
-    xi_bins = scaling_relations.zeta2xi(SNR_bins/SPTfield['GAMMA'])
+    # N within z and SNR bins
+    xi_bins = scaling_relations.zeta2xi(SNR_bins * SPTfield['GAMMA'])
+    # Only bins with upper limits above xi cut
+    SNR_bin_idx = (SPTfield['XI_MIN'] < xi_bins).nonzero()[0] - 1
     num_z_bins = len(z_bins) - 1
     num_SNR_bins = len(SNR_bins) - 1
-    N = np.empty(num_z_bins * num_SNR_bins)
+    N = np.zeros(num_z_bins * num_SNR_bins)
     for i in range(num_z_bins):
         z_idx = (z_arr >= z_bins[i]) & (z_arr < z_bins[i+1])
-        for j in range(num_SNR_bins):
-            P_xi = ndtr(xi_bins[j+1] - xi[z_idx, :]) - ndtr(xi_bins[j] - xi[z_idx, :])
+        for j in SNR_bin_idx:
+            # xi cut is within SNR bin
+            xi_lo = np.amax([SPTfield['XI_MIN'], xi_bins[j]])
+            # contribution of dN/dxi to bin
+            P_xi = ndtr(xi_bins[j+1] - xi[z_idx, :]) - ndtr(xi_lo - xi[z_idx, :])
+            # Integrate over xi and z
             with np.errstate(divide='ignore'):
                 lnitg = lndN_dz_dxi[z_idx, :] + np.log(P_xi)
             dN_dz = np.sum(np.exp(.5 * (lnitg[:, :-1] + lnitg[:, 1:])) * (xi[z_idx, 1:] - xi[z_idx, :-1]), axis=1)
