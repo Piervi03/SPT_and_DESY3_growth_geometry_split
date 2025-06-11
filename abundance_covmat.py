@@ -101,10 +101,8 @@ class NumberCount:
     def process_field(self, fieldidx):
         """Returns (ln-likelihood, Ntotal) for a given SPT field (index)."""
         # dN/dln(zeta)
-        if self.SPT_survey['FIELD'][fieldidx]=='sptpol_500d_MCMF':
-            tmp = 'SZ_lambdacut_deep'
-        elif '_MCMF' in self.SPT_survey['FIELD'][fieldidx]:
-            tmp = 'SZ_lambdacut_shallow'
+        if self.SPT_survey['LAMBDA_MIN'][fieldidx] in ['deep', 'shallow']:
+            tmp = 'SZ_lambdacut_' + self.SPT_survey['LAMBDA_MIN'][fieldidx]
         else:
             tmp = 'SZ'
         dN_dlnzeta = self.dN_dlnzeta_unitSolidAng[tmp] * self.SPT_survey['AREA'][fieldidx] * (np.pi/180)**2

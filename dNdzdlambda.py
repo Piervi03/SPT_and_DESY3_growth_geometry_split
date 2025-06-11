@@ -65,10 +65,7 @@ class DistCompute:
         # Integrate out zeta [z,lambda]
         dN_dz_dlnrichness = np.sum(.5*(dN_dz_dlnobs[:,:,1:]+dN_dz_dlnobs[:,:,:-1])*(lnzeta_m[:,1:]-lnzeta_m[:,:-1])[:,None,:], axis=2)
         # Cut in lambda
-        if self.SPT_survey['FIELD'][fieldidx]=='sptpol_500d_MCMF':
-            lambda_min = self.surveyCutRichness['deep'](self.HMF['z_arr'])
-        else:
-            lambda_min = self.surveyCutRichness['shallow'](self.HMF['z_arr'])
+        lambda_min = self.surveyCutRichness[self.SPT_survey['LAMBDA_MIN'][fieldidx]](self.HMF['z_arr'])
         # N(Delta lnlambda)
         N_z_lambda = np.zeros((len(self.HMF['z_arr']), len(self.lambda_bins_out)-1))
         for i in range(len(self.HMF['z_arr'])):

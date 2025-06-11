@@ -43,10 +43,7 @@ def process_field(SPT_field, catalog, surveyCutRichness,
                   scaling, cosmology):
     """Returns ln-likelihood of `catalog['richness']` given `catalog['XI']` for
     all clusters in `SPT_field`."""
-    if SPT_field['FIELD'] == 'sptpol_500d_MCMF':
-        lambda_min = surveyCutRichness['deep']
-    else:
-        lambda_min = surveyCutRichness['shallow']
+    lambda_min = surveyCutRichness[SPT_field['LAMBDA_MIN']]
     lnlike = 0.
     field_idx = ((catalog['FIELD'] == SPT_field['FIELD']) & (catalog['richness'] > 0.)).nonzero()[0]
     for clusterID in field_idx:

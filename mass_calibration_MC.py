@@ -223,10 +223,9 @@ class MassCalibration:
         # Account for lambda_min
         lnP_lambda_gtr_cut = 0.
         if self.todo['lambda_min']:
-            if self.catalog['FIELD'][dataID]=='sptpol_500d_MCMF':
-                lambda_min = self.surveyCutRichness['deep'](self.catalog['REDSHIFT'][dataID])
-            elif '_MCMF' in self.catalog['FIELD'][dataID]:
-                lambda_min = self.surveyCutRichness['shallow'](self.catalog['REDSHIFT'][dataID])
+            lambda_min_type = self.SPT_survey['LAMBDA_MIN'][self.SPT_survey['FIELD'] == self.catalog['FIELD'][dataID]]
+            if lambda_min_type in ['deep', 'shallow']:
+                lambda_min = self.surveyCutRichness[lambda_min_type](self.catalog['REDSHIFT'][dataID])
             else:
                 lambda_min = 0.
             if lambda_min>0.:

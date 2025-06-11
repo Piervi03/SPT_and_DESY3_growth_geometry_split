@@ -105,10 +105,8 @@ def main(configMod_file, catalog_name):
         obs_0 = np.insert(obs_0, -1, np.full(obs_0[0].shape, lnM_arr)[None, ...], axis=0)
 
         for i, z in enumerate(z_arr):
-            if SPT_survey['FIELD'][fieldidx] in ['spt3g_main_MCMF', 'sptpol_500d_MCMF']:
-                lambda_min = surveyCutLambda['deep'](z)
-            elif '_MCMF' in SPT_survey['FIELD'][fieldidx]:
-                lambda_min = surveyCutLambda['shallow'](z)
+            if SPT_survey['LAMBDA_MIN'][fieldidx] in ['deep', 'shallow']:
+                lambda_min = surveyCutLambda[SPT_survey['LAMBDA_MIN'][fieldidx]](z)
             else:
                 lambda_min = 0.
 

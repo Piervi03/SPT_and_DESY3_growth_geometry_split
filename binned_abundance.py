@@ -47,10 +47,8 @@ def process_field(SPTfield,
                   z_bins, SNR_bins):
     """Returns number of clusters within `z_bins` and `SNR_bins` for the given SPT field."""
     # dN/dz/dln(zeta)
-    if SPTfield['FIELD'] == 'sptpol_500d_MCMF':
-        tmp = 'SZ_lambdacut_deep'
-    elif '_MCMF' in SPTfield['FIELD']:
-        tmp = 'SZ_lambdacut_shallow'
+    if SPTfield['LAMBDA_MIN'] in ['deep', 'shallow']:
+        tmp = 'SZ_lambdacut_' + SPTfield['LAMBDA_MIN']
     else:
         tmp = 'SZ'
     lndN_dz_dlnzeta = lndN_dz_dlnzeta_unitSolidAng[tmp] + np.log(SPTfield['AREA'] * (np.pi/180)**2)
