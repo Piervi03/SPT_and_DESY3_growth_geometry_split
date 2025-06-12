@@ -1,17 +1,8 @@
 import numpy as np
 from multiprocessing import Pool
-from scipy.interpolate import interp1d
-from scipy.special import ndtr as ndtr_sp
+from scipy.special import ndtr as ndtr
 
 import scaling_relations
-
-
-# ndtr can be interpolated accurately and is only needed in finite range (-5, 3)
-# (This is not true for log_ndtr and ndtri.)
-x = np.logspace(0, np.log10(8), 1024) - 5.
-y = ndtr_sp(x)
-ndtr_max = y[-1]
-ndtr = interp1d(x, y, kind='linear', fill_value=(y[0], y[-1]), bounds_error=False)
 
 
 def execute(HMF,
@@ -22,7 +13,8 @@ def execute(HMF,
     """Returns number of clusters within `z_bins` and `SNR_bins` over the whole survey."""
     lndN_dz_dlnzeta_unitSolidAng = {}
     for tmp in ['SZ_lambdacut_shallow', 'SZ_lambdacut_deep', 'SZ']:
-        lndN_dz_dlnzeta_unitSolidAng[tmp] = np.log(scaling_relations.dlnM_dlnobs('zeta', scaling)) + HMF['{}_lndNdlnM'.format(tmp)]
+        lndN_dz_dlnzeta_unitSolidAng[tmp] = (HMF['{}_lndNdlnM'.format(tmp)]
+                                             + np.log(scaling_relations.dlnM_dlnobs('zeta', scaling)))
     if NPROC == 0:
         N_field = np.array([process_field(SPT_survey_tab[i],
                                           HMF['z_arr'], HMF['lnM_arr'], lndN_dz_dlnzeta_unitSolidAng,
