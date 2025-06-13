@@ -15,9 +15,11 @@ def setup(options):
     tmp = np.loadtxt(surveyCutLambda_file, unpack=True)
     surveyCutRichness = {'shallow': make_interp_spline(tmp[0], tmp[1], k=1),
                          'deep': make_interp_spline(tmp[0], tmp[2], k=1)}
+    richness_scatter_model = options.get_string(option_section, 'richness_scatter_model')
     config = {'catalog': catalog,
               'NPROC': options.get_int(option_section, 'NPROC'),
               'surveyCutRichness': surveyCutRichness,
+              'richness_scatter_model': richness_scatter_model,
               'SPT_survey_tab': np.genfromtxt(SPT_survey_fields, names=True, dtype=None)}
     return config
 
@@ -43,7 +45,7 @@ def execute(block, config):
     lnlike = P_richness_given_SZ.lnlike(config['catalog'], config['SPT_survey_tab'],
                                         HMF,
                                         cosmology, scaling,
-                                        config['surveyCutRichness'],
+                                        config['surveyCutRichness'], config['richness_scatter_model'],
                                         config['NPROC'])
     # Finalize
     if not np.isfinite(lnlike):
