@@ -1,71 +1,137 @@
 import numpy as np
 from multiprocessing import Pool
-from scipy.special import log_ndtr, ndtr
+from scipy.special import log_ndtr, ndtr, ndtri
+from scipy.interpolate import RectBivariateSpline
 
 import lensing, scaling_relations
 
 
-def execute(HMF, cosmology, scaling, SPT_survey_tab, z_bins, SNR_bins, NPROC=0):
-    """Returns number of clusters within `z_bins` and `SNR_bins` over the whole survey."""
-    lndN_dz_dlnzeta_unitSolidAng = {}
-    for tmp in ['SZ_lambdacut_shallow', 'SZ_lambdacut_deep', 'SZ']:
-        lndN_dz_dlnzeta_unitSolidAng[tmp] = np.log(scaling_relations.dlnM_dlnobs('zeta', scaling)) + HMF['%s_dNdlnM' % tmp]
+# At most, draw +3 sigma deviates
+ndtr_max = ndtr(3.)
+
+
+def execute(HMF, cosmology, scaling,
+            SPT_survey_tab,
+            survey_cut_richness, richness_scatter_model,
+            N_draws=100000, NPROC=0):
     if NPROC == 0:
-        N_field = np.array([process_field(SPT_survey_tab[i],
-                                          HMF['z_arr'], HMF['lnM_arr'], lndN_dz_dlnzeta_unitSolidAng,
-                                          scaling, cosmology,
-                                          z_bins, SNR_bins)
-                            for i in range(len(SPT_survey_tab))])
-    else:
-        with Pool(processes=NPROC) as pool:
-            N_field = pool.starmap(process_field,
-                                   [(SPT_survey_tab[i],
-                                     HMF['z_arr'], HMF['lnM_arr'], lndN_dz_dlnzeta_unitSolidAng,
-                                     scaling, cosmology,
-                                     z_bins, SNR_bins)
-                                    for i in range(len(SPT_survey_tab))])
-    N_survey = np.sum(N_field, axis=0)
-    return N_survey
+        z, xi, lnrichness, lnMwl, lnw = get_obs_draws(HMF,
+                                                      cosmology, scaling,
+                                                      SPT_survey_tab,
+                                                      survey_cut_richness, richness_scatter_model,
+                                                      N_draws=N_draws, seed=0)
+    return z, xi, lnrichness, lnMwl, lnw
 
 
-def draw_SPTfield_gamma(N, rng, SPT_field):
+def get_obs_draws(HMF, cosmology, scaling,
+                  SPT_survey_tab,
+                  survey_cut_richness, richness_scatter_model,
+                  N_draws=100000, seed=0):
+    """Wrapper function that calls all workflow steps. Return observables."""
+    # Initialize random number generator
+    rng = np.random.default_rng(seed)
+    # Set up halo mass function interpolation
+    with np.errstate(divide='ignore'):
+        HMF_interp = RectBivariateSpline(HMF['z_arr'], HMF['lnM_arr'], np.log(HMF['dNdlnM']), kx=1, ky=1)
+    # Draw redshift and lnM
+    z, lnM, lnw_HMF = draw_z_lnmass(rng, [.25, .95], [HMF['lnM_arr'][0], HMF['lnM_arr'][-1]], HMF_interp, N_draws)
+    # Covariance matrix in lnM space
+    covmat_lnM = cov_lnM(scaling, z, lnM)
+    # Draw SPT field
+    SPTfield = draw_SPTfield(N_draws, rng, SPT_survey_tab)
+    # Draw ln[zeta, richness, DESWL] given lnM
+    lnzeta, lnrichness, lnMwl, lnw_zeta = draw_lnobs_intrinsic_given_lnmass(rng,
+                                                                            z, lnM,
+                                                                            scaling, cosmology,
+                                                                            covmat_lnM,
+                                                                            SPTfield)
+    # Draw xi given lnzeta
+    xi, lnw_xi = draw_xi(rng, lnzeta, SPTfield)
+    # Draw richness_obs given lnrichness
+    richness_obs, lnw_richness = draw_richness_obs(rng, z, lnrichness,
+                                                   survey_cut_richness, richness_scatter_model,
+                                                   SPTfield)
+    # Finalize
+    lnw = lnw_HMF + lnw_zeta + lnw_xi + lnw_richness
+    return z, xi, lnrichness, lnMwl, lnw
+
+
+def draw_SPTfield(N, rng, SPT_field):
     """Return area-weighted draws from SPT fields."""
-    cum_area = np.cumsum(SPT_field['AREA'])
+    MCMF_fields = ['_MCMF' in SPT_field['FIELD'][i]
+                   for i in range(len(SPT_field))]
+    cum_area = np.cumsum(SPT_field['AREA'][MCMF_fields])
     cum_area /= cum_area[-1]
     field_idx = np.digitize(rng.random(N), cum_area) - 1
-    field = SPT_field['FIELD'][field_idx]
+    field = SPT_field[['FIELD', 'GAMMA', 'XI_MIN', 'LAMBDA_MIN', 'DELTA_CSZ']][MCMF_fields][field_idx]
     return field
 
 
-def draw_lnobs_intrinsic_given_lnmass(rng, z, lnM, scaling, cosmology, covmat, SPT_field):
+def draw_lnobs_intrinsic_given_lnmass(rng, z, lnM, scaling, cosmology, covmat,
+                                      SPT_field):
     """Return draws of ln[zeta, richness, DESWL] given `lnM`."""
-    # Draw observable
-    lnobs_draw_lnM = rng.multivariate_normal(lnM, covmat)
-    # Convert to observable space
-    lnrichness = scaling_relations.lnmass2lnobs('richness_base', lnobs_draw_lnM[1], z, scaling)
-    lnMwl = scaling_relations.lnmass2lnobs('WLDES', lnobs_draw_lnM[2], z, scaling)
-    lnzeta = scaling_relations.lnmass2lnobs('zeta', lnobs_draw_lnM[0], z, scaling, cosmology, SPTfield=SPT_field)
-    return lnzeta, lnrichness, lnMwl
+    lnM_zetamin = np.array([scaling_relations.obs2lnmass('zeta', scaling['zeta_min'], z[i],
+                                                         scaling, cosmology,
+                                                         SPTfield=SPT_field[i])
+                            for i in range(len(z))])
+    # Draw zeta>zeta_min | lnM
+    SZscatter_lnM = np.sqrt(covmat[:, 0, 0])
+    ln_weight = log_ndtr((lnM_zetamin - lnM) / SZscatter_lnM)
+    r_min = ndtr((lnM_zetamin - lnM) / SZscatter_lnM)
+    r = r_min + (ndtr_max-r_min) * rng.random(len(lnM))
+    lnM_zeta = lnM + ndtri(r) * SZscatter_lnM
+    # Draw ln(richness, DESWL) | ln(zeta, lnM)
+    mean_cond = lnM[:, None] + covmat[:, 0, 1:]/covmat[:, 0, 0][:, None] * (lnM_zeta - lnM)[:,None]
+    var_cond = np.linalg.inv(np.linalg.inv(covmat)[:, 1:, 1:])
+    # var_cond_ = covmat[:, 1:, 1:] - np.array([np.matmul(covmat[i, 1:, 0], covmat[i, 0, 1:]) for i in range(len(lnM))])[:, None, None] / covmat[:, 0, 0][:, None, None]
+    lnobs_lnM = np.array([rng.multivariate_normal(mean_cond[i], var_cond[i])
+                          for i in range(len(lnM))])
+    # Observable space
+    lnzeta = np.array([scaling_relations.lnmass2lnobs('zeta', lnM_zeta[i], z[i],
+                                                      scaling, cosmology,
+                                                      SPTfield=SPT_field[i])
+                       for i in range(len(z))])
+    lnrichness = scaling_relations.lnmass2lnobs('richness', lnobs_lnM[:, 0], z, scaling)
+    lnMwl = scaling_relations.lnmass2lnobs('WLDES', lnobs_lnM[:, 1], z, scaling)
+    return lnzeta, lnrichness, lnMwl, ln_weight
 
 
-def draw_xi(rng, lnzeta):
+def draw_xi(rng, lnzeta, SPT_field):
     """Return draws of `xi` given `lnzeta`."""
-    xi = rng.normal(scaling_relations.zeta2xi(np.exp(lnzeta)))
-    return xi
+    # Draw (xi>XI_MIN)|zeta
+    xi_mean = scaling_relations.zeta2xi(np.exp(lnzeta))
+    r_min = ndtr(SPT_field['XI_MIN'] - xi_mean)
+    r = r_min + (ndtr_max-r_min) * rng.random(len(lnzeta))
+    xi = xi_mean + ndtri(r)
+    # Account for xi>XI_MIN
+    lnw = np.log(1. - r_min)
+    return xi, lnw
 
 
-def draw_richness_obs(rng, lnrichness, richness_scatter_model):
-    """Return draws of observed richness given `lnrichness`."""
-    if richness_scatter_model == 'lognormal':
-        richness_obs = np.exp(lnrichness)
-    elif richness_scatter_model == 'lognormalGaussPoisson':
-        richness_int = np.exp(lnrichness)
-        richness_obs = rng.normal(richness_int, np.sqrt(richness_int))
+def draw_richness_obs(rng, z, lnrichness,
+                      survey_cut_richness, richness_scatter_model,
+                      SPT_field):
+    """Return draws of observed richness given `lnrichness`, accounting for
+    lambda_min(z)."""
+    lambda_min = np.array([survey_cut_richness[SPT_field['LAMBDA_MIN'][i]](z[i])
+                           for i in range(len(lnrichness))])
+    richness = np.exp(lnrichness)
+    if richness_scatter_model == 'lognormalGaussPoisson':
+        # var(richness) = richness
+        r_min = ndtr((lambda_min - richness) / np.sqrt(richness))
+        r = r_min + (ndtr_max - r_min) * rng.random(len(lnrichness))
+        richness_obs = richness + ndtri(r) * np.sqrt(richness)
+        lnw = np.log(1. - r_min)
     elif richness_scatter_model == 'lognormalrelPoisson':
-        richness_obs = np.exp(rng.normal(lnrichness, 1/np.sqrt(np.exp(lnrichness))))
+        lnlambda_min = np.log(lambda_min)
+        # var(ln richness) = 1/richness
+        r_min = ndtr((lnlambda_min - lnrichness) * np.sqrt(richness))
+        r = r_min + (ndtr_max - r_min) * rng.random(len(lnrichness))
+        richness_obs = np.exp(lnrichness + ndtri(r_min) / np.sqrt(richness))
+        lnw = np.log(1. - r_min)
     else:
         raise ValueError("Unknown richness scatter model: %s" % richness_scatter_model)
-    return richness_obs
+    return richness_obs, lnw
 
 
 def lnP_greater_richnesscut(lnrichness, z, lambda_min_interp, richness_scatter_model):
@@ -94,75 +160,19 @@ def cov_lnM(scaling, z, lnM):
     # Go to mass space
     dlnM_dlnobs = np.array([scaling_relations.dlnM_dlnobs(obs, scaling)
                             for obs in ['zeta', 'richness_base', 'WLDES']])
-    covmat_lnM = covmat * dlnM_dlnobs[:, None] * dlnM_dlnobs[None, :] * np.ones((len(lnM), 3, 3))
+    covmat_lnM = (covmat * dlnM_dlnobs[:, None] * dlnM_dlnobs[None, :])[None, :, :] * np.ones((len(lnM), 3, 3))
     # Lensing scatter
     scatter = scaling_relations.WLscatter('WLDES', lnM, z, scaling)
-    covmat_lnM[:, :, 2] *= scatter
-    covmat_lnM[:, 2, :] *= scatter
+    covmat_lnM[:, :, 2] *= scatter[:, None]
+    covmat_lnM[:, 2, :] *= scatter[:, None]
     return covmat_lnM
 
 
-def assign_SZrichness_bin(z, xi, richness, bins):
-    """Return indices of observable bins."""
-
-
-def assign_SZ_bin(z, xi, bins):
-
-
-
-def get_mass_function_logprob(z, lnM, HMF_interp):
-    """Return ln-probability of halo mass function
-    ln(P(lnM)) = ln(dN/dlnM) at given `z` and array `lnM`."""
-    # RectBivariateSpline wants sorted inputs, but this is faster than `grid=False`
-    idx = np.argsort(lnM)
-    lnprob = np.zeros(len(lnM))
-    lnprob[idx] = HMF_interp(z, lnM[idx])
-    return lnprob
-
-
-def process_field(SPT_field,
-                  z_arr, lnM_arr, lndN_dz_dlnzeta_unitSolidAng,
-                  scaling, cosmology,
-                  z_bins, SNR_bins):
-    """Returns number of clusters within `z_bins` and `SNR_bins` for the given SPT field."""
-    # dN/dz/dln(zeta)
-    if SPT_field['FIELD'] == 'sptpol_500d_MCMF':
-        tmp = 'SZ_lambdacut_deep'
-    elif '_MCMF' in SPT_field['FIELD']:
-        tmp = 'SZ_lambdacut_shallow'
-    else:
-        tmp = 'SZ'
-    lndN_dz_dlnzeta = lndN_dz_dlnzeta_unitSolidAng[tmp] + np.log(SPT_field['AREA'] * (np.pi/180)**2)
-    # zeta-mass relation (depends on survey)
-    if '3G' in SPT_field['FIELD']:
-        SPTsurvey = '3G'
-    elif '500d' in SPT_field['FIELD']:
-        SPTsurvey = '500d'
-    elif '_sptpol' in SPT_field['FIELD']:
-        SPTsurvey = 'ECS'
-    else:
-        SPTsurvey = 'SZ'
-    lnzeta_m = (np.log(SPT_field['GAMMA'])
-                + scaling_relations.lnmass2lnobs('zeta', lnM_arr[None, :], z_arr[:, None],
-                                                 scaling, cosmology, SPTsurvey=SPTsurvey))
-    if '_sptpol' in SPT_field['FIELD']:
-        lnzeta_m += np.log(scaling['SPECS_calib'])
-    # zeta_min
-    lndN_dz_dlnzeta[lnzeta_m < np.log(scaling['zeta_min'])] = -np.inf
-    # xi-zeta relation
-    xi = scaling_relations.zeta2xi(np.exp(lnzeta_m))
-    # dN/dxi = dN/dln(zeta) * dln(zeta)/dxi
-    lndN_dz_dxi = lndN_dz_dlnzeta + np.log(scaling_relations.dlnzeta_dxi_given_xi(xi))
-    # Integrate
-    xi_bins = scaling_relations.zeta2xi(SNR_bins/SPT_field['GAMMA'])
-    num_z_bins = len(z_bins) - 1
-    num_SNR_bins = len(SNR_bins) - 1
-    N = np.empty(num_z_bins * num_SNR_bins)
-    for i in range(num_z_bins):
-        z_idx = (z_arr >= z_bins[i]) & (z_arr < z_bins[i+1])
-        for j in range(num_SNR_bins):
-            P_xi = ndtr(xi[z_idx, :] - xi_bins[j+1]) - ndtr(xi[z_idx, :] - xi_bins[j])
-            lnitg = lndN_dz_dxi[z_idx, :] * np.log(P_xi)
-            dN_dz = np.sum(np.exp(.5 * (lnitg[:, :-1] + lnitg[:, 1:])) * (xi[z_idx, 1:] - xi[z_idx, :-1]), axis=1)
-            N[i*num_SNR_bins + j] = np.sum(.5 * (dN_dz[:-1] + dN_dz[1:]) * (z_arr[z_idx][1:] - z_arr[z_idx][:-1]))
-    return N
+def draw_z_lnmass(rng, z_lim, lnM_lim, HMF_interp, N_draws):
+    """Return draws of `z` and `lnM`, and ln-probability of halo mass function
+    ln(P(lnM)) = ln(dN/dlnM) at `z` and `lnM`."""
+    # Uniform draws of redshift and lnM
+    z = rng.uniform(z_lim[0], z_lim[1], size=N_draws)
+    lnM = rng.uniform(lnM_lim[0], lnM_lim[1], size=N_draws)
+    lnprob = HMF_interp(z, lnM, grid=False)
+    return z, lnM, lnprob
