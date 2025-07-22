@@ -122,10 +122,11 @@ def execute(block, setup_stuff):
         for p in DES_WL_prior.keys():
             scaling['DES_%s'%p] = DES_WL_prior[p]
     # HST
-    scaling['bWL_HST'], scaling['DWL_HST'] = {}, {}
-    for name in masscalibration.HSTcalib['SPT_ID']:
-        scaling['bWL_HST'][name] = block.get_double('mor_parameters', 'bWL_HST_%s'%name)
-        scaling['DWL_HST'][name] = block.get_double('mor_parameters', 'DWL_HST_%s'%name)
+    if masscalibration.todo['WL']:
+        scaling['bWL_HST'], scaling['DWL_HST'] = {}, {}
+        for name in masscalibration.HSTcalib['SPT_ID']:
+            scaling['bWL_HST'][name] = block.get_double('mor_parameters', 'bWL_HST_%s'%name)
+            scaling['DWL_HST'][name] = block.get_double('mor_parameters', 'DWL_HST_%s'%name)
 
     # Halo mass function
     z, M, N = block.get_grid('HMF', 'z_arr', 'M_arr', 'dNdlnM')
