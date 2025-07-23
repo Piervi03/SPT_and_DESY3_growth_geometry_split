@@ -27,7 +27,8 @@ def get_obs_draws(HMF, cosmology, scaling,
                   SPT_survey_tab,
                   survey_cut_richness, richness_scatter_model,
                   N_draws=100000, seed=0):
-    """Wrapper function that calls all workflow steps. Return observables."""
+    """Wrapper function that calls all workflow steps. Return observables and
+    ln-weights."""
     # Initialize random number generator
     rng = np.random.default_rng(seed)
     # Set up halo mass function interpolation
@@ -70,10 +71,9 @@ def draw_SPTfield(N, rng, SPT_field):
 def draw_lnobs_intrinsic_given_lnmass(rng, z, lnM, scaling, cosmology, covmat,
                                       SPT_field):
     """Return draws of ln[zeta, richness, DESWL] given `lnM`."""
-    lnM_zetamin = np.array([scaling_relations.obs2lnmass('zeta', scaling['zeta_min'], z[i],
-                                                         scaling, cosmology,
-                                                         SPTfield=SPT_field[i])
-                            for i in range(len(z))])
+    lnM_zetamin = scaling_relations.obs2lnmass('zeta', scaling['zeta_min'], z,
+                                               scaling, cosmology,
+                                               SPTfield=SPT_field)
     # Draw zeta>zeta_min | lnM
     SZscatter_lnM = np.sqrt(covmat[:, 0, 0])
     ln_weight = log_ndtr((lnM_zetamin - lnM) / SZscatter_lnM)
@@ -84,13 +84,12 @@ def draw_lnobs_intrinsic_given_lnmass(rng, z, lnM, scaling, cosmology, covmat,
     mean_cond = lnM[:, None] + covmat[:, 0, 1:]/covmat[:, 0, 0][:, None] * (lnM_zeta - lnM)[:,None]
     var_cond = np.linalg.inv(np.linalg.inv(covmat)[:, 1:, 1:])
     # var_cond_ = covmat[:, 1:, 1:] - np.array([np.matmul(covmat[i, 1:, 0], covmat[i, 0, 1:]) for i in range(len(lnM))])[:, None, None] / covmat[:, 0, 0][:, None, None]
-    lnobs_lnM = np.array([rng.multivariate_normal(mean_cond[i], var_cond[i])
+    lnobs_lnM = np.array([rng.multivariate_normal(mean_cond[i], var_cond[i], check_valid='ignore')
                           for i in range(len(lnM))])
     # Observable space
-    lnzeta = np.array([scaling_relations.lnmass2lnobs('zeta', lnM_zeta[i], z[i],
-                                                      scaling, cosmology,
-                                                      SPTfield=SPT_field[i])
-                       for i in range(len(z))])
+    lnzeta = scaling_relations.lnmass2lnobs('zeta', lnM_zeta, z,
+                                            scaling, cosmology,
+                                            SPTfield=SPT_field)
     lnrichness = scaling_relations.lnmass2lnobs('richness', lnobs_lnM[:, 0], z, scaling)
     lnMwl = scaling_relations.lnmass2lnobs('WLDES', lnobs_lnM[:, 1], z, scaling)
     return lnzeta, lnrichness, lnMwl, ln_weight
@@ -113,8 +112,11 @@ def draw_richness_obs(rng, z, lnrichness,
                       SPT_field):
     """Return draws of observed richness given `lnrichness`, accounting for
     lambda_min(z)."""
-    lambda_min = np.array([survey_cut_richness[SPT_field['LAMBDA_MIN'][i]](z[i])
-                           for i in range(len(lnrichness))])
+    # Lambda_min(z) is a function of redshift and SPT field
+    MCMF_deep = SPT_field['LAMBDA_MIN'] == 'deep'
+    lambda_min = survey_cut_richness['shallow'](z)
+    lambda_min[MCMF_deep] = survey_cut_richness['deep'](z[MCMF_deep])
+    # Draw richness_obs given lnrichness
     richness = np.exp(lnrichness)
     if richness_scatter_model == 'lognormalGaussPoisson':
         # var(richness) = richness
