@@ -30,18 +30,24 @@ def lnmass2lnobs(name, lnmass, z, scaling,
                  SZ_Ez=True):
     """Returns ln-observable given (lnmass, z) using scaling relation."""
     if name == 'zeta':
-        Asz = scaling['Asz'] + np.log(SPTfield['GAMMA'])
-        if '_sptpol' in SPTfield['FIELD']:
-            Asz += np.log(scaling['SPECS_calib'])
-        Csz = scaling['Csz'] + SPTfield['DELTA_CSZ']
         if SZ_Ez:
             ln_z_term = np.log(cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology))
         else:
             ln_z_term = np.log((1+z)/1.6)
-        return (Asz
-                + scaling['Bsz'] * (lnmass-np.log(scaling['SZmPivot']))
-                + Csz * ln_z_term
-                + scaling['Esz'] * (lnmass-np.log(scaling['SZmPivot'])) * ln_z_term)
+        lnzeta = (scaling['Asz'] + np.log(SPTfield['GAMMA'])
+                  + scaling['Bsz'] * (lnmass-np.log(scaling['SZmPivot']))
+                  + (scaling['Csz'] + SPTfield['DELTA_CSZ']) * ln_z_term
+                  + scaling['Esz'] * (lnmass-np.log(scaling['SZmPivot'])) * ln_z_term)
+        # ECS correction
+        if np.ndim(SPTfield['FIELD']) == 0:
+            # Default expectation is that we're looking at a single field
+            if '_sptpol' in SPTfield['FIELD']:
+                lnzeta += np.log(scaling['SPECS_calib'])
+        else:
+            # Expect that we're looking at a field per mass and z
+            idx = '_sptpol' in SPTfield['FIELD']
+            lnzeta[idx] += np.log(scaling['SPECS_calib'])
+        return lnzeta
     elif name == 'Yx':
         if scaling['YXPARAM'] == 'SPT_XVP':
             return (np.log(3.) -2.5*np.log(cosmology['h']/.7)
@@ -113,16 +119,22 @@ def obs2lnmass(name, obs, z, scaling,
                SZ_Ez=True):
     """Return lnmass given observable and z."""
     if name == 'zeta':
-        Asz = scaling['Asz'] + np.log(SPTfield['GAMMA'])
-        if '_sptpol' in SPTfield['FIELD']:
-            Asz += np.log(scaling['SPECS_calib'])
-        Csz = scaling['Csz'] + SPTfield['DELTA_CSZ']
         if SZ_Ez:
             ln_z_term = np.log(cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology))
         else:
             ln_z_term = np.log((1+z)/1.6)
-        return (np.log(scaling['SZmPivot'])
-                + (np.log(obs) - Asz - Csz*ln_z_term) / (scaling['Bsz'] + scaling['Esz']*ln_z_term))
+        tmp = (np.log(obs) - scaling['Asz'] - np.log(SPTfield['GAMMA'])
+               - (scaling['Csz'] + SPTfield['DELTA_CSZ']) * ln_z_term)
+        # ECS correction
+        if np.ndim(SPTfield['FIELD']) == 0:
+            # Default expectation is that we're looking at a single field
+            if '_sptpol' in SPTfield['FIELD']:
+                tmp -= np.log(scaling['SPECS_calib'])
+        else:
+            # Expect that we're looking at a field per obs and z
+            idx = '_sptpol' in SPTfield['FIELD']
+            tmp[idx] -= np.log(scaling['SPECS_calib'])
+        return tmp / (scaling['Bsz'] + scaling['Esz']*ln_z_term)
     elif name == 'richness_base':
         lnmass = (np.log(scaling['richmPivot']) + (1/scaling['Brichness'])*(np.log(obs)
                   - scaling['Arichness'] - scaling['Crichness']*np.log((1+z)/1.6)))
