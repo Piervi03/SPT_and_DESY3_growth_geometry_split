@@ -20,7 +20,7 @@ def execute(HMF, cosmology, scaling,
                                                       SPT_survey_tab,
                                                       survey_cut_richness, richness_scatter_model,
                                                       N_draws=N_draws, seed=0)
-    return z, xi, lnrichness, lnMwl, lnw
+    return z, xi, SNR, lnrichness, lnMwl, lnw
 
 
 def get_obs_draws(HMF, cosmology, scaling,
@@ -47,14 +47,14 @@ def get_obs_draws(HMF, cosmology, scaling,
                                                                             covmat_lnM,
                                                                             SPTfield)
     # Draw xi given lnzeta
-    xi, lnw_xi = draw_xi(rng, lnzeta, SPTfield)
+    xi, SNR, lnw_xi = draw_xi(rng, lnzeta, SPTfield)
     # Draw richness_obs given lnrichness
     richness_obs, lnw_richness = draw_richness_obs(rng, z, lnrichness,
                                                    survey_cut_richness, richness_scatter_model,
                                                    SPTfield)
     # Finalize
     lnw = lnw_HMF + lnw_zeta + lnw_xi + lnw_richness
-    return z, xi, lnrichness, lnMwl, lnw
+    return z, xi, SNR, lnrichness, lnMwl, lnw
 
 
 def draw_SPTfield(N, rng, SPT_field):
@@ -102,9 +102,11 @@ def draw_xi(rng, lnzeta, SPT_field):
     r_min = ndtr(SPT_field['XI_MIN'] - xi_mean)
     r = r_min + (ndtr_max-r_min) * rng.random(len(lnzeta))
     xi = xi_mean + ndtri(r)
+    # For bining
+    SNR = scaling_relations.xi2zeta(xi)/SPT_field['GAMMA']
     # Account for xi>XI_MIN
     lnw = np.log(1. - r_min)
-    return xi, lnw
+    return xi, SNR, lnw
 
 
 def draw_richness_obs(rng, z, lnrichness,
