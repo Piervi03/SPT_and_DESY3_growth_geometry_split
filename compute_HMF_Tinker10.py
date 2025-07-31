@@ -12,15 +12,15 @@ class HMFCalculator:
         # Initialize Tinker interpolation
         x = np.log([200., 300., 400., 600., 800., 1200., 1600., 2400., 3200.])
         y = [.368, .363, .385, .389, .393, .365, .379, .355, .327]
-        self.interp_alpha = interp1d(x, y, kind='cubic', bounds_error=False, fill_value=(y[0], y[-1]))
+        self.interp_alpha = interp1d(x, y, kind='cubic', bounds_error=False, fill_value=(y[0], y[-1]), assume_sorted=True)
         y = [.589, .585, .544, .543, .564, .623, .637, .673, .702]
-        self.interp_beta = interp1d(x, y, kind='cubic', bounds_error=False, fill_value=(y[0], y[-1]))
+        self.interp_beta = interp1d(x, y, kind='cubic', bounds_error=False, fill_value=(y[0], y[-1]), assume_sorted=True)
         y = [.864, .922, .987, 1.09, 1.20, 1.34, 1.50, 1.68, 1.81]
-        self.interp_gamma = interp1d(x, y, kind='cubic', bounds_error=False, fill_value=(y[0], y[-1]))
+        self.interp_gamma = interp1d(x, y, kind='cubic', bounds_error=False, fill_value=(y[0], y[-1]), assume_sorted=True)
         y = [-.729, -.789, -.910, -1.05, -1.20, -1.26, -1.45, -1.50, -1.49]
-        self.interp_phi = interp1d(x, y, kind='cubic', bounds_error=False, fill_value=(y[0], y[-1]))
+        self.interp_phi = interp1d(x, y, kind='cubic', bounds_error=False, fill_value=(y[0], y[-1]), assume_sorted=True)
         y = [-.243, -.261, -.261, -.273, -.278, -.301, -.301, -.319, -.336]
-        self.interp_eta = interp1d(x, y, kind='cubic', bounds_error=False, fill_value=(y[0], y[-1]))
+        self.interp_eta = interp1d(x, y, kind='cubic', bounds_error=False, fill_value=(y[0], y[-1]), assume_sorted=True)
 
     def compute_HMF(self, cosmology, z, k, Pk):
         """Compute Tinker HMF and apply redshift volume."""

@@ -31,8 +31,8 @@ def setup(options):
 
     surveyCutLambda_file = options.get_string(option_section, 'MCMF_lambda_min')
     tmp = np.loadtxt(surveyCutLambda_file, unpack=True)
-    surveyCutLambda = {'shallow': interp1d(tmp[0], tmp[1], kind='linear'),
-                       'deep': interp1d(tmp[0], tmp[2], kind='linear')}
+    surveyCutLambda = {'shallow': interp1d(tmp[0], tmp[1], kind='linear', assume_sorted=True),
+                       'deep': interp1d(tmp[0], tmp[2], kind='linear', assume_sorted=True)}
     richness_scatter_model = options.get_string(option_section, 'richness_scatter_model')
     do_bias = options.get_bool(option_section, 'do_bias', False)
 

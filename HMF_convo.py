@@ -67,7 +67,7 @@ class MultiObsConvolution:
         # Set up interpolation for HMF
         with np.errstate(divide='ignore'):
             lnHMF_in = np.log(self.HMF['dNdlnM'])
-        self.HMF_interp = interp1d(self.HMF['z_arr'], lnHMF_in, axis=0)
+        self.HMF_interp = interp1d(self.HMF['z_arr'], lnHMF_in, axis=0, assume_sorted=True)
         self.Delta_lnM = HMF['lnM_arr'][1]-self.HMF['lnM_arr'][0]
         # Check length of HMF mass array for compression factor
         self.HMF['len_M'] = len(self.HMF['lnM_arr'])

@@ -136,7 +136,7 @@ class NumberCount:
         dNdz = np.sum(integrand, axis=1)
 
         # dN_dxi and dN_dz for output
-        dNdz_interp = interp1d(self.z_arr, dNdz, kind='cubic')
+        dNdz_interp = interp1d(self.z_arr, dNdz, kind='cubic', assume_sorted=True)
         dN_dz_out = dNdz_interp(self.z_bins_output)
         integrand = np.exp(lndNdxi(np.log(self.z_arr), np.log(self.xi_bins_output)))
         dN_dxi_out = np.trapz(integrand, self.z_arr, axis=0)

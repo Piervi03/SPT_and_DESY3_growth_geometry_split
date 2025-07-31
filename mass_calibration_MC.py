@@ -20,7 +20,7 @@ ln2pi = np.log(2.*np.pi)
 x = np.logspace(0, np.log10(8), 1024) - 5.
 y = ndtr_sp(x)
 ndtr_max = y[-1]
-ndtr = interp1d(x, y, kind='linear', fill_value=(y[0], y[-1]), bounds_error=False)
+ndtr = interp1d(x, y, kind='linear', fill_value=(y[0], y[-1]), bounds_error=False, assume_sorted=True)
 
 # Limits for stack
 z_names = ['zlo', 'zhi']
@@ -381,11 +381,11 @@ class MassCalibration:
         if self.lensingres is None:
             self.lnMwl = np.linspace(np.amin(lnobs), np.amax(lnobs), 64)
             self.lensingres = self.WL.one_cluster(self.catalog[dataID], np.exp(self.lnMwl))
-            self.lensinglikeinterp = interp1d(self.lnMwl, self.lensingres[0], fill_value='extrapolate')
+            self.lensinglikeinterp = interp1d(self.lnMwl, self.lensingres[0], fill_value='extrapolate', assume_sorted=True)
         lnlike = self.lensinglikeinterp(lnobs)
         # Shear profile for DES stacks
         if self.get_stacked_DES & (obsname=='WLDES'):
-            self.DES_shear_profile_MC = interp1d(self.lnMwl, self.lensingres[1], axis=0, fill_value='extrapolate')(lnobs)
+            self.DES_shear_profile_MC = interp1d(self.lnMwl, self.lensingres[1], axis=0, fill_value='extrapolate', assume_sorted=True)(lnobs)
         return lnlike, lnM_lensing
 
     def weights_for_mass_samples(self, lnM, obsnames, covmat, dlnM_dlnobs, dataID, do_obs=True):
@@ -477,7 +477,7 @@ class MassCalibration:
             weights = np.exp(lnweights)
             sum_weights = np.sum(weights)
             # Shear profile
-            profile_interp = interp1d(self.catalog['WLdata'][dataID]['r_arcmin'], self.DES_shear_profile_MC, fill_value='extrapolate')
+            profile_interp = interp1d(self.catalog['WLdata'][dataID]['r_arcmin'], self.DES_shear_profile_MC, fill_value='extrapolate', assume_sorted=True)
             profile_interpolated = profile_interp(self.catalog['WLdata'][dataID]['r_arcmin_stack'])
             self.catalog['DES_shear_profile_mean'][dataID] = np.sum(profile_interpolated*weights[:,None], axis=0)/sum_weights
         return lndNdobsxi

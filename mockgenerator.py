@@ -18,8 +18,8 @@ def main(configMod_file, catalog_name):
     # SPT survey information
     SPT_survey = Table.read(configMod.SPT_survey, format='ascii.commented_header')
     tmp = np.loadtxt(configMod.MCMF_lambda_min, unpack=True)
-    surveyCutLambda = {'shallow': interp1d(tmp[0], tmp[1], kind='linear'),
-                       'deep': interp1d(tmp[0], tmp[2], kind='linear')}
+    surveyCutLambda = {'shallow': interp1d(tmp[0], tmp[1], kind='linear', assume_sorted=True),
+                       'deep': interp1d(tmp[0], tmp[2], kind='linear', assume_sorted=True)}
 
     cosmology = configMod.cosmology
     scaling = configMod.scaling

@@ -292,7 +292,7 @@ class MassCalibration:
             with np.errstate(divide='ignore'):
                 lndP_dobs = np.log(dP_dobs)
             finite_idx = np.isfinite(lndP_dobs)
-            lndP_dobs_interp = interp1d(obsArr[finite_idx], lndP_dobs[finite_idx], kind='linear', fill_value='extrapolate')
+            lndP_dobs_interp = interp1d(obsArr[finite_idx], lndP_dobs[finite_idx], kind='linear', fill_value='extrapolate', assume_sorted=True)
             likeli = np.exp(lndP_dobs_interp(self.catalog['richness'][dataID]))
 
         elif obsname in ('Yx', 'Mgas'):
@@ -436,10 +436,10 @@ class MassCalibration:
                 for i in range(len(lnobsArr[0])):
                     if np.any(np.isfinite(lndP_dobs01[i,:])):
                         finite_idx = np.isfinite(lndP_dobs01[i,:])
-                        interp = interp1d(lnobsArr[1][finite_idx], lndP_dobs01[i,finite_idx], kind='linear', fill_value='extrapolate')
+                        interp = interp1d(lnobsArr[1][finite_idx], lndP_dobs01[i,finite_idx], kind='linear', fill_value='extrapolate', assume_sorted=True)
                         dP_dobs0[i] = np.exp(interp(np.log(self.catalog['richness'][dataID])))
             else:
-                lndP_dobs0_interp = interp1d(lnobsArr[0][finite_idx], lndP_dobs0[finite_idx], kind='linear', fill_value='extrapolate')
+                lndP_dobs0_interp = interp1d(lnobsArr[0][finite_idx], lndP_dobs0[finite_idx], kind='linear', fill_value='extrapolate', assume_sorted=True)
                 dP_dobs0 = np.exp(lndP_dobs0_interp(lnobsArr[0]))
             likeli = np.trapz(dP_dobs0*Pwl, obsArr[0])
 

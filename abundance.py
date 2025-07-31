@@ -1,7 +1,7 @@
 import numpy as np
 from multiprocessing import Pool
 from scipy.stats import norm
-from scipy.interpolate import interp1d, RectBivariateSpline, InterpolatedUnivariateSpline
+from scipy.interpolate import RectBivariateSpline, InterpolatedUnivariateSpline
 from scipy.ndimage import gaussian_filter1d
 import scaling_relations
 
