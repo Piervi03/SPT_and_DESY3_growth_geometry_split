@@ -134,7 +134,7 @@ def obs2lnmass(name, obs, z, scaling,
             # Expect that we're looking at a field per obs and z
             idx = '_sptpol' in SPTfield['FIELD']
             tmp[idx] -= np.log(scaling['SPECS_calib'])
-        return tmp / (scaling['Bsz'] + scaling['Esz']*ln_z_term)
+        return np.log(scaling['SZmPivot']) + tmp / (scaling['Bsz'] + scaling['Esz']*ln_z_term)
     elif name == 'richness_base':
         lnmass = (np.log(scaling['richmPivot']) + (1/scaling['Brichness'])*(np.log(obs)
                   - scaling['Arichness'] - scaling['Crichness']*np.log((1+z)/1.6)))
