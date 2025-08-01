@@ -15,12 +15,15 @@ def execute(HMF, cosmology, scaling,
             survey_cut_richness, richness_scatter_model,
             N_draws=100000, NPROC=0):
     if NPROC == 0:
-        z, xi, lnrichness, lnMwl, lnw = get_obs_draws(HMF,
-                                                      cosmology, scaling,
-                                                      SPT_survey_tab,
-                                                      survey_cut_richness, richness_scatter_model,
-                                                      N_draws=N_draws, seed=0)
-    return z, xi, SNR, lnrichness, lnMwl, lnw
+        z, xi, SNR, richness, lnMwl, lnw = get_obs_draws(HMF,
+                                                         cosmology, scaling,
+                                                         SPT_survey_tab,
+                                                         survey_cut_richness, richness_scatter_model,
+                                                         N_draws=N_draws, seed=0)
+    else:
+        raise Exception("Multiprocessing not implemented yet.")
+    lnw -= np.amax(lnw)
+    return z, xi, SNR, richness, lnMwl, lnw
 
 
 def get_obs_draws(HMF, cosmology, scaling,
@@ -48,13 +51,21 @@ def get_obs_draws(HMF, cosmology, scaling,
                                                                             SPTfield)
     # Draw xi given lnzeta
     xi, SNR, lnw_xi = draw_xi(rng, lnzeta, SPTfield)
+    # Only keep valid draws
+    lnw = lnw_HMF + lnw_zeta + lnw_xi
+    idx = np.isfinite(lnw)
+    lnw = lnw[idx]
+    z = z[idx]
+    xi = xi[idx]
+    SNR = SNR[idx]
+    SPTfield = SPTfield[idx]
+    lnrichness = lnrichness[idx]
     # Draw richness_obs given lnrichness
     richness_obs, lnw_richness = draw_richness_obs(rng, z, lnrichness,
                                                    survey_cut_richness, richness_scatter_model,
                                                    SPTfield)
-    # Finalize
-    lnw = lnw_HMF + lnw_zeta + lnw_xi + lnw_richness
-    return z, xi, SNR, lnrichness, lnMwl, lnw
+    lnw += lnw_richness
+    return z, xi, SNR, richness_obs, lnMwl, lnw
 
 
 def draw_SPTfield(N, rng, SPT_field):
@@ -83,9 +94,11 @@ def draw_lnobs_intrinsic_given_lnmass(rng, z, lnM, scaling, cosmology, covmat,
     # Draw ln(richness, DESWL) | ln(zeta, lnM)
     mean_cond = lnM[:, None] + covmat[:, 0, 1:]/covmat[:, 0, 0][:, None] * (lnM_zeta - lnM)[:,None]
     var_cond = np.linalg.inv(np.linalg.inv(covmat)[:, 1:, 1:])
-    # var_cond_ = covmat[:, 1:, 1:] - np.array([np.matmul(covmat[i, 1:, 0], covmat[i, 0, 1:]) for i in range(len(lnM))])[:, None, None] / covmat[:, 0, 0][:, None, None]
-    lnobs_lnM = np.array([rng.multivariate_normal(mean_cond[i], var_cond[i], check_valid='ignore')
-                          for i in range(len(lnM))])
+    # rng.multivariate_normal only accepts single mean and cov, cholesky broadcasts
+    # and is faster than svd. Gain factor ~30 in speed.
+    std_normal_draws = rng.standard_normal((len(lnM), 2))
+    l = np.linalg.cholesky(var_cond).transpose((0, 2, 1))
+    lnobs_lnM = mean_cond + np.matmul(std_normal_draws[:, None, :], l)[:, 0, :]
     # Observable space
     lnzeta = scaling_relations.lnmass2lnobs('zeta', lnM_zeta, z,
                                             scaling, cosmology,
@@ -106,6 +119,8 @@ def draw_xi(rng, lnzeta, SPT_field):
     SNR = scaling_relations.xi2zeta(xi)/SPT_field['GAMMA']
     # Account for xi>XI_MIN
     lnw = np.log(1. - r_min)
+    # Catch cases where xi_mean + 3 < XI_MIN
+    lnw[r_min > ndtr_max] = -np.inf
     return xi, SNR, lnw
 
 
