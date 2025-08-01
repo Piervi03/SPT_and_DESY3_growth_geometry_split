@@ -19,7 +19,11 @@ def setup(options):
     SPT_survey = Table.read(SPT_survey_fields, format='ascii.commented_header')
     # Cluster catalog
     SPTcatalogfile = options.get_string(option_section, 'SPTcatalogfile')
-    catalog = Table.read(SPTcatalogfile)
+    if SPTcatalogfile.endswith('.fits'):
+        format_ = 'fits'
+    elif SPTcatalogfile.endswith('.txt'):
+        format_ = 'ascii'
+    catalog = Table.read(SPTcatalogfile, format=format_)
     ##### Initialize abundance
     if do_covmat:
         covmat_file = options.get_string(option_section, 'covmatfile')
