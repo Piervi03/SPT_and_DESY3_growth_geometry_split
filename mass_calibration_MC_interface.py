@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.interpolate import interp1d
+from scipy.interpolate import make_interp_spline
 import h5py
 from cosmosis.datablock import option_section
 import mass_calibration_MC as mass_calibration
@@ -17,9 +17,10 @@ def setup(options):
     # Data for optical cleaning
     if todo['lambda_min']:
         surveyCutLambda_file = options.get_string(option_section, 'MCMF_lambda_min')
-        tmp = np.loadtxt(surveyCutLambda_file, unpack=True)
-        surveyCutLambda = {'shallow': interp1d(tmp[0], tmp[1], kind='linear', assume_sorted=True),
-                           'deep': interp1d(tmp[0], tmp[2], kind='linear', assume_sorted=True)}
+        tmp = np.genfromtxt(surveyCutLambda_file, names=True, dtype=None)
+        surveyCutLambda = {}
+        for name in tmp.dtype.names[1:]:
+            surveyCutLambda = make_interp_spline(tmp['z'], tmp[name], k=1)
     else:
         surveyCutLambda = None
     richness_scatter_model = options.get_string(option_section, 'richness_scatter_model')

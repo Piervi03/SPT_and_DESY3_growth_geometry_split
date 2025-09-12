@@ -11,16 +11,17 @@ def setup(options):
     catalog = Table.read(options.get_string(option_section, 'SPTcatalogfile'))
     catalog = catalog[catalog['COSMO_SAMPLE'] == 1]
     SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
-    surveyCutLambda_file = options.get_string(option_section, 'MCMF_lambda_min')
-    tmp = np.loadtxt(surveyCutLambda_file, unpack=True)
-    surveyCutRichness = {'shallow': make_interp_spline(tmp[0], tmp[1], k=1),
-                         'deep': make_interp_spline(tmp[0], tmp[2], k=1)}
     richness_scatter_model = options.get_string(option_section, 'richness_scatter_model')
     config = {'catalog': catalog,
               'NPROC': options.get_int(option_section, 'NPROC'),
-              'surveyCutRichness': surveyCutRichness,
               'richness_scatter_model': richness_scatter_model,
-              'SPT_survey_tab': np.genfromtxt(SPT_survey_fields, names=True, dtype=None)}
+              'SPT_survey_tab': Table.read(SPT_survey_fields, format='ascii.commented_header')}
+    # lambda_min(z)
+    surveyCutLambda_file = options.get_string(option_section, 'MCMF_lambda_min')
+    tmp = np.genfromtxt(surveyCutLambda_file, names=True, dtype=None)
+    config['surveyCutRichness'] = {}
+    for name in tmp.dtype.names[1:]:
+        config['surveyCutRichness'][name] = make_interp_spline(tmp['z'], tmp[name], k=1)
     return config
 
 

@@ -109,18 +109,15 @@ class MultiObsConvolution:
         fancy DES stuff."""
         # Which HMF convolution?
         if self.pairname == 'SZ':
+            # dN/dlnzeta
             return self.get_P_zeta_z(z)
-        else:
+        elif self.pairname == 'richness_SZ':
             # dN/dlnzeta/dlnlambda
-            if self.pairname == 'richness_SZ':
-                return self.get_P_zeta_lambda_lognormal_z(z)
+            return self.get_P_zeta_lambda_lognormal_z(z)
+        elif 'SZ_lambdacut_' in self.pairname:
             # dN/dlnzeta given lambda>lambda_min
-            else:
-                if 'shallow' in self.pairname:
-                    survey = 'shallow'
-                elif 'deep' in self.pairname:
-                    survey = 'deep'
-                return self.get_P_zeta_lambdacut_z(z, survey)
+            survey = self.pairname[13:]
+            return self.get_P_zeta_lambdacut_z(z, survey)
 
     def get_Nbins_array(self, std):
         """Return number of bins and array that satisfy that std/Delta_lnM is

@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.interpolate import interp1d
+from scipy.interpolate import make_interp_spline
 from astropy.table import Table
 
 from cosmosis.datablock import option_section
@@ -16,9 +16,10 @@ def setup(options):
     SPT_survey = Table.read(SPT_survey_fields, format='ascii.commented_header')
     # Lambda cut
     surveyCutLambda_file = options.get_string(option_section, 'MCMF_lambda_min')
-    tmp = np.loadtxt(surveyCutLambda_file, unpack=True)
-    surveyCutLambda = {'shallow': interp1d(tmp[0], tmp[1], kind='linear', assume_sorted=True),
-                       'deep': interp1d(tmp[0], tmp[2], kind='linear', assume_sorted=True)}
+    tmp = np.genfromtxt(surveyCutLambda_file, names=True, dtype=None)
+    surveyCutLambda = {}
+    for name in tmp.dtype.names[1:]:
+        surveyCutLambda = make_interp_spline(tmp['z'], tmp[name], k=1)
     ##### Initialize abundance
     computer = dNdzdlambda.DistCompute(SPT_survey,
                                        surveyCutRedshift,

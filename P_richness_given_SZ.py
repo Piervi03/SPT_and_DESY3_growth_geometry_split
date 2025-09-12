@@ -17,7 +17,7 @@ def lnlike(catalog, SPT_survey_tab, HMF, cosmology, scaling, surveyCutRichness, 
                                                     HMF['lnM_arr'][None, :], HMF['z_arr'][:, None],
                                                     scaling, cosmology)
     # Cycle through SPT fields (because that affects the zeta-mass relation)
-    field_idx = np.nonzero([SPT_survey_tab['LAMBDA_MIN'][i] in ['deep', 'shallow']
+    field_idx = np.nonzero([SPT_survey_tab['LAMBDA_MIN'][i] not in ['None', 'none', 'NONE']
                             for i in range(len(SPT_survey_tab))])[0]
     if NPROC == 0:
         lnlike_field = np.array([process_field(SPT_survey_tab[i],
@@ -34,7 +34,7 @@ def lnlike(catalog, SPT_survey_tab, HMF, cosmology, scaling, surveyCutRichness, 
                                           catalog['XI', 'richness', 'REDSHIFT', 'FIELD'],
                                           surveyCutRichness, richness_scatter_model,
                                           HMF['z_arr'], HMF['lnM_arr'], HMF['richness_SZ_lndNdlnM'],
-                                          lnrichness_m_interp,
+                                          lnrichness_z_m,
                                           scaling, cosmology)
                                          for i in field_idx])
     lnlike = np.sum(lnlike_field)
@@ -92,12 +92,14 @@ def process_field(SPT_field, catalog, surveyCutRichness, richness_scatter_model,
             lndP_dobs = -.5 * (catalog['richness'][clusterID]-richness)**2/richness - .5*ln2pi - .5*lnrichness
             with np.errstate(divide='ignore'):
                 lndP_dobs -= np.log(1. - ndtr((lambda_min(catalog['REDSHIFT'][clusterID])-richness)/np.sqrt(richness)))
+        else:
+            raise ValueError('Invalid richness_scatter_model {}'.format(richness_scatter_model))
         lndP_dobs[np.isposinf(lndP_dobs)] = -np.inf
         lndP_dlnobs = lndP_dobs + lnrichness
         # ln-likelihood
-        with np.errstate(invalid='ignore'):
+        with np.errstate(invalid='ignore', divide='ignore'):
             lnitg = lndP_dobs + lndN_dlnrichness
-        this_lnlike = np.log(np.sum(np.exp(.5*(lnitg[:-1]+lnitg[1:])) * (lnrichness[1:]-lnrichness[:-1])))
+            this_lnlike = np.log(np.sum(np.exp(.5*(lnitg[:-1]+lnitg[1:])) * (lnrichness[1:]-lnrichness[:-1])))
         if not np.isfinite(this_lnlike):
             return -np.inf
         lnlike += this_lnlike

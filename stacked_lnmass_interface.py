@@ -1,5 +1,5 @@
 import numpy as np
-
+from scipy.interpolate import make_interp_spline
 from cosmosis.datablock import option_section
 
 import stacked_lnmass
@@ -7,17 +7,19 @@ import stacked_lnmass
 
 def setup(options):
     SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
-    surveyCutLambda_file = options.get_string(option_section, 'MCMF_lambda_min')
-    tmp = np.loadtxt(surveyCutLambda_file, unpack=True)
     config = {
               'NPROC': options.get_int(option_section, 'NPROC'),
               'SPT_survey_tab': np.genfromtxt(SPT_survey_fields, names=True, dtype=None),
               'z_bins': options.get_double_array_1d(option_section, 'SPTcl_z_bins'),
               'SNR_bins': options.get_double_array_1d(option_section, 'SPTcl_SNR_bins'),
-              'survey_cut_richness': {'shallow': make_interp_spline(tmp[0], tmp[1], k=1),
-                                      'deep': make_interp_spline(tmp[0], tmp[2], k=1)},
               'richness_scatter_model': richness_scatter_model,
               }
+    # lambda_min(z)
+    surveyCutLambda_file = options.get_string(option_section, 'MCMF_lambda_min')
+    tmp = np.genfromtxt(surveyCutLambda_file, names=True, dtype=None)
+    config['survey_cut_richness'] = {}
+    for name in tmp.dtype.names[1:]:
+        config['survey_cut_richness'][name] = make_interp_spline(tmp['z'], tmp[name], k=1)
     return config
 
 
