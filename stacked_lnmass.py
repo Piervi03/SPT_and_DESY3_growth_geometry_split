@@ -21,7 +21,7 @@ def execute(HMF,
     rot_obs = np.array([np.matmul(rot_mat, [np.log(SNR[i]), np.log(richness[i])])
                         for i in range(len(z))])
     # Mean in bins
-    lnMwl_mean = np.full((len(z_bins), len(rot_bins_x), len(rot_bins_y)), np.nan)
+    Mwl_mean = np.full((len(z_bins)-1, len(rot_bins_x)-1, len(rot_bins_y)-1), np.nan)
     for i in range(len(z_bins)-1):
         i_idx = ((z >= z_bins[i]) & (z < z_bins[i+1])).nonzero()[0]
         for j in range(len(rot_bins_x)-1):
@@ -30,7 +30,5 @@ def execute(HMF,
                 if (j == 0) and (k == 1):
                     continue
                 ijk_idx = ij_idx[(rot_obs[ij_idx, 1] >= rot_bins_y[k]) & (rot_obs[ij_idx, 1] < rot_bins_y[k+1])]
-                print(i, j, k, np.sum(np.exp(lnw[ijk_idx])))
-                lnMwl_mean[i, j, k] = np.sum(np.exp(lnMwl[ijk_idx]) * np.exp(lnw[ijk_idx])) / np.sum(np.exp(lnw[ijk_idx]))
-    lnMwl_mean = np.log(lnMwl_mean)
-    return lnMwl_mean
+                Mwl_mean[i, j, k] = np.sum(np.exp(lnMwl[ijk_idx]) * np.exp(lnw[ijk_idx])) / np.sum(np.exp(lnw[ijk_idx]))
+    return Mwl_mean
