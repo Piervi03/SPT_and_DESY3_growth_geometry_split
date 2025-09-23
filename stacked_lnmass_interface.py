@@ -11,7 +11,9 @@ def setup(options):
               'NPROC': options.get_int(option_section, 'NPROC'),
               'SPT_survey_tab': np.genfromtxt(SPT_survey_fields, names=True, dtype=None),
               'z_bins': options.get_double_array_1d(option_section, 'SPTcl_z_bins'),
-              'SNR_bins': options.get_double_array_1d(option_section, 'SPTcl_SNR_bins'),
+              'rot_mat': options.get_double_array_nd(option_section, 'rot_mat'),
+              'rot_bins_x': options.get_double_array_1d(option_section, 'rot_bins_x'),
+              'rot_bins_y': options.get_double_array_1d(option_section, 'rot_bins_y'),
               'richness_scatter_model': richness_scatter_model,
               }
     # lambda_min(z)
@@ -44,7 +46,7 @@ def execute(block, config):
                                cosmology, scaling,
                                config['SPT_survey_tab'],
                                config['survey_cut_richness'], config['richness_scatter_model'],
-                               config['z_bins'], config['SNR_bins'])
+                               config['z_bins'], config['rot_mat'], config['rot_bins_x'], config['rot_bins_y'])
     if np.any(np.isnan(M)):
         return 1
     block.put_double_array_1d('mean_lnmass', 'M', M)
