@@ -2,7 +2,7 @@ import numpy as np
 from scipy.interpolate import make_interp_spline
 from cosmosis.datablock import option_section
 
-import stacked_lnmass
+import stacked_mass
 
 
 def setup(options):
@@ -42,11 +42,11 @@ def execute(block, config):
     z, M, N = block.get_grid('HMF', 'z_arr', 'M_arr', 'dNdlnM')
     HMF = {'z_arr': z, 'lnM_arr': np.log(M), 'dNdlnM': N}
     # Compute the expected ln mass
-    M = stacked_lnmass.execute(HMF,
-                               cosmology, scaling,
-                               config['SPT_survey_tab'],
-                               config['survey_cut_richness'], config['richness_scatter_model'],
-                               config['z_bins'], config['rot_mat'], config['rot_bins_x'], config['rot_bins_y'])
+    M = stacked_mass.execute(HMF,
+                             cosmology, scaling,
+                             config['SPT_survey_tab'],
+                             config['survey_cut_richness'], config['richness_scatter_model'],
+                             config['z_bins'], config['rot_mat'], config['rot_bins_x'], config['rot_bins_y'])
     if np.any(np.isnan(M)):
         return 1
     block.put_double_array_1d('mean_lnmass', 'M', M)
