@@ -2,25 +2,35 @@ import numpy as np
 
 import P_Mwl_given_SZrichness
 
+
 def execute(HMF,
             cosmology, scaling,
             SPT_survey_tab,
             survey_cut_lambda, richness_scatter_model,
-            z_bins, SNR_bins,):
+            z_bins, rot_mat, rot_bins_x, rot_bins_y):
     # Draws of all observables from the halo mass function
-    z, xi, SNR, lnrichness, lnMwl, lnw = P_Mwl_given_SZrichness.execute(HMF,
-                                                                        cosmology, scaling,
-                                                                        SPT_survey_tab,
-                                                                        survey_cut_lambda, richness_scatter_model,
-                                                                        NPROC=0))
+    z, xi, SNR, richness, lnMwl, lnw = P_Mwl_given_SZrichness.execute(HMF,
+                                                                      cosmology, scaling,
+                                                                      SPT_survey_tab,
+                                                                      survey_cut_lambda, richness_scatter_model,
+                                                                      [z_bins[0], z_bins[-1]],
+                                                                      NPROC=0)
     # Normalize the weights
     lnw -= np.amax(lnw)
-    # Only bins with upper limits above xi cut
-    num_z_bins = len(z_bins) - 1
-    num_SNR_bins = len(SNR_bins) - 1
-    lnMwl_mean = np.zeros(num_z_bins * num_SNR_bins)
-    for i in range(num_z_bins):
-        for j in SNR_bin_idx:
-            idx = (z >= z_bins[i]) & (z < z_bins[i+1]) & (SNR >= SNR_bins[j]) & (SNR < SNR_bins[j+1])
-            lnMwl_mean[i, j] = np.sum(lnMwl[idx] * np.exp(lnw[idx])) / np.sum(np.exp(lnw[idx]))
+    # Rotate to approximate mass-like space
+    rot_obs = np.array([np.matmul(rot_mat, [np.log(SNR[i]), np.log(richness[i])])
+                        for i in range(len(z))])
+    # Mean in bins
+    lnMwl_mean = np.full((len(z_bins), len(rot_bins_x), len(rot_bins_y)), np.nan)
+    for i in range(len(z_bins)-1):
+        i_idx = ((z >= z_bins[i]) & (z < z_bins[i+1])).nonzero()[0]
+        for j in range(len(rot_bins_x)-1):
+            ij_idx = i_idx[(rot_obs[i_idx, 0] >= rot_bins_x[j]) & (rot_obs[i_idx, 0] < rot_bins_x[j+1])]
+            for k in range(len(rot_bins_y)-1):
+                if (j == 0) and (k == 1):
+                    continue
+                ijk_idx = ij_idx[(rot_obs[ij_idx, 1] >= rot_bins_y[k]) & (rot_obs[ij_idx, 1] < rot_bins_y[k+1])]
+                print(i, j, k, np.sum(np.exp(lnw[ijk_idx])))
+                lnMwl_mean[i, j, k] = np.sum(np.exp(lnMwl[ijk_idx]) * np.exp(lnw[ijk_idx])) / np.sum(np.exp(lnw[ijk_idx]))
+    lnMwl_mean = np.log(lnMwl_mean)
     return lnMwl_mean
