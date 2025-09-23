@@ -21,7 +21,7 @@ def execute(HMF,
     rot_obs = np.array([np.matmul(rot_mat, [np.log(SNR[i]), np.log(richness[i])])
                         for i in range(len(z))])
     # Mean in bins
-    Mwl_mean = np.full((len(z_bins)-1, len(rot_bins_x)-1, len(rot_bins_y)-1), np.nan)
+    Mwl_mean = np.zeros((len(z_bins)-1, len(rot_bins_x)-1, len(rot_bins_y)-1))
     for i in range(len(z_bins)-1):
         i_idx = ((z >= z_bins[i]) & (z < z_bins[i+1])).nonzero()[0]
         for j in range(len(rot_bins_x)-1):
