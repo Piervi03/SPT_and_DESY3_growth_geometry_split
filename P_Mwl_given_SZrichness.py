@@ -3,7 +3,7 @@ from multiprocessing import Pool
 from scipy.special import log_ndtr, ndtr, ndtri
 from scipy.interpolate import RectBivariateSpline
 
-import lensing, scaling_relations
+import scaling_relations
 
 
 # At most, draw +3 sigma deviates
@@ -13,12 +13,14 @@ ndtr_max = ndtr(3.)
 def execute(HMF, cosmology, scaling,
             SPT_survey_tab,
             survey_cut_richness, richness_scatter_model,
+            z_lims,
             N_draws=100000, NPROC=0):
     if NPROC == 0:
         z, xi, SNR, richness, lnMwl, lnw = get_obs_draws(HMF,
                                                          cosmology, scaling,
                                                          SPT_survey_tab,
                                                          survey_cut_richness, richness_scatter_model,
+                                                         z_lims,
                                                          N_draws=N_draws, seed=0)
     else:
         raise Exception("Multiprocessing not implemented yet.")
@@ -29,6 +31,7 @@ def execute(HMF, cosmology, scaling,
 def get_obs_draws(HMF, cosmology, scaling,
                   SPT_survey_tab,
                   survey_cut_richness, richness_scatter_model,
+                  z_lims,
                   N_draws=100000, seed=0):
     """Wrapper function that calls all workflow steps. Return observables and
     ln-weights."""
@@ -38,7 +41,7 @@ def get_obs_draws(HMF, cosmology, scaling,
     with np.errstate(divide='ignore'):
         HMF_interp = RectBivariateSpline(HMF['z_arr'], HMF['lnM_arr'], np.log(HMF['dNdlnM']), kx=1, ky=1)
     # Draw redshift and lnM
-    z, lnM, lnw_HMF = draw_z_lnmass(rng, [.25, .95], [HMF['lnM_arr'][0], HMF['lnM_arr'][-1]], HMF_interp, N_draws)
+    z, lnM, lnw_HMF = draw_z_lnmass(rng, z_lims, [HMF['lnM_arr'][0], HMF['lnM_arr'][-1]], HMF_interp, N_draws)
     # Covariance matrix in lnM space
     covmat_lnM = cov_lnM(scaling, z, lnM)
     # Draw SPT field
@@ -92,7 +95,7 @@ def draw_lnobs_intrinsic_given_lnmass(rng, z, lnM, scaling, cosmology, covmat,
     r = r_min + (ndtr_max-r_min) * rng.random(len(lnM))
     lnM_zeta = lnM + ndtri(r) * SZscatter_lnM
     # Draw ln(richness, DESWL) | ln(zeta, lnM)
-    mean_cond = lnM[:, None] + covmat[:, 0, 1:]/covmat[:, 0, 0][:, None] * (lnM_zeta - lnM)[:,None]
+    mean_cond = lnM[:, None] + covmat[:, 0, 1:]/covmat[:, 0, 0][:, None] * (lnM_zeta - lnM)[:, None]
     var_cond = np.linalg.inv(np.linalg.inv(covmat)[:, 1:, 1:])
     # rng.multivariate_normal only accepts single mean and cov, cholesky broadcasts
     # and is faster than svd. Gain factor ~30 in speed.
