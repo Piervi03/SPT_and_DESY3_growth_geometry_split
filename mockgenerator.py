@@ -2,7 +2,7 @@ import numpy as np
 import sys
 import time
 import importlib
-from scipy.interpolate import interp1d
+from scipy.interpolate import make_interp_spline
 from astropy.table import Table
 
 import cosmo
@@ -17,9 +17,11 @@ def main(configMod_file, catalog_name):
     configMod = importlib.import_module(configMod_file[:-3])
     # SPT survey information
     SPT_survey = Table.read(configMod.SPT_survey, format='ascii.commented_header')
-    tmp = np.loadtxt(configMod.MCMF_lambda_min, unpack=True)
-    surveyCutLambda = {'shallow': interp1d(tmp[0], tmp[1], kind='linear', assume_sorted=True),
-                       'deep': interp1d(tmp[0], tmp[2], kind='linear', assume_sorted=True)}
+    # lambda_min(z)
+    tmp = np.genfromtxt(configMod.MCMF_lambda_min, names=True, dtype=None)
+    surveyCutLambda = {}
+    for name in tmp.dtype.names[1:]:
+        surveyCutLambda[name] = make_interp_spline(tmp['z'], tmp[name], k=1)
 
     cosmology = configMod.cosmology
     scaling = configMod.scaling
@@ -105,7 +107,7 @@ def main(configMod_file, catalog_name):
         obs_0 = np.insert(obs_0, -1, np.full(obs_0[0].shape, lnM_arr)[None, ...], axis=0)
 
         for i, z in enumerate(z_arr):
-            if SPT_survey['LAMBDA_MIN'][fieldidx] in ['deep', 'shallow']:
+            if SPT_survey['LAMBDA_MIN'][fieldidx] not in ['NONE', 'None', 'none']:
                 lambda_min = surveyCutLambda[SPT_survey['LAMBDA_MIN'][fieldidx]](z)
             else:
                 lambda_min = 0.
