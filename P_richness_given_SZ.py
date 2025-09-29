@@ -50,7 +50,6 @@ def process_field(SPT_field, catalog, surveyCutRichness, richness_scatter_model,
     lnzeta_z_m = scaling_relations.lnmass2lnobs('zeta', lnM_arr[None, :], z_arr[:, None],
                                                 scaling, cosmology,
                                                 SPTfield=SPT_field)
-    xi_z_m = scaling_relations.zeta2xi(np.exp(lnzeta_z_m))
     lambda_min = surveyCutRichness[SPT_field['LAMBDA_MIN']]
     lnlike = 0.
     field_idx = ((catalog['FIELD'] == SPT_field['FIELD']) & (catalog['richness'] > 0.)).nonzero()[0]
@@ -62,7 +61,6 @@ def process_field(SPT_field, catalog, surveyCutRichness, richness_scatter_model,
                                              * scaling_relations.dlnM_dlnobs('zeta', scaling)))
         lnrichness = lnrichness_z_m[z_idx, :]
         lnzeta = lnzeta_z_m[z_idx, :]
-        xi = xi_z_m[z_idx, :]
         # Interpolate to fine xi array w/ Delta xi = 0.25 from max(xi-5, xi_min) to xi+3
         xi_min = np.amax([scaling_relations.zeta2xi(scaling['zeta_min']), catalog['XI'][clusterID] - 5.])
         xi_arr = np.arange(xi_min, catalog['XI'][clusterID] + 3., .25)
@@ -81,21 +79,22 @@ def process_field(SPT_field, catalog, surveyCutRichness, richness_scatter_model,
         lndN_dlnrichness -= np.log(norm)
         # P(richness_obs | richness), accounting for lambda_min
         richness = np.exp(lnrichness)
+        lambda_min_z = lambda_min(catalog['REDSHIFT'][clusterID])
         if richness_scatter_model == 'lognormalrelPoisson':
             # var(ln richness) = 1/richness
             lnrichnessobs = np.log(catalog['richness'][clusterID])
             lndP_dobs = -.5 * (lnrichnessobs-lnrichness)**2*richness - .5*ln2pi + .5*lnrichness - lnrichnessobs
-            with np.errstate(divide='ignore'):
-                lndP_dobs -= np.log(1. - ndtr((np.log(lambda_min(catalog['REDSHIFT'][clusterID]))-lnrichness)*np.sqrt(richness)))
+            if lambda_min_z > 0.:
+                with np.errstate(divide='ignore'):
+                    lndP_dobs -= np.log(1. - ndtr((np.log(lambda_min_z)-lnrichness)*np.sqrt(richness)))
         elif richness_scatter_model == 'lognormalGaussPoisson':
             # var(richness) = richness
             lndP_dobs = -.5 * (catalog['richness'][clusterID]-richness)**2/richness - .5*ln2pi - .5*lnrichness
             with np.errstate(divide='ignore'):
-                lndP_dobs -= np.log(1. - ndtr((lambda_min(catalog['REDSHIFT'][clusterID])-richness)/np.sqrt(richness)))
+                lndP_dobs -= np.log(1. - ndtr((lambda_min_z-richness)/np.sqrt(richness)))
         else:
             raise ValueError('Invalid richness_scatter_model {}'.format(richness_scatter_model))
         lndP_dobs[np.isposinf(lndP_dobs)] = -np.inf
-        lndP_dlnobs = lndP_dobs + lnrichness
         # ln-likelihood
         with np.errstate(invalid='ignore', divide='ignore'):
             lnitg = lndP_dobs + lndN_dlnrichness
