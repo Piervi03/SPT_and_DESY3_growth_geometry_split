@@ -1,5 +1,5 @@
 import numpy as np
-from multiprocessing import Pool
+# from multiprocessing import Pool
 from scipy.special import log_ndtr, ndtr, ndtri
 from scipy.interpolate import RectBivariateSpline
 
@@ -133,9 +133,8 @@ def draw_richness_obs(rng, z, lnrichness,
     """Return draws of observed richness given `lnrichness`, accounting for
     lambda_min(z)."""
     # Lambda_min(z) is a function of redshift and SPT field
-    MCMF_deep = SPT_field['LAMBDA_MIN'] == 'deep'
-    lambda_min = survey_cut_richness['shallow'](z)
-    lambda_min[MCMF_deep] = survey_cut_richness['deep'](z[MCMF_deep])
+    lambda_min = np.array([survey_cut_richness[SPT_field['LAMBDA_MIN'][i]](z[i])
+                           for i in range(len(z))])
     # Draw richness_obs given lnrichness
     richness = np.exp(lnrichness)
     if richness_scatter_model == 'lognormalGaussPoisson':

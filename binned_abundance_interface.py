@@ -29,9 +29,9 @@ def execute(block, config):
     HMF = {'lnM_arr': block.get_double_array_1d('dN_dmultiobs', 'lnM_arr'),
            'z_arr': block.get_double_array_1d('dN_dmultiobs', 'z_arr'),
            'SZ_lndNdlnM': block.get_double_array_nd('dN_dmultiobs', 'SZ_lndNdlnM')}
-    for name in ['SZ_lambdacut_shallow_lndNdlnM', 'SZ_lambdacut_deep_lndNdlnM']:
+    for name in np.unique(config['SPT_survey_tab']['LAMBDA_MIN']):
         if config['do_lambda_min']:
-            HMF[name] = block.get_double_array_nd('dN_dmultiobs', name)
+            HMF[name] = block.get_double_array_nd('dN_dmultiobs', 'SZ_lambda_cut_{}_lndNdlnM'.format(name))
         else:
             HMF[name] = HMF['SZ_lndNdlnM']
     # Compute the expected number counts

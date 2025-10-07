@@ -12,6 +12,7 @@ def unwrap_self_f(arg):
 
 ################################################################################
 
+
 class NumberCount:
 
     def __init__(self, catalog, SPT_survey,
@@ -23,7 +24,7 @@ class NumberCount:
         self.surveyCutRedshift = surveyCutRedshift
         self.NPROC = NPROC
 
-        ##### Observable arrays
+        # Observable arrays
         # Arrays over which we'll integrate (survey cuts applied)
         dz = .01
         Nz = int((self.surveyCutRedshift[1]-self.surveyCutRedshift[0])/dz + 1)
@@ -36,7 +37,6 @@ class NumberCount:
         self.xi_bins_survey = {'SPTPOL_500d': self.xi_bins_output,
                                'SZ': np.logspace(np.log10(4.5), np.log10(self.surveyCutSZmax), 11),
                                'SPECS': np.logspace(np.log10(5), np.log10(self.surveyCutSZmax), 11)}
-
 
     def lnlike(self, HMF, cosmology, scaling):
         """Return ln-likelihood for SPT cluster abundance."""
@@ -52,13 +52,9 @@ class NumberCount:
         self.ln_zeta_xi_arr = np.log(scaling_relations.xi2zeta(self.xi_bins))
         self.dlnzeta_dxi_arr = scaling_relations.dlnzeta_dxi_given_xi(self.xi_bins)
 
-        self.dN_dlnzeta_unitSolidAng = {}
-        for tmp in ['SZ_lambdacut_shallow', 'SZ_lambdacut_deep', 'SZ']:
-            self.dN_dlnzeta_unitSolidAng[tmp] = scaling_relations.dlnM_dlnobs('zeta', self.scaling) * np.exp(self.HMF['%s_lndNdlnM'%tmp])
-
-        ##### Evaluate (log)-likelihood for each SPT field (optional multiprocessing)
+        # Evaluate (log)-likelihood for each SPT field (optional multiprocessing)
         num_fields = len(self.SPT_survey)
-        if self.NPROC==0:
+        if self.NPROC == 0:
             field_results = [self.lnlike_field(fieldidx) for fieldidx in range(num_fields)]
         else:
             with Pool(processes=self.NPROC) as pool:
@@ -90,16 +86,17 @@ class NumberCount:
     def lnlike_field(self, fieldidx):
         """Returns (ln-likelihood, Ntotal) for a given SPT field (index)."""
         # dN/dln(zeta)
-        if self.SPT_survey['LAMBDA_MIN'][fieldidx] in ['deep', 'shallow']:
+        if self.SPT_survey['LAMBDA_MIN'][fieldidx] not in ['none', 'None', 'NONE']:
             tmp = 'SZ_lambdacut_' + self.SPT_survey['LAMBDA_MIN'][fieldidx]
         else:
             tmp = 'SZ'
-        dN_dlnzeta = self.dN_dlnzeta_unitSolidAng[tmp] * self.SPT_survey['AREA'][fieldidx] * (np.pi/180)**2
-        with np.errstate(divide='ignore'):
-            lndN_dlnzeta = np.log(dN_dlnzeta)
+        lndN_dlnzeta = (self.HMF['%s_lndNdlnM' % tmp]
+                        + np.log(scaling_relations.dlnM_dlnobs('zeta', self.scaling)
+                                 * self.SPT_survey['AREA'][fieldidx] * (np.pi/180)**2))
 
         # Scaling relation (depends on survey)
-        lnzeta_m = scaling_relations.lnmass2lnobs('zeta', self.HMF['lnM_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling, self.cosmology, SPTfield=self.SPT_survey[fieldidx])
+        lnzeta_m = scaling_relations.lnmass2lnobs('zeta', self.HMF['lnM_arr'][None, :], self.HMF['z_arr'][:, None],
+                                                  self.scaling, self.cosmology, SPTfield=self.SPT_survey[fieldidx])
 
         # dN/dxi = dN/dlnzeta dlnzeta/dxi (unconvolved)
         # Unfortunately, the zeta_m table is not regular
@@ -131,35 +128,34 @@ class NumberCount:
         f = RectBivariateSpline(self.HMF['z_arr'], self.xi_bins, dN_dxi)
         N_xi_out = np.array([f.integral(self.z_arr[0], self.z_arr[-1], self.xi_bins_output[i], self.xi_bins_output[i+1])
                              for i in range(len(self.xi_bins_output)-1)])
-        if self.SPT_survey['XI_MIN'][fieldidx]!=self.xi_bins_output[0]:
+        if self.SPT_survey['XI_MIN'][fieldidx] != self.xi_bins_output[0]:
             N_xi_out[0] = f.integral(self.z_arr[0], self.z_arr[-1], self.SPT_survey['XI_MIN'][fieldidx], self.xi_bins_output[1])
         # integrand = np.exp(lndNdxi(np.log(self.z_arr), np.linspace(np.log(self.SPT_survey['XI_MIN'][fieldidx]), np.log(50), 11)))
-        dN_dxi_out_survey = None #np.trapz(integrand, self.z_arr, axis=0)
+        dN_dxi_out_survey = None  # np.trapz(integrand, self.z_arr, axis=0)
 
         # Likelihood contribution from Ntotal
         lnlike_this_field = -Ntotal
 
-        ##### confirmed clusters
-        thisfield_conf = ((self.catalog['FIELD']==self.SPT_survey['FIELD'][fieldidx])
-                          & (self.catalog['COSMO_SAMPLE']==1)
-                          & (self.catalog['XI']>=self.SPT_survey['XI_MIN'][fieldidx])
-                          & (self.catalog['XI']<=self.surveyCutSZmax)
-                          & (self.catalog['REDSHIFT']>=self.surveyCutRedshift[0])
-                          & (self.catalog['REDSHIFT']<=self.surveyCutRedshift[1]))
+        # confirmed clusters
+        thisfield_conf = ((self.catalog['FIELD'] == self.SPT_survey['FIELD'][fieldidx])
+                          & (self.catalog['COSMO_SAMPLE'] == 1)
+                          & (self.catalog['XI'] >= self.SPT_survey['XI_MIN'][fieldidx])
+                          & (self.catalog['XI'] <= self.surveyCutSZmax)
+                          & (self.catalog['REDSHIFT'] >= self.surveyCutRedshift[0])
+                          & (self.catalog['REDSHIFT'] <= self.surveyCutRedshift[1]))
         these_lndNdxi = (lndNdxi(np.log(self.catalog['REDSHIFT'][thisfield_conf]), np.log(self.catalog['XI'][thisfield_conf]), grid=False)
                          - np.log(self.SPT_survey['AREA'][fieldidx] * (np.pi/180.)**2.))
-        for n,i in enumerate(thisfield_conf.nonzero()[0]):
+        for n, i in enumerate(thisfield_conf.nonzero()[0]):
             # spec-z: Evaluate dN/dxi/dz at exact location
-            if self.catalog['REDSHIFT_UNC'][i]==0.:
-                lnlike_this_field+= these_lndNdxi[n]
+            if self.catalog['REDSHIFT_UNC'][i] == 0.:
+                lnlike_this_field += these_lndNdxi[n]
             # photo-z: \int dz dN/dxi/dz, choose limits to encompass +/- 4 sigma of photo-z error
-            elif self.catalog['REDSHIFT_UNC'][i]>0.:
+            elif self.catalog['REDSHIFT_UNC'][i] > 0.:
                 zlo = min((.25, self.catalog['REDSHIFT'][i]-4*self.catalog['REDSHIFT_UNC'][i]))
                 zhi = max((self.HMF['z_arr'][-1], self.catalog['REDSHIFT'][i]+4*self.catalog['REDSHIFT_UNC'][i]))
                 zarr = np.linspace(zlo, zhi, 15)
-                integrand = np.exp(lndNdxi(np.log(zarr), np.log(self.catalog['XI'][i])))[:,0] * norm.pdf(zarr, self.catalog['REDSHIFT'][i], self.catalog['REDSHIFT_UNC'][i])
+                integrand = np.exp(lndNdxi(np.log(zarr), np.log(self.catalog['XI'][i])))[:, 0] * norm.pdf(zarr, self.catalog['REDSHIFT'][i], self.catalog['REDSHIFT_UNC'][i])
                 this_lnlike = np.log(np.trapz(integrand, zarr))
-                lnlike_this_field+= this_lnlike
-
+                lnlike_this_field += this_lnlike
 
         return lnlike_this_field, Ntotal, N_z_out, N_xi_out, dN_dxi_out_survey, self.SPT_survey['FIELD'][fieldidx], thisfield_conf, these_lndNdxi

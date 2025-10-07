@@ -19,8 +19,7 @@ class NumberCount:
         #self.surveyCutSZmax = surveyCutSZmax
         #self.surveyCutRedshift = surveyCutRedshift
         self.NPROC = kwargs.pop('NPROC', 0)
-        self.covmat_sv = covmat_sv
-
+        self.covmat_sv = kwargs.pop('covmat_sv')
 
         SPT_survey = kwargs.pop('SPT_survey')
         # Arrays over which we'll integrate (survey cuts applied)
@@ -61,10 +60,6 @@ class NumberCount:
         self.ln_zeta_xi_arr = np.log(scaling_relations.xi2zeta(self.xi_bins))
         self.dlnzeta_dxi_arr = scaling_relations.dlnzeta_dxi_given_xi(self.xi_bins)
 
-        self.dN_dlnzeta_unitSolidAng = {}
-        for tmp in ['SZ_lambdacut_shallow', 'SZ_lambdacut_deep', 'SZ']:
-            self.dN_dlnzeta_unitSolidAng[tmp] = scaling_relations.dlnM_dlnobs('zeta', self.scaling) * np.exp(self.HMF['%s_dNdlnM'%tmp])
-
         ##### Evaluate (log)-likelihood for each SPT field (optional multiprocessing)
         num_fields = len(self.SPT_survey)
         if self.NPROC==0:
@@ -101,13 +96,13 @@ class NumberCount:
     def process_field(self, fieldidx):
         """Returns (ln-likelihood, Ntotal) for a given SPT field (index)."""
         # dN/dln(zeta)
-        if self.SPT_survey['LAMBDA_MIN'][fieldidx] in ['deep', 'shallow']:
+        if self.SPT_survey['LAMBDA_MIN'][fieldidx] not in ['none', 'None', 'NONE']:
             tmp = 'SZ_lambdacut_' + self.SPT_survey['LAMBDA_MIN'][fieldidx]
         else:
             tmp = 'SZ'
-        dN_dlnzeta = self.dN_dlnzeta_unitSolidAng[tmp] * self.SPT_survey['AREA'][fieldidx] * (np.pi/180)**2
-        with np.errstate(divide='ignore'):
-            lndN_dlnzeta = np.log(dN_dlnzeta)
+        lndN_dlnzeta = (self.HMF['%s_dNdlnM'%tmp]
+                        + np.log(scaling_relations.dlnM_dlnobs('zeta', self.scaling)
+                                 * self.SPT_survey['AREA'][fieldidx] * (np.pi/180)**2))
 
         # Scaling relation (depends on survey)
         lnzeta_m = scaling_relations.lnmass2lnobs('zeta', self.HMF['lnM_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling, self.cosmology, SPTfield=self.SPT_survey[fieldidx])

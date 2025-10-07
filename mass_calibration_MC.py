@@ -7,9 +7,11 @@ from scipy.special import log_ndtr
 from scipy.special import ndtr as ndtr_sp
 from scipy.special import ndtri
 from scipy.interpolate import interp1d, RectBivariateSpline
-import Mconversion_concentration, scaling_relations
 
-cosmologyRef = {'Omega_m':.272, 'Omega_l':.728, 'h':.702, 'w0':-1, 'wa':0}
+import Mconversion_concentration
+import scaling_relations
+
+cosmologyRef = {'Omega_m': .272, 'Omega_l': .728, 'h': .702, 'w0': -1, 'wa': 0}
 GETPULL = False
 Ndraw_ini = 2**11
 Ndraw = 2**15
@@ -45,6 +47,7 @@ rho_dict = {'zeta': 'SZ',
 def unwrap_self_f(arg):
     return MassCalibration.clusterlnlike(*arg)
 
+
 ################################################################################
 
 class MassCalibration:
@@ -63,15 +66,14 @@ class MassCalibration:
         self.SPT_survey = Table.read(kwargs.pop('SPT_survey_fields'), format='ascii.commented_header')
         self.catalog = Table.read(kwargs.pop('SPTcatalogfile'))
         HSTcalibfile = kwargs.pop('HSTcalibfile', 'None')
-        if HSTcalibfile!='None':
+        if HSTcalibfile != 'None':
             self.HSTcalib = Table.read(HSTcalibfile, format='ascii.commented_header')
         # Init data structures for lensing stacks
         if self.get_stacked_DES:
             self.catalog['DES_shear_profile_mean'] = [None for i in range(len(self.catalog))]
         # Safety first
-        if not kwargs=={}:
+        if not kwargs == {}:
             print("Unknown keyword arguments in", kwargs)
-
 
     ############################################################################
 
@@ -82,21 +84,21 @@ class MassCalibration:
         self.scaling['one'] = 1.
         self.xi_min = scaling_relations.zeta2xi(self.scaling['zeta_min'])
 
-        ##### Set up interpolation for HMF
+        # Set up interpolation for HMF
         HMF_in = HMF['dNdlnM']
-        if np.any(HMF_in==0):
-            HMF_in[HMF_in==0] = np.nextafter(0, 1)
+        if np.any(HMF_in == 0):
+            HMF_in[HMF_in == 0] = np.nextafter(0, 1)
         self.lnM_arr = HMF['lnM_arr']
         self.HMF_interp = RectBivariateSpline(HMF['z_arr'], self.lnM_arr, np.log(HMF_in), kx=1, ky=1)
 
-        ##### Initialize mass-concentration relation class (for WL and dispersions)
+        # Initialize mass-concentration relation class (for WL and dispersions)
         if self.todo['veldisp']:
             self.MCrel = Mconversion_concentration.ConcentrationConversion(self.mcType, self.cosmology,
                                                                            setup_interp=True, interp_massdef=500)
 
-        ##### Evaluate the individual likelihoods
+        # Evaluate the individual likelihoods
         len_data = len(self.catalog['SPT_ID'])
-        if self.NPROC==0:
+        if self.NPROC == 0:
             # Iterate through cluster list
             lnlikelihoods = np.zeros(len_data)
             for i in range(len_data):
@@ -113,7 +115,7 @@ class MassCalibration:
             return -np.inf, None
         lnlike = np.sum(lnlikelihoods)
 
-        ##### DES stacked shear profile
+        # DES stacked shear profile
         if self.get_stacked_DES:
             stack = {}
             with warnings.catch_warnings():
@@ -123,58 +125,58 @@ class MassCalibration:
                 for i in range(len(z_lims)-1):
                     for j in range(len(xi_lims)-1):
                         idx = (notNone
-                               &(self.catalog['REDSHIFT']>=z_lims[i])&(self.catalog['REDSHIFT']<z_lims[i+1])
-                               &(self.catalog['XI']>=xi_lims[j])&(self.catalog['XI']<xi_lims[j+1]))
-                        stack['shear_%s%s'%(z_names[i], xi_names[j])] = np.mean(self.catalog['DES_shear_profile_mean'][idx], axis=0)
+                               & (self.catalog['REDSHIFT'] >= z_lims[i]) & (self.catalog['REDSHIFT'] < z_lims[i+1])
+                               & (self.catalog['XI'] >= xi_lims[j]) & (self.catalog['XI'] < xi_lims[j+1]))
+                        stack['shear_%s%s' % (z_names[i], xi_names[j])] = np.mean(self.catalog['DES_shear_profile_mean'][idx], axis=0)
             return lnlike, stack
         else:
             return lnlike, None
 
-
     ############################################################################
+
     def clusterlnlike(self, i):
         """Return multi-wavelength mass-calibration ln-likelihood for a
         given cluster (index) by calling `get_lnP_obs_given_xi` or
         returning 0 if no follow-up data is available."""
         # t0 = time.time()
-        ##### Do we actually want this guy?
-        if self.catalog['COSMO_SAMPLE'][i]==0:
+        # Do we actually want this guy?
+        if self.catalog['COSMO_SAMPLE'][i] == 0:
             return 0.
-        if (self.catalog['XI'][i]<self.SPT_survey['XI_MIN'][self.SPT_survey['FIELD']==self.catalog['FIELD'][i]]):
+        if (self.catalog['XI'][i] < self.SPT_survey['XI_MIN'][self.SPT_survey['FIELD'] == self.catalog['FIELD'][i]]):
             return 0.
-        if not (self.surveyCutRedshift[0]<self.catalog['REDSHIFT'][i]<self.surveyCutRedshift[1]):
+        if not (self.surveyCutRedshift[0] < self.catalog['REDSHIFT'][i] < self.surveyCutRedshift[1]):
             return 0.
 
-        ##### Check if follow-up is available
+        # Check if follow-up is available
         nobs = 0
         obsnames = ['zeta',]
         if self.todo['WL'] and self.catalog['WLdata'][i] is not None:
-            nobs+= 1
-            if self.catalog['WLdata'][i]['datatype']=='Megacam':
+            nobs += 1
+            if self.catalog['WLdata'][i]['datatype'] == 'Megacam':
                 obsnames.append('WLMegacam')
-            elif self.catalog['WLdata'][i]['datatype']=='DES':
+            elif self.catalog['WLdata'][i]['datatype'] == 'DES':
                 obsnames.append('WLDES')
-            elif self.catalog['WLdata'][i]['datatype']=='HST':
+            elif self.catalog['WLdata'][i]['datatype'] == 'HST':
                 obsnames.append('WLHST')
-        if self.todo['veldisp'] and self.catalog['veldisp'][i]!=0.:
-            nobs+= 1
+        if self.todo['veldisp'] and self.catalog['veldisp'][i] != 0.:
+            nobs += 1
             obsnames.append('disp')
-        if self.todo['Yx'] and self.catalog['Mg_fid'][i]!=0:
-            nobs+= 1
+        if self.todo['Yx'] and self.catalog['Mg_fid'][i] != 0:
+            nobs += 1
             obsnames.append('Yx')
-        if self.todo['Mgas'] and self.catalog['Mg_fid'][i]!=0:
-            nobs+= 1
+        if self.todo['Mgas'] and self.catalog['Mg_fid'][i] != 0:
+            nobs += 1
             obsnames.append('Mgas')
-        if self.todo['richness'] and self.catalog['richness'][i]>0.:
-            nobs+= 1
-            if self.catalog['REDSHIFT'][i]<self.z_DESWISE:
+        if self.todo['richness'] and self.catalog['richness'][i] > 0.:
+            nobs += 1
+            if self.catalog['REDSHIFT'][i] < self.z_DESWISE:
                 obsnames.append('richness_base')
             else:
                 obsnames.append('richness_ext')
-        if nobs==0:
+        if nobs == 0:
             return 0.
 
-        ##### Set up random number generator and get likelihood
+        # Set up random number generator and get likelihood
         seed = np.abs(int(123456.*(i+1)*np.prod([self.scaling[key]+1. for key in ['Asz', 'Bsz', 'Csz', 'Dsz']])))
         self.rng = np.random.default_rng(seed)
         lnprobability = self.get_lnP_obs_given_xi(obsnames, i)
@@ -184,7 +186,6 @@ class MassCalibration:
 
         # print(self.catalog['SPT_ID'][i], obsnames, lnprobability,)# time.time()-t0)
         return lnprobability
-
 
     ############################################################################
 
@@ -223,18 +224,18 @@ class MassCalibration:
         # Account for lambda_min
         lnP_lambda_gtr_cut = 0.
         if self.todo['lambda_min']:
-            lambda_min_type = self.SPT_survey['LAMBDA_MIN'][self.SPT_survey['FIELD'] == self.catalog['FIELD'][dataID]]
-            if lambda_min_type in ['deep', 'shallow']:
+            lambda_min_type = self.SPT_survey['LAMBDA_MIN'][self.SPT_survey['FIELD'] == self.catalog['FIELD'][dataID]][0]
+            if lambda_min_type not in ['none', 'None', 'NONE']:
                 lambda_min = self.surveyCutRichness[lambda_min_type](self.catalog['REDSHIFT'][dataID])
             else:
                 lambda_min = 0.
-            if lambda_min>0.:
+            if lambda_min > 0.:
                 if self.richness_scatter_model in ['lognormal', 'lognormalrelPoisson']:
                     # Scatter in richness
                     var_richness = self.scaling[scatter_dict[richness_obs]]**2
-                    if self.richness_scatter_model=='lognormalrelPoisson':
+                    if self.richness_scatter_model == 'lognormalrelPoisson':
                         richness = np.exp(scaling_relations.lnmass2lnobs(richness_obs, lnM, self.catalog['REDSHIFT'][dataID], self.scaling))
-                        var_richness+= 1/richness
+                        var_richness += 1/richness
                     # Variance and covariance in mass space
                     var_richness_lnM = var_richness * scaling_relations.dlnM_dlnobs(richness_obs, self.scaling)**2
                     covar_lnM = self.scaling['rhoSZrichness'] * SZscatter_lnM * np.sqrt(var_richness_lnM)
@@ -254,7 +255,7 @@ class MassCalibration:
         """Returns mass draws given xi for cluster `dataID`. Prior P(M) is not
         accounted for."""
         zeta, lnweights = self.get_zeta_draws(self.catalog['XI'][dataID])
-        lnM = scaling_relations.obs2lnmass('zeta', zeta, self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, SPTfield=self.SPT_survey[self.SPT_survey['FIELD']==self.catalog['FIELD'][dataID]])
+        lnM = scaling_relations.obs2lnmass('zeta', zeta, self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, SPTfield=self.SPT_survey[self.SPT_survey['FIELD'] == self.catalog['FIELD'][dataID]])
         return zeta, lnM, lnweights
 
     def get_zeta_draws(self, xi):
@@ -295,7 +296,7 @@ class MassCalibration:
 
     def draw_lnzeta_given_lnM(self, lnM, dataID, SZscatter_lnM):
         """Return draws and associated weights from P(zeta|M,z)."""
-        zeta_min_lnM = scaling_relations.obs2lnmass('zeta', self.scaling['zeta_min'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, SPTfield=self.SPT_survey[self.SPT_survey['FIELD']==self.catalog['FIELD'][dataID]])
+        zeta_min_lnM = scaling_relations.obs2lnmass('zeta', self.scaling['zeta_min'], self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, SPTfield=self.SPT_survey[self.SPT_survey['FIELD'] == self.catalog['FIELD'][dataID]])
         r_min = ndtr((zeta_min_lnM-lnM)/SZscatter_lnM)
         r = r_min + (ndtr_max-r_min)*self.rng.random(len(lnM))
         lnM_zeta = ndtri(r)*SZscatter_lnM + lnM
@@ -304,7 +305,7 @@ class MassCalibration:
 
     def P_xi_zeta(self, lnM_zeta, dataID):
         """Return probability P(xi|zeta) for cluster `dataID`."""
-        zeta = np.exp(scaling_relations.lnmass2lnobs('zeta', lnM_zeta, self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, SPTfield=self.SPT_survey[self.SPT_survey['FIELD']==self.catalog['FIELD'][dataID]]))
+        zeta = np.exp(scaling_relations.lnmass2lnobs('zeta', lnM_zeta, self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, SPTfield=self.SPT_survey[self.SPT_survey['FIELD'] == self.catalog['FIELD'][dataID]]))
         xi = scaling_relations.zeta2xi(zeta)
         lnP = -.5*(self.catalog['XI'][dataID]-xi)**2 - .5*ln2pi
         return lnP
@@ -313,11 +314,11 @@ class MassCalibration:
         """Returns covariance matrix for the requested `obsnames`."""
         N_obs = len(obsnames)
         scatter = np.array([self.scaling[scatter_dict[obs]] for obs in obsnames])
-        covmat = scatter[:,None]*scatter[None,:]
+        covmat = scatter[:, None]*scatter[None, :]
         for i in range(N_obs):
-            for j in range(i+1,N_obs):
-                covmat[i,j]*= self.scaling['rho%s%s'%(rho_dict[obsnames[i]], rho_dict[obsnames[j]])]
-                covmat[j,i]*= self.scaling['rho%s%s'%(rho_dict[obsnames[i]], rho_dict[obsnames[j]])]
+            for j in range(i+1, N_obs):
+                covmat[i, j] *= self.scaling['rho%s%s' % (rho_dict[obsnames[i]], rho_dict[obsnames[j]])]
+                covmat[j, i] *= self.scaling['rho%s%s' % (rho_dict[obsnames[i]], rho_dict[obsnames[j]])]
         return covmat
 
     def get_conditional(self, lnM, lnM_meas, covmat_lnM, obsname_meas, all_obsnames):
@@ -329,18 +330,18 @@ class MassCalibration:
         obsnames_cond = all_obsnames.copy()
         obsnames_cond.remove(obsname_meas)
         # Mean of conditional distribution mu_1(x_2=x_2) = mu_1 + Sigma_12/Sigma_22 (x_2-mu_2)
-        Sigma12 = np.delete(covmat_lnM[:,idx_meas,:], idx_meas, axis=1)
-        lnM_cond = np.delete(lnM, idx_meas, axis=1) + Sigma12 / covmat_lnM[:,idx_meas,idx_meas][:,None] * (lnM_meas-lnM[:,idx_meas])[:,None]
+        Sigma12 = np.delete(covmat_lnM[:, idx_meas, :], idx_meas, axis=1)
+        lnM_cond = np.delete(lnM, idx_meas, axis=1) + Sigma12 / covmat_lnM[:, idx_meas, idx_meas][:, None] * (lnM_meas-lnM[:, idx_meas])[:, None]
         # Variance of conditional distribution var(x_2=x_2) = var_11 - Sigma_12/Sigma_22*Sigma_21
         var = (np.delete(np.delete(covmat_lnM.copy(), idx_meas, axis=1), idx_meas, axis=2)
-               - Sigma12[:,:,None]*Sigma12[:,None,:] / covmat_lnM[:,idx_meas,idx_meas][:,None,None])
+               - Sigma12[:, :, None]*Sigma12[:, None, :] / covmat_lnM[:, idx_meas, idx_meas][:, None, None])
         return lnM_cond, var, obsnames_cond
 
     def get_lnlike_richness(self, lnM, richness_std_lnM, dataID, obsname):
         """Return ln-likelihood of richness and the draws of intrinsic
         ln(M_richness)."""
         # Lognormal scatter
-        if self.richness_scatter_model=='lognormal':
+        if self.richness_scatter_model == 'lognormal':
             lnM_richness = scaling_relations.obs2lnmass(obsname, self.catalog['richness'][dataID], self.catalog['REDSHIFT'][dataID], self.scaling)
             lnrichness_std = richness_std_lnM/scaling_relations.dlnM_dlnobs(obsname, self.scaling)
             lnrichness = scaling_relations.lnmass2lnobs(obsname, lnM, self.catalog['REDSHIFT'][dataID], self.scaling)
@@ -351,17 +352,17 @@ class MassCalibration:
             lnrichness = scaling_relations.lnmass2lnobs(obsname, lnM_richness, self.catalog['REDSHIFT'][dataID], self.scaling)
             richness = np.exp(lnrichness)
             # Lognormal scatter in richness gets additional 1/lambda for relative shot noise
-            if self.richness_scatter_model=='lognormalrelPoisson':
+            if self.richness_scatter_model == 'lognormalrelPoisson':
                 lnlike = -.5*(np.log(self.catalog['richness'][dataID])-lnrichness)**2*richness - np.log(self.catalog['richness'][dataID]) - .5*ln2pi + .5*lnrichness
             # Convolve lognormal scatter with Gaussian of width sqrt(richness)
-            elif self.richness_scatter_model=='lognormalGaussPoisson':
+            elif self.richness_scatter_model == 'lognormalGaussPoisson':
                 lnlike = -.5*(self.catalog['richness'][dataID]-richness)**2/richness - .5*np.log(2*np.pi*richness)
             # Gaussian measurement error
-            elif self.richness_scatter_model=='lognormalGaussmeaserror':
+            elif self.richness_scatter_model == 'lognormalGaussmeaserror':
                 lnlike = -.5*(self.catalog['richness'][dataID]-richness)**2/self.catalog['richness_err'][dataID]**2 - .5*ln2pi - np.log(self.catalog['richness_err'][dataID])
         # No valid option
         else:
-            raise RuntimeError("richness_scatter_model %s not found"%self.richness_scatter_model)
+            raise RuntimeError("richness_scatter_model %s not found" % self.richness_scatter_model)
         return lnlike, lnM_richness
 
     def get_lnlike_WL(self, lnM, WL_std_lnM, dataID, obsname):
@@ -370,9 +371,9 @@ class MassCalibration:
         lnM_lensing = self.rng.normal(lnM, WL_std_lnM)
         lnobs = scaling_relations.lnmass2lnobs(obsname, lnM_lensing, self.catalog['REDSHIFT'][dataID], self.scaling, self.cosmology, self.catalog['SPT_ID'][dataID])
         # Draw from HST large-scale structure scatter
-        if obsname=='WLHST':
+        if obsname == 'WLHST':
             obs = np.exp(lnobs)
-            idx = self.HSTcalib['SPT_ID']==self.catalog['SPT_ID'][dataID]
+            idx = self.HSTcalib['SPT_ID'] == self.catalog['SPT_ID'][dataID]
             std = msqrt(self.HSTcalib['LSS'][idx]**2 + self.HSTcalib['LOS'][idx]**2)
             r_min = ndtr((1-obs)/std)
             r = r_min + (ndtr_max-r_min)*self.rng.random(len(obs))
@@ -384,7 +385,7 @@ class MassCalibration:
             self.lensinglikeinterp = interp1d(self.lnMwl, self.lensingres[0], fill_value='extrapolate', assume_sorted=True)
         lnlike = self.lensinglikeinterp(lnobs)
         # Shear profile for DES stacks
-        if self.get_stacked_DES & (obsname=='WLDES'):
+        if self.get_stacked_DES & (obsname == 'WLDES'):
             self.DES_shear_profile_MC = interp1d(self.lnMwl, self.lensingres[1], axis=0, fill_value='extrapolate', assume_sorted=True)(lnobs)
         return lnlike, lnM_lensing
 
@@ -392,7 +393,7 @@ class MassCalibration:
         """Return weights for P(xi,obs|M,z,p)"""
         # Draw zeta, and compute P(xi)
         i = obsnames.index('zeta')
-        lnM_zeta, zeta_lnweights = self.draw_lnzeta_given_lnM(lnM, dataID, np.sqrt(covmat[i,i])*dlnM_dlnobs[i])
+        lnM_zeta, zeta_lnweights = self.draw_lnzeta_given_lnM(lnM, dataID, np.sqrt(covmat[i, i])*dlnM_dlnobs[i])
         xi_lnweights = self.P_xi_zeta(lnM_zeta, dataID)
         # Weight with mass function
         mass_lnweights = self.get_mass_function_lnweights(self.catalog['REDSHIFT'][dataID], lnM)
@@ -400,29 +401,29 @@ class MassCalibration:
         if do_obs:
             # Covariance matrix with mass dependent scatter
             N_obs = len(obsnames)
-            covmat_lnM = covmat * dlnM_dlnobs[:,None]*dlnM_dlnobs[None,:] * np.ones((len(lnM),N_obs,N_obs))
+            covmat_lnM = covmat * dlnM_dlnobs[:, None]*dlnM_dlnobs[None, :] * np.ones((len(lnM), N_obs, N_obs))
             if 'WLDES' in obsnames:
                 scatter = scaling_relations.WLscatter('WLDES', lnM, self.catalog['REDSHIFT'][dataID], self.scaling)
-                covmat_lnM[:,obsnames.index('WLDES'),:]*= scatter[:,None]
-                covmat_lnM[:,:,obsnames.index('WLDES')]*= scatter[:,None]
+                covmat_lnM[:, obsnames.index('WLDES'), :] *= scatter[:, None]
+                covmat_lnM[:, :, obsnames.index('WLDES')] *= scatter[:, None]
             elif 'WLHST' in obsnames:
                 scatter = self.scaling['DWL_HST'][self.catalog['SPT_ID'][dataID]]
-                covmat_lnM[:,obsnames.index('WLHST'),:]*= scatter
-                covmat_lnM[:,:,obsnames.index('WLHST')]*= scatter
+                covmat_lnM[:, obsnames.index('WLHST'), :] *= scatter
+                covmat_lnM[:, :, obsnames.index('WLHST')] *= scatter
             # Get mean and (co-)variance of follow-up observables conditioned on lnM_zeta
-            lnM_remaining = lnM[:,None]*np.ones(len(obsnames))[None,:]
+            lnM_remaining = lnM[:, None] * np.ones(len(obsnames))[None, :]
             lnM_remaining, var_remaining, obsnames_remaining = self.get_conditional(lnM_remaining, lnM_zeta, covmat_lnM, 'zeta', obsnames)
             # Likelihood of follow-up observables
             lnlike_obs = []
             # Always pick the first element and then remove it from list
             while True:
                 if 'richness' in obsnames_remaining[0]:
-                    tmp, lnM_meas = self.get_lnlike_richness(lnM_remaining[:,0], np.sqrt(var_remaining[:,0,0]), dataID, obsnames_remaining[0])
+                    tmp, lnM_meas = self.get_lnlike_richness(lnM_remaining[:, 0], np.sqrt(var_remaining[:, 0, 0]), dataID, obsnames_remaining[0])
                 elif 'WL' in obsnames_remaining[0]:
-                    tmp, lnM_meas = self.get_lnlike_WL(lnM_remaining[:,0], np.sqrt(var_remaining[:,0,0]), dataID, obsnames_remaining[0])
+                    tmp, lnM_meas = self.get_lnlike_WL(lnM_remaining[:, 0], np.sqrt(var_remaining[:, 0, 0]), dataID, obsnames_remaining[0])
                 lnlike_obs.append(tmp)
                 # Condition on this follow-up observable or finish
-                if len(obsnames_remaining)>1:
+                if len(obsnames_remaining) > 1:
                     lnM_remaining, var_remaining, obsnames_remaining = self.get_conditional(lnM_remaining, lnM_meas, var_remaining, obsnames_remaining[0], obsnames_remaining)
                 else:
                     break
@@ -440,7 +441,7 @@ class MassCalibration:
         lnweights_Pobsxi = xi_lnweights + zeta_lnweights + mass_lnweights + np.sum(lnlike_obs, axis=0)
         max_lnweights_Pobsxi = np.amax(lnweights_Pobsxi)
         # Check if we have enough "good" weights
-        if (max_lnweights_Pobsxi-lnweights_Pobsxi<2).sum() < 10:
+        if (max_lnweights_Pobsxi-lnweights_Pobsxi < 2).sum() < 10:
             # New mass draws uniform in log
             idx = np.argsort(lnweights_Pobsxi)[-10:]
             lo = np.amin(lnM[idx])
@@ -453,7 +454,7 @@ class MassCalibration:
         # Mean and std of lnM
         w = np.exp(lnweights_Pobsxi-max_lnweights_Pobsxi)
         sum_w = np.sum(w)
-        if np.sum(w**2)/sum_w==sum_w:
+        if np.sum(w**2)/sum_w == sum_w:
             print('bad mass post', self.catalog['SPT_ID'][dataID])
             # np.save(self.catalog['SPT_ID'][dataID], [lnM, xi_lnweights, zeta_lnweights, mass_lnweights, lnlike_obs[0], lnlike_obs[1]])
             return -np.inf
@@ -473,11 +474,11 @@ class MassCalibration:
         # Stacked DES profile
         if self.get_stacked_DES & ('WLDES' in obsnames):
             lnweights = draw_lnweights + xi_lnweights + zeta_lnweights + mass_lnweights
-            lnweights-= np.amax(lnweights)
+            lnweights -= np.amax(lnweights)
             weights = np.exp(lnweights)
             sum_weights = np.sum(weights)
             # Shear profile
             profile_interp = interp1d(self.catalog['WLdata'][dataID]['r_arcmin'], self.DES_shear_profile_MC, fill_value='extrapolate', assume_sorted=True)
             profile_interpolated = profile_interp(self.catalog['WLdata'][dataID]['r_arcmin_stack'])
-            self.catalog['DES_shear_profile_mean'][dataID] = np.sum(profile_interpolated*weights[:,None], axis=0)/sum_weights
+            self.catalog['DES_shear_profile_mean'][dataID] = np.sum(profile_interpolated*weights[:, None], axis=0)/sum_weights
         return lndNdobsxi
