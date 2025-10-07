@@ -177,7 +177,7 @@ def main(configMod_file, catalog_name):
     print(nCluster, 'clusters', 'xi max', np.amax(mock['XI']), 'lambda min', np.amin(mock['richness']))
 
     # Select nXrayCluster highest xi for Yx follow-up
-    mock['ln%s_err' % configMod.Xray_obs] = configMod.Xerr*np.ones(nCluster)
+    mock['ln%s_err' % configMod.Xray_obs] = np.full(nCluster, configMod.Xerr)
     XVP = np.argsort(mock['XI'])
     mock[configMod.Xray_obs][XVP[:-configMod.nXrayCluster]] = 0.
     mock['ln%s_err' % configMod.Xray_obs][XVP[:-configMod.nXrayCluster]] = 0.
