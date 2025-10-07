@@ -9,9 +9,9 @@ def setup(options):
     ##### Config parameters
     todo = {}
     for opt in ['doWL', 'doYx', 'doMgas', 'doveldisp', 'dorichness']:
-        todo[opt[2:]] = options.get_bool(option_section, opt)
+        todo[opt[2:]] = options.get_bool(option_section, opt, False)
     todo['lambda_min'] = options.get_bool(option_section, 'lambda_min')
-    mcType = options.get_string(option_section, 'mcType')
+    mcType = options.get_string(option_section, 'mcType', 'None')
     surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
     z_DESWISE = options.get_double(option_section, 'z_DESWISE', default=surveyCutRedshift[1])
     # Data for optical cleaning
@@ -20,7 +20,7 @@ def setup(options):
         tmp = np.genfromtxt(surveyCutLambda_file, names=True, dtype=None)
         surveyCutLambda = {}
         for name in tmp.dtype.names[1:]:
-            surveyCutLambda = make_interp_spline(tmp['z'], tmp[name], k=1)
+            surveyCutLambda[name] = make_interp_spline(tmp['z'], tmp[name], k=1)
     else:
         surveyCutLambda = None
     richness_scatter_model = options.get_string(option_section, 'richness_scatter_model')
@@ -43,7 +43,7 @@ def setup(options):
                                                        SPT_survey_fields=SPT_survey_fields, SPTcatalogfile=SPTcatalogfile,
                                                        HSTcalibfile=HSTcalibfile,
                                                        NPROC=NPROC, get_stacked_DES=get_stacked_DES)
-    masscalibration.YXPARAM = options.get_string(option_section, 'YXPARAM')
+    masscalibration.YXPARAM = options.get_string(option_section, 'YXPARAM', 'None')
 
     # Set up lensing code
     if todo['WL']:

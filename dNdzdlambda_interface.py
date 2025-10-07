@@ -19,7 +19,7 @@ def setup(options):
     tmp = np.genfromtxt(surveyCutLambda_file, names=True, dtype=None)
     surveyCutLambda = {}
     for name in tmp.dtype.names[1:]:
-        surveyCutLambda = make_interp_spline(tmp['z'], tmp[name], k=1)
+        surveyCutLambda[name] = make_interp_spline(tmp['z'], tmp[name], k=1)
     ##### Initialize abundance
     computer = dNdzdlambda.DistCompute(SPT_survey,
                                        surveyCutRedshift,

@@ -16,7 +16,7 @@ def setup(options):
     tmp = np.genfromtxt(surveyCutLambda_file, names=True, dtype=None)
     surveyCutLambda = {}
     for name in tmp.dtype.names[1:]:
-        surveyCutLambda = make_interp_spline(tmp['z'], tmp[name], k=1)
+        surveyCutLambda[name] = make_interp_spline(tmp['z'], tmp[name], k=1)
     NPROC = options.get_int(option_section, 'NPROC')
     # SPT survey
     SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
