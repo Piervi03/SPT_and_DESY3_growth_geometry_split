@@ -80,7 +80,6 @@ class MultiObsConvolution:
             lndNdlnM = self.lndNdlnM[np.argmin(np.abs(z - self.HMF['z_arr'])), :]
         else:
             idx_lo = (self.HMF['z_arr'] < z).nonzero()[0][-1]
-            print(z, self.HMF['z_arr'][idx_lo:idx_lo+2])
             Delta_x = self.HMF['z_arr'][idx_lo+1] - self.HMF['z_arr'][idx_lo]
             with np.errstate(invalid='ignore'):
                 Delta_y = self.lndNdlnM[idx_lo+1, :] - self.lndNdlnM[idx_lo, :]
