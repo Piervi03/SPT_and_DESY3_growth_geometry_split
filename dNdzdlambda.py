@@ -30,10 +30,11 @@ class DistCompute:
         self.cosmology = cosmology
         self.scaling = scaling
         # observables[z,M]
-        self.lnrichness_m = scaling_relations.lnmass2lnobs('richness', self.HMF['lnM_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling)
-        ##### Compute distribution for each SPT field (optional multiprocessing)
+        self.lnrichness_m = scaling_relations.lnmass2lnobs('richness', self.HMF['lnM_arr'][None, :],
+                                                           self.HMF['z_arr'][:, None], self.scaling)
+        # Compute distribution for each SPT field (optional multiprocessing)
         num_fields = len(self.SPT_survey)
-        if self.NPROC==0:
+        if self.NPROC == 0:
             field_results = [self.run_field(fieldidx) for fieldidx in range(num_fields)]
         else:
             with Pool(processes=self.NPROC) as pool:
@@ -50,7 +51,8 @@ class DistCompute:
         # Survey field
         if 'noMCMF' in self.SPT_survey['FIELD'][fieldidx]:
             return np.zeros(len(self.lambda_bins_out)-1)
-        lnzeta_m = scaling_relations.lnmass2lnobs('zeta', self.HMF['lnM_arr'][None,:], self.HMF['z_arr'][:,None], self.scaling, self.cosmology, SPTfield=self.SPT_survey[fieldidx])
+        lnzeta_m = scaling_relations.lnmass2lnobs('zeta', self.HMF['lnM_arr'][None, :], self.HMF['z_arr'][:, None],
+                                                  self.scaling, self.cosmology, SPTfield=self.SPT_survey[fieldidx])
         # dN/dlnlambda/dlnzeta
         dN_dz_dlnobs = (np.exp(self.HMF['richness_SZ_dNdlnM'])
                         * scaling_relations.dlnM_dlnobs('zeta', self.scaling)
@@ -59,22 +61,24 @@ class DistCompute:
         # xi|M
         this_xi_m = scaling_relations.zeta2xi(np.exp(lnzeta_m))
         # Cut in zeta
-        dN_dz_dlnobs[(lnzeta_m[:,None,:]*np.ones(dN_dz_dlnobs.shape)<np.log(self.scaling['zeta_min']))] = 0
+        dN_dz_dlnobs[lnzeta_m[:, None, :]*np.ones(dN_dz_dlnobs.shape) < np.log(self.scaling['zeta_min'])] = 0
         # P(xi>cut)
-        dN_dz_dlnobs*= norm.cdf(this_xi_m, self.SPT_survey['XI_MIN'][fieldidx], 1)[:,None,:]
+        dN_dz_dlnobs *= norm.cdf(this_xi_m, self.SPT_survey['XI_MIN'][fieldidx], 1)[:, None, :]
         # Integrate out zeta [z,lambda]
-        dN_dz_dlnrichness = np.sum(.5*(dN_dz_dlnobs[:,:,1:]+dN_dz_dlnobs[:,:,:-1])*(lnzeta_m[:,1:]-lnzeta_m[:,:-1])[:,None,:], axis=2)
+        dN_dz_dlnrichness = np.sum(.5 * (dN_dz_dlnobs[:, :, 1:]+dN_dz_dlnobs[:, :, :-1])
+                                   * (lnzeta_m[:, 1:]-lnzeta_m[:, :-1])[:, None, :], axis=2)
         # Cut in lambda
         lambda_min = self.surveyCutRichness[self.SPT_survey['LAMBDA_MIN'][fieldidx]](self.HMF['z_arr'])
         # N(Delta lnlambda)
         N_z_lambda = np.zeros((len(self.HMF['z_arr']), len(self.lambda_bins_out)-1))
         for i in range(len(self.HMF['z_arr'])):
-            f = InterpolatedUnivariateSpline(self.lnrichness_m[i,:], dN_dz_dlnrichness[i,:])
+            f = InterpolatedUnivariateSpline(self.lnrichness_m[i, :], dN_dz_dlnrichness[i, :])
             N_z_lambda[i] = np.array([f.integral(np.log(self.lambda_bins_out[j]), np.log(self.lambda_bins_out[j+1]))
                                       for j in range(len(self.lambda_bins_out)-1)])
             lambda_min_idx = np.digitize(lambda_min[i], self.lambda_bins_out)-1
-            N_z_lambda[i,:lambda_min_idx] = 0.
-            N_z_lambda[i,lambda_min_idx] = f.integral(np.log(lambda_min[i]), np.log(self.lambda_bins_out[lambda_min_idx+1]))
-        N_lambda = np.array([InterpolatedUnivariateSpline(self.HMF['z_arr'], N_z_lambda[:,i]).integral(self.surveyCutRedshift[0], self.surveyCutRedshift[1])
+            N_z_lambda[i, :lambda_min_idx] = 0.
+            N_z_lambda[i, lambda_min_idx] = f.integral(np.log(lambda_min[i]), np.log(self.lambda_bins_out[lambda_min_idx+1]))
+        N_lambda = np.array([InterpolatedUnivariateSpline(self.HMF['z_arr'], N_z_lambda[:, i]
+                                                          ).integral(self.surveyCutRedshift[0], self.surveyCutRedshift[1])
                              for i in range(len(self.lambda_bins_out)-1)])
         return N_lambda
