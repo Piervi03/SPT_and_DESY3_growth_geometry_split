@@ -46,7 +46,7 @@ def main(configMod_file, catalog_name):
         import compute_HMF_Bocquet16
         import compute_HMF_Tinker08
         emulator = baccoemu.Matter_powerspectrum()
-        params = {'neutrino_mass': cosmology['Omnuh2']*94.,
+        params = {'neutrino_mass': cosmology['Omnuh2'] * 94.06410581217612 / (cosmology['nnu']/3.)**.75 / (2.7255/2.7255)**3,
                   'A_s': 1e-10*np.exp(cosmology['ln1e10As'])}
         for me, they in zip(['Omega_m', 'Omega_b', 'h', 'n_s', 'w0', 'wa'],
                             ['omega_matter', 'omega_baryon', 'hubble', 'ns', 'w0', 'wa']):
