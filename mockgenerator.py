@@ -110,7 +110,7 @@ def main(configMod_file, catalog_name):
             if SPT_survey['LAMBDA_MIN'][fieldidx] not in ['NONE', 'None', 'none']:
                 lambda_min = surveyCutLambda[SPT_survey['LAMBDA_MIN'][fieldidx]](z)
             else:
-                lambda_min = 0.
+                lambda_min = -1.
 
             for j, M in enumerate(M_arr):
                 if N[i, j] == 0:
@@ -128,7 +128,7 @@ def main(configMod_file, catalog_name):
 
                         # Observed richness
                         richness_err = 0.
-                        if lambda_min == 0.:
+                        if lambda_min == -1.:
                             # No measurement here
                             richness_obs = 0.
                         else:
