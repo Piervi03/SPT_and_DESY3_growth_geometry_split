@@ -114,13 +114,13 @@ class NumberCount:
             lndN_dxi = np.log(dN_dxi)
         lndNdxi = RectBivariateSpline(np.log(self.HMF['z_arr']), np.log(self.xi_bins), lndN_dxi)
 
-        # Ntotal (trapz except that we sum in log-space)
+        # Ntotal (trapezoid except that we sum in log-space)
         Nxi = int(np.log10(self.surveyCutSZmax/self.SPT_survey['XI_MIN'][fieldidx])/.005 + 1)
         self.xi_arr = np.logspace(np.log10(self.SPT_survey['XI_MIN'][fieldidx]), np.log10(self.surveyCutSZmax), Nxi)
         integrand = (np.exp(.5*(lndNdxi(np.log(self.z_arr), np.log(self.xi_arr[1:])) + lndNdxi(np.log(self.z_arr), np.log(self.xi_arr[:-1]))))
                      * (self.xi_arr[1:]-self.xi_arr[:-1]))
         dNdz = np.sum(integrand, axis=1)
-        Ntotal = np.trapz(dNdz, self.z_arr)
+        Ntotal = np.trapezoid(dNdz, self.z_arr)
 
         # dN_dxi and N(z) for output
         f = InterpolatedUnivariateSpline(self.z_arr, dNdz)
@@ -131,7 +131,7 @@ class NumberCount:
         if self.SPT_survey['XI_MIN'][fieldidx] != self.xi_bins_output[0]:
             N_xi_out[0] = f.integral(self.z_arr[0], self.z_arr[-1], self.SPT_survey['XI_MIN'][fieldidx], self.xi_bins_output[1])
         # integrand = np.exp(lndNdxi(np.log(self.z_arr), np.linspace(np.log(self.SPT_survey['XI_MIN'][fieldidx]), np.log(50), 11)))
-        dN_dxi_out_survey = None  # np.trapz(integrand, self.z_arr, axis=0)
+        dN_dxi_out_survey = None  # np.trapezoid(integrand, self.z_arr, axis=0)
 
         # Likelihood contribution from Ntotal
         lnlike_this_field = -Ntotal
@@ -155,7 +155,7 @@ class NumberCount:
                 zhi = max((self.HMF['z_arr'][-1], self.catalog['REDSHIFT'][i]+4*self.catalog['REDSHIFT_UNC'][i]))
                 zarr = np.linspace(zlo, zhi, 15)
                 integrand = np.exp(lndNdxi(np.log(zarr), np.log(self.catalog['XI'][i])))[:, 0] * norm.pdf(zarr, self.catalog['REDSHIFT'][i], self.catalog['REDSHIFT_UNC'][i])
-                this_lnlike = np.log(np.trapz(integrand, zarr))
+                this_lnlike = np.log(np.trapezoid(integrand, zarr))
                 lnlike_this_field += this_lnlike
 
         return lnlike_this_field, Ntotal, N_z_out, N_xi_out, dN_dxi_out_survey, self.SPT_survey['FIELD'][fieldidx], thisfield_conf, these_lndNdxi

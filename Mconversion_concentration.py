@@ -61,7 +61,7 @@ class ConcentrationConversion:
             # Integrand [M_arr, k_arr]
             integrand_sigma2 = PK_EHsmooth[None,:] * window[:,:]**2 * k_arr[None,:]**2
             # sigma^2 [z_arr, M_arr]
-            sigma2 = .5/np.pi**2 * np.trapz(integrand_sigma2, k_arr, axis=-1)
+            sigma2 = .5/np.pi**2 * np.trapezoid(integrand_sigma2, k_arr, axis=-1)
             sigma = np.sqrt(sigma2[:-1]) * cosmology['sigma8']/np.sqrt(sigma2[-1])
 
             # EQ 12, DK15

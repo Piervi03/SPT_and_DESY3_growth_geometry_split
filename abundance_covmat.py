@@ -123,7 +123,7 @@ class NumberCount:
             lndN_dxi = np.log(dN_dxi)
         lndNdxi = RectBivariateSpline(np.log(self.HMF['z_arr']), np.log(self.xi_bins), lndN_dxi)
 
-        # Ntotal (trapz except that we sum in log-space)
+        # Ntotal (trapezoid except that we sum in log-space)
         Nxi = int(np.log10(self.surveyCutSZmax/self.SPT_survey['XI_MIN'][fieldidx])/.005 + 1)
         self.xi_arr = np.logspace(np.log10(self.SPT_survey['XI_MIN'][fieldidx]), np.log10(self.surveyCutSZmax), Nxi)
         integrand = (np.exp(.5*(lndNdxi(np.log(self.z_arr), np.log(self.xi_arr[1:])) + lndNdxi(np.log(self.z_arr), np.log(self.xi_arr[:-1]))))
@@ -134,9 +134,9 @@ class NumberCount:
         dNdz_interp = interp1d(self.z_arr, dNdz, kind='cubic', assume_sorted=True)
         dN_dz_out = dNdz_interp(self.z_bins_output)
         integrand = np.exp(lndNdxi(np.log(self.z_arr), np.log(self.xi_bins_output)))
-        dN_dxi_out = np.trapz(integrand, self.z_arr, axis=0)
+        dN_dxi_out = np.trapezoid(integrand, self.z_arr, axis=0)
         integrand = np.exp(lndNdxi(np.log(self.z_arr), np.linspace(np.log(self.SPT_survey['XI_MIN'][fieldidx]), np.log(50), 11)))
-        dN_dxi_out_survey = np.trapz(integrand, self.z_arr, axis=0)
+        dN_dxi_out_survey = np.trapezoid(integrand, self.z_arr, axis=0)
 
         # In bins
         N_bins = np.zeros(self.obs_bin_shape)
@@ -149,7 +149,7 @@ class NumberCount:
                 xi_max = self.obs_bins_xi[j+1]
                 xi_arr = np.logspace(np.log10(xi_min), np.log10(xi_max), 200)
                 integrand = np.exp(.5*(lndNdxi(np.log(z_arr), np.log(xi_arr[1:])) + lndNdxi(np.log(z_arr), np.log(xi_arr[:-1])))) * (xi_arr[1:]-xi_arr[:-1])
-                N_bins[i,j] = np.trapz(np.sum(integrand, axis=1), z_arr)
+                N_bins[i,j] = np.trapezoid(np.sum(integrand, axis=1), z_arr)
         return N_bins, dN_dz_out, dN_dxi_out, dN_dxi_out_survey, self.SPT_survey['FIELD'][fieldidx]
 
         N_bins = np.zeros((4,3))
@@ -167,6 +167,6 @@ class NumberCount:
                     continue
                 xi_arr = np.logspace(np.log10(xi_min), np.log10(xi_max), 200)
                 integrand = np.exp(.5*(lndNdxi(np.log(z_arr), np.log(xi_arr[1:])) + lndNdxi(np.log(z_arr), np.log(xi_arr[:-1])))) * (xi_arr[1:]-xi_arr[:-1])
-                N_bins[i,j] = np.trapz(np.sum(integrand, axis=1), z_arr)
+                N_bins[i,j] = np.trapezoid(np.sum(integrand, axis=1), z_arr)
 
         return N_bins, dN_dz_out, dN_dxi_out, dN_dxi_out_survey, self.SPT_survey['FIELD'][fieldidx]

@@ -223,7 +223,7 @@ class MassCalibration:
         HMF_xi = HMF_integrand * scaling_relations.dlnzeta_dxi_given_xi(this_xi_arr)
         # Simultaneous convolution and evaluation at xi
         unit_var_kernel = norm.pdf(xi, this_xi_arr, 1)
-        HMF_at_xi = np.trapz(HMF_xi * unit_var_kernel, this_xi_arr, axis=-1)
+        HMF_at_xi = np.trapezoid(HMF_xi * unit_var_kernel, this_xi_arr, axis=-1)
         return HMF_at_xi
 
 
@@ -231,7 +231,7 @@ class MassCalibration:
         """Convolve dP/dlnlambda with lognormal scatter of width var=1/lambda.
         This mimics the Poisson error on counting member galaxies."""
         integrand = dP_dlnobs[None,:] * norm.pdf(lnobs_arr[:,None], lnobs_arr[None,:], 1/np.sqrt(obs_arr[None,:]))
-        dP_dlnobs = np.trapz(integrand, lnobs_arr, axis=1)
+        dP_dlnobs = np.trapezoid(integrand, lnobs_arr, axis=1)
         return dP_dlnobs
 
 
@@ -239,9 +239,9 @@ class MassCalibration:
         """Convolve dP/dMwl with Gaussian scatter to account for noise by
         large-scale structure."""
         integrand = dP_dobs[None,:] * norm.pdf(obs_arr[:,None], obs_arr[None,:], LSSnoise)
-        dP_dobs = np.trapz(integrand, obs_arr, axis=1)
+        dP_dobs = np.trapezoid(integrand, obs_arr, axis=1)
         # Normalize to be sure
-        dP_dobs/= np.trapz(dP_dobs, obs_arr)
+        dP_dobs/= np.trapezoid(dP_dobs, obs_arr)
         return dP_dobs
 
 
@@ -285,7 +285,7 @@ class MassCalibration:
         ##### P(obs | xi)
         dP_dlnobs = self.convolve_HMF_lnobs_to_xi(self.catalog['XI'][dataID], xi_arr, lnHMF_2d)
         dP_dobs = dP_dlnobs/obsArr
-        dP_dobs/= np.trapz(dP_dobs, obsArr)
+        dP_dobs/= np.trapezoid(dP_dobs, obsArr)
 
         ##### Evaluate likelihood
         if obsname=='richness':
@@ -301,21 +301,21 @@ class MassCalibration:
             elif obsname=='Mgas':
                 obsmeas, obserr = self.catalog['Mg_fid'][dataID], self.catalog['Mg_err'][dataID]
 
-            likeli = np.trapz(dP_dobs*norm.pdf(obsmeas, obsArr, obserr), obsArr)
+            likeli = np.trapezoid(dP_dobs*norm.pdf(obsmeas, obsArr, obserr), obsArr)
 
             if GETPULL:
                 integrand = dP_dobs[None,:] * norm.pdf(obsArr[:,None], obsArr[None,:], obserr)
-                dP_dobs_obs = np.trapz(integrand, obsArr, axis=1)
-                dP_dobs_obs/= np.trapz(dP_dobs_obs,obsArr)
-                cumtrapz = integrate.cumtrapz(dP_dobs_obs,obsArr)
-                perc = np.interp(obsmeas, obsArr[1:], cumtrapz)
+                dP_dobs_obs = np.trapezoid(integrand, obsArr, axis=1)
+                dP_dobs_obs/= np.trapezoid(dP_dobs_obs,obsArr)
+                cumtrapezoid = integrate.cumtrapezoid(dP_dobs_obs,obsArr)
+                perc = np.interp(obsmeas, obsArr[1:], cumtrapezoid)
                 print('%s %.4f %.4f %.4f %.4e'%(
                     self.catalog['SPT_ID'][dataID], self.catalog['XI'][dataID], self.catalog['REDSHIFT'][dataID], obsmeas, 2**.5 * ss.erfinv(2*perc-1)))
 
         elif obsname=='disp':
             obsmeas, obserr = self.catalog['veldisp'][dataID], self.scaling['DdispN']/self.catalog['Ngal'][dataID]
             dP_dobs_meas = lognorm.pdf(obsmeas, scale=obsArr, s=obserr)
-            likeli = np.trapz(dP_dobs*dP_dobs_meas, obsArr)
+            likeli = np.trapezoid(dP_dobs*dP_dobs_meas, obsArr)
 
         elif obsname in ('WLHST', 'WLMegacam', 'WLDES'):
             if obsname=='WLMegacam':
@@ -330,7 +330,7 @@ class MassCalibration:
             # P(Mwl) from data
             WL_interp = InterpolatedUnivariateSpline(np.log(self.WL.M_arr), self.catalog['lnp_Mwl'][dataID], k=1)
             # Get likelihood
-            likeli = np.trapz(np.exp(WL_interp(lnobsArr))*dP_dobs, obsArr)
+            likeli = np.trapezoid(np.exp(WL_interp(lnobsArr))*dP_dobs, obsArr)
 
         if (likeli<=0)|(np.isnan(likeli))|(np.isinf(likeli)):
             print(self.catalog['SPT_ID'][dataID], obsname, likeli, np.amin(obsArr), np.amax(obsArr),)
@@ -411,7 +411,7 @@ class MassCalibration:
         dP_dobs01 = dP_dlnobs/obsArr[0][:,None]/obsArr[1][None,:]
 
         ##### Normalize
-        N = np.trapz(np.trapz(dP_dobs01, obsArr[1], axis=1), obsArr[0])
+        N = np.trapezoid(np.trapezoid(dP_dobs01, obsArr[1], axis=1), obsArr[0])
         dP_dobs01/= N
 
         ##### P(obs0, obs1)
@@ -441,12 +441,12 @@ class MassCalibration:
             else:
                 lndP_dobs0_interp = interp1d(lnobsArr[0][finite_idx], lndP_dobs0[finite_idx], kind='linear', fill_value='extrapolate', assume_sorted=True)
                 dP_dobs0 = np.exp(lndP_dobs0_interp(lnobsArr[0]))
-            likeli = np.trapz(dP_dobs0*Pwl, obsArr[0])
+            likeli = np.trapezoid(dP_dobs0*Pwl, obsArr[0])
 
         else:
             Px = norm.pdf(obsmeas[1], obsArr[1], obserr[1])
             Pobs = Pwl[:,None] * Px[None,:]
-            likeli = np.trapz(np.trapz(dP_dobs01*Pobs, obsArr[1], axis=1), obsArr[0])
+            likeli = np.trapezoid(np.trapezoid(dP_dobs01*Pobs, obsArr[1], axis=1), obsArr[0])
 
         if (likeli==0.)|np.isnan(likeli)|np.isinf(likeli):
             print(self.catalog['SPT_ID'][dataID], obsnames, likeli)

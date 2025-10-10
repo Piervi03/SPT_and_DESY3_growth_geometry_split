@@ -62,7 +62,7 @@ def main(configMod_file, catalog_name):
         kR = 8.*k_
         window = 3. * (np.sin(kR)/kR**3 - np.cos(kR)/kR**2)
         integrand_sigma2 = Pk_ * window**2 * k_**3
-        sigma8_squ = .5/np.pi**2 * np.trapz(integrand_sigma2, np.log(k_))
+        sigma8_squ = .5/np.pi**2 * np.trapezoid(integrand_sigma2, np.log(k_))
         print('sigma_8 %.5f' % np.sqrt(sigma8_squ))
         # Initialize fitting function
         if configMod.HMF == 'Tinker08':

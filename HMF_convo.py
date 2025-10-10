@@ -194,7 +194,7 @@ class MultiObsConvolution:
             P_lambda_intrinsic = (np.exp(-.5*(lnlambda_arr-lnlambda_mean)**2/lnlambda_std**2)
                                   / (msqrt(2*np.pi)*lambda_arr*lnlambda_std))
             P_lambda_gtr_cut = ndtr((lambda_arr-self.lambda_cut[SZsurvey](z))/np.sqrt(lambda_arr))
-            P_lambda = np.trapz(P_lambda_gtr_cut*P_lambda_intrinsic, lambda_arr, axis=0)
+            P_lambda = np.trapezoid(P_lambda_gtr_cut*P_lambda_intrinsic, lambda_arr, axis=0)
             P_lambda_gtr_cut = P_lambda
         # Convolution
         kernels = (P_lambda_gtr_cut * np.exp(-.5*lnzeta_arr[None, :]**2/covmat_lnM[:, 1,1][:, None])

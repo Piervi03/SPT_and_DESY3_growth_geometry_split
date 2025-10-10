@@ -41,7 +41,7 @@ def execute(block, setup_stuff):
     kR = 8.*k
     window = 3. * (np.sin(kR)/kR**3 - np.cos(kR)/kR**2)
     integrand_sigma2 = Pk[0] * window**2 * k**3
-    sigma8_squ = .5/np.pi**2 * np.trapz(integrand_sigma2, np.log(k))
+    sigma8_squ = .5/np.pi**2 * np.trapezoid(integrand_sigma2, np.log(k))
     # Write to block
     block.put_double('cosmological_parameters', 'sigma_8', msqrt(sigma8_squ))
     block.put_grid('cdm_baryon_power_lin', 'z', z_arr, 'k_h', k, 'p_k', Pk)
