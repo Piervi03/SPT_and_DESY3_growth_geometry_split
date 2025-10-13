@@ -43,7 +43,7 @@ def lnlike(catalog, SPT_survey_tab, HMF, cosmology, scaling, surveyCutRichness, 
 
 
 def process_field(SPT_field, catalog, surveyCutRichness, richness_scatter_model,
-                  z_arr, lnM_arr, lndN_dz_dlnrichness_dlnzeta,
+                  z_arr, lnM_arr, lndN_dz_dlnrichness_dlnzeta_z,
                   lnrichness_z_m,
                   scaling, cosmology):
     """Returns ln-likelihood of `catalog['richness']` given `catalog['XI']` at
@@ -57,11 +57,11 @@ def process_field(SPT_field, catalog, surveyCutRichness, richness_scatter_model,
     for clusterID in field_idx:
         # Look up dN(z)/dlnlambda/dlnzeta and observables at cluster redshift
         z_idx = np.argmin(np.abs(z_arr - catalog['REDSHIFT'][clusterID]))
-        lndN_dlnrichness_dlnzeta = (lndN_dz_dlnrichness_dlnzeta[z_idx, :, :]
-                                    + np.log(scaling_relations.dlnM_dlnobs('richness', scaling, z=catalog['REDSHIFT'][clusterID])
-                                             * scaling_relations.dlnM_dlnobs('zeta', scaling)))
+        # With constant slope, we ignore the constant factor and assume dN/lnobs = dN/lnM
+        lndN_dlnrichness_dlnzeta = lndN_dz_dlnrichness_dlnzeta_z[z_idx, :, :]
         lnrichness = lnrichness_z_m[z_idx, :]
         lnzeta = lnzeta_z_m[z_idx, :]
+        lambda_min = lambda_min_z(catalog['REDSHIFT'][clusterID])
         # Interpolate to fine xi array w/ Delta xi = 0.25 from max(xi-5, xi_min) to xi+3
         xi_min = np.amax([scaling_relations.zeta2xi(scaling['zeta_min']), catalog['XI'][clusterID] - 5.])
         xi_arr = np.arange(xi_min, catalog['XI'][clusterID] + 3., .25)
@@ -75,31 +75,50 @@ def process_field(SPT_field, catalog, surveyCutRichness, richness_scatter_model,
         with np.errstate(divide='ignore'):
             lndN_dlnrichness = np.log(np.sum(np.exp(.5 * (lnitg[:, :-1] + lnitg[:, 1:]))
                                       * (lnzeta_arr[1:] - lnzeta_arr[:-1]), axis=1))
-        # Normalize to get dP/dlnrichness
-        norm = np.sum(np.exp(.5*(lndN_dlnrichness[:-1] + lndN_dlnrichness[1:])) * (lnrichness[1:] - lnrichness[:-1]))
-        lndN_dlnrichness -= np.log(norm)
-        # P(richness_obs | richness) accounting for lambda_min
-        richness = np.exp(lnrichness)
-        lambda_min = lambda_min_z(catalog['REDSHIFT'][clusterID])
-        if richness_scatter_model == 'lognormalrelPoisson':
-            # var(ln richness) = 1/richness
-            lnrichnessobs = np.log(catalog['richness'][clusterID])
-            lndP_dobs = -.5 * (lnrichnessobs-lnrichness)**2*richness - .5*ln2pi + .5*lnrichness - lnrichnessobs
-            if lambda_min > 0.:
+        # No observational scatter in richness (or rather, absorbed in intrinsic scatter)
+        if richness_scatter_model == 'lognormal':
+            if lambda_min == 0.:
+                # Normalize to get dP/dlnrichness
+                lndN_dlnrichness -= np.log(np.sum(np.exp(.5*(lndN_dlnrichness[:-1] + lndN_dlnrichness[1:]))
+                                                  * (lnrichness[1:] - lnrichness[:-1])))
+                this_lnlike = np.interp(np.log(catalog['richness'][clusterID]), lnrichness, lndN_dlnrichness)
+            else:
+                # Insert lambda_min into lnrichness array
+                lnlambda_min = np.log(lambda_min)
+                lnrichness_cut = lnrichness[lnrichness > lnlambda_min]
+                lnrichness_cut = np.insert(lnrichness_cut, 0, lnlambda_min)
+                lndN_dlnrichness_cut = np.interp(lnrichness_cut, lnrichness, lndN_dlnrichness)
+                # Normalize to get dP/dlnrichness
+                lndN_dlnrichness_cut -= np.log(np.sum(np.exp(.5*(lndN_dlnrichness_cut[:-1] + lndN_dlnrichness_cut[1:]))
+                                                      * (lnrichness_cut[1:] - lnrichness_cut[:-1])))
+                this_lnlike = np.interp(np.log(catalog['richness'][clusterID]), lnrichness_cut, lndN_dlnrichness_cut)
+        # Models with observational scatter in richness
+        elif richness_scatter_model in ['lognormalrelPoisson', 'lognormalGaussPoisson']:
+            # Normalize to get dP/dlnrichness
+            norm = np.sum(np.exp(.5*(lndN_dlnrichness[:-1] + lndN_dlnrichness[1:]))
+                          * (lnrichness[1:] - lnrichness[:-1]))
+            lndN_dlnrichness -= np.log(norm)
+            # P(richness_obs | richness) accounting for lambda_min
+            richness = np.exp(lnrichness)
+            if richness_scatter_model == 'lognormalrelPoisson':
+                # var(ln richness) = 1/richness
+                lnrichnessobs = np.log(catalog['richness'][clusterID])
+                lndP_dobs = -.5 * (lnrichnessobs-lnrichness)**2*richness - .5*ln2pi + .5*lnrichness - lnrichnessobs
+                if lambda_min > 0.:
+                    with np.errstate(divide='ignore'):
+                        lndP_dobs -= np.log(1. - ndtr((np.log(lambda_min)-lnrichness)*np.sqrt(richness)))
+            elif richness_scatter_model == 'lognormalGaussPoisson':
+                # var(richness) = richness
+                lndP_dobs = -.5 * (catalog['richness'][clusterID]-richness)**2/richness - .5*ln2pi - .5*lnrichness
                 with np.errstate(divide='ignore'):
-                    lndP_dobs -= np.log(1. - ndtr((np.log(lambda_min)-lnrichness)*np.sqrt(richness)))
-        elif richness_scatter_model == 'lognormalGaussPoisson':
-            # var(richness) = richness
-            lndP_dobs = -.5 * (catalog['richness'][clusterID]-richness)**2/richness - .5*ln2pi - .5*lnrichness
-            with np.errstate(divide='ignore'):
-                lndP_dobs -= np.log(1. - ndtr((lambda_min-richness)/np.sqrt(richness)))
+                    lndP_dobs -= np.log(1. - ndtr((lambda_min-richness)/np.sqrt(richness)))
+            lndP_dobs[np.isposinf(lndP_dobs)] = -np.inf
+            # ln-likelihood
+            with np.errstate(invalid='ignore', divide='ignore'):
+                lnitg = lndP_dobs + lndN_dlnrichness
+                this_lnlike = np.log(np.sum(np.exp(.5*(lnitg[:-1]+lnitg[1:])) * (lnrichness[1:]-lnrichness[:-1])))
         else:
             raise ValueError('Invalid richness_scatter_model {}'.format(richness_scatter_model))
-        lndP_dobs[np.isposinf(lndP_dobs)] = -np.inf
-        # ln-likelihood
-        with np.errstate(invalid='ignore', divide='ignore'):
-            lnitg = lndP_dobs + lndN_dlnrichness
-            this_lnlike = np.log(np.sum(np.exp(.5*(lnitg[:-1]+lnitg[1:])) * (lnrichness[1:]-lnrichness[:-1])))
         if not np.isfinite(this_lnlike):
             return -np.inf
         lnlike += this_lnlike
