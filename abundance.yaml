@@ -18,7 +18,7 @@ params:
   multiprocessing. Set to 0, 2, or 4.
   SZmPivot: (float) pivot point of SZ mor relation [Msun/h]
   surveyCutSZ: (list of two float) lower and upper limit in xi
-  surveyCutRedshift: (list of two float) lower and upper limit in redshift
+  z_cl_min_max: (list of two float) lower and upper limit in redshift
   SPTdatafile: (path) file with survey details
   SPTcatalogfile: (path) catalog fits file
 

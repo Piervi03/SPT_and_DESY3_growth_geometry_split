@@ -5,8 +5,7 @@ import HMF_convo_SZrichness as HMF_convo
 
 def setup(options):
     observable_pairs = options.get_string(option_section, 'observable_pairs').split()
-    zmin = options.get_double(option_section, 'zmin')
-    zmax = options.get_double(option_section, 'zmax')
+    z_cl_min_max = options.get_double_array_1d(option_section, 'z_cl_min_max')
     Nz = options.get_int(option_section, 'Nz')
     NPROC = options.get_int(option_section, 'NPROC', 0)
 
@@ -21,7 +20,7 @@ def setup(options):
     do_bias = options.get_bool(option_section, 'do_bias', False)
 
     multi_obs_convolution = HMF_convo.MultiObsConvolution(observable_pairs,
-                                                          zmin, zmax, Nz,
+                                                          z_cl_min_max[0], z_cl_min_max[1], Nz,
                                                           surveyCutLambda, richness_scatter_model,
                                                           do_bias,
                                                           NPROC)

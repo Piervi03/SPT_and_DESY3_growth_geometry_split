@@ -34,7 +34,7 @@ multi_obs_convolution = HMF_convo.MultiObsConvolution(observable_pairs,
 # abundance
 NPROC = 0
 surveyCutSZ = [5., 47.]
-surveyCutRedshift = [0.25, 2.]
+z_cl_min_max = [0.25, 2.]
 surveyCutLambda = [40, 220]
 # SPT survey
 SPT_survey = Table.read('/Users/sbocquet/codeandstuff/SPT_cluster_data/SPT_SZ_survey_190418.txt', format='ascii.commented_header')
@@ -42,10 +42,10 @@ SPT_survey = Table.read('/Users/sbocquet/codeandstuff/SPT_cluster_data/SPT_SZ_su
 catalog = Table.read('mock_191029-154550.fits')
 
 number_count = abundance.NumberCount(catalog, SPT_survey, {},
-                                     surveyCutSZ, surveyCutRedshift,
+                                     surveyCutSZ, z_cl_min_max,
                                      NPROC)
 number_count_lambda = abundance_lambdaselect.NumberCount(catalog, SPT_survey, {},
-                                                         surveyCutSZ, surveyCutLambda, surveyCutRedshift,
+                                                         surveyCutSZ, surveyCutLambda, z_cl_min_max,
                                                          NPROC)
 
 # mass_calibration
@@ -56,7 +56,7 @@ todo = {'WL': True,
         'richness': False}
 mcType = 'None'
 surveyCutSZ = [5., 47.]
-surveyCutRedshift = [0.25, 1.]
+z_cl_min_max = [0.25, 1.]
 NPROC = 0
 # SPT survey
 SPT_survey_fields = '/Users/sbocquet/codeandstuff/SPT_cluster_data/SPT_SZ_survey_190418.txt'
@@ -73,7 +73,7 @@ masscalibration = mass_calibration.MassCalibration(todo,
                                                     'richmPivot':3e14,
                                                     'YXPARAM': 'XVP',},
                                                    mcType,
-                                                   surveyCutSZ, surveyCutRedshift,
+                                                   surveyCutSZ, z_cl_min_max,
                                                    SPT_survey_fields, SPT_doublecounts, SPTcatalogfile,
                                                    observable_pairs,
                                                    WLsimcalibfile,# DES_betabias_file, HSTfile, MegacamFile, DESfile,

@@ -22,7 +22,7 @@ def unwrap_self_f(arg):
 class MassCalibration:
 
     def __init__(self, todo, mcType,
-                 surveyCutRedshift, surveyCutRichness,
+                 z_cl_min_max, lambda_min,
                  SPT_survey_fields, SPTcatalogfile,
                  observable_pairs,
                  WLsimcalibfile,
@@ -31,8 +31,8 @@ class MassCalibration:
         self.NPROC = NPROC
         self.todo = todo
         self.mcType = mcType
-        self.surveyCutRedshift = surveyCutRedshift
-        self.surveyCutRichness = surveyCutRichness
+        self.z_cl_min_max = z_cl_min_max
+        self.lambda_min = lambda_min
         self.observable_pairs = observable_pairs
 
         # Read input files
@@ -100,7 +100,7 @@ class MassCalibration:
         name = self.catalog['SPT_ID'][i]
 
         ##### Do we actually want this guy?
-        if not self.SPT_survey['XI_MIN'][self.SPT_survey['FIELD']==self.catalog['FIELD'][i]]<self.catalog['XI'][i] or not self.surveyCutRedshift[0]<self.catalog['REDSHIFT'][i]<self.surveyCutRedshift[1]:
+        if not self.SPT_survey['XI_MIN'][self.SPT_survey['FIELD']==self.catalog['FIELD'][i]]<self.catalog['XI'][i] or not self.z_cl_min_max[0]<self.catalog['REDSHIFT'][i]<self.z_cl_min_max[1]:
             return 1
 
         ##### Check if follow-up is available
@@ -266,12 +266,12 @@ class MassCalibration:
         elif obsname=='richness':
             if self.todo['lambda_min']:
                 if self.catalog['FIELD'][dataID]=='SPTPOL_500d':
-                    lambda_min = self.surveyCutRichness['deep'](self.catalog['REDSHIFT'][dataID])
+                    this_lambda_min = self.lambda_min['deep'](self.catalog['REDSHIFT'][dataID])
                 else:
-                    lambda_min = self.surveyCutRichness['shallow'](self.catalog['REDSHIFT'][dataID])
-                lnHMF_2d_at_cut = [np.interp(lambda_min, obsArr, lnHMF_2d[:,i]) for i in range(lnHMF_2d.shape[1])]
-                idx = obsArr>lambda_min
-                obsArr = np.insert(obsArr[idx], 0, lambda_min)
+                    this_lambda_min = self.lambda_min['shallow'](self.catalog['REDSHIFT'][dataID])
+                lnHMF_2d_at_cut = [np.interp(this_lambda_min, obsArr, lnHMF_2d[:,i]) for i in range(lnHMF_2d.shape[1])]
+                idx = obsArr > this_lambda_min
+                obsArr = np.insert(obsArr[idx], 0, this_lambda_min)
                 lnHMF_2d = np.insert(lnHMF_2d[idx,:], 0, lnHMF_2d_at_cut, axis=0)
         lnobsArr = np.log(obsArr)
 
@@ -377,11 +377,11 @@ class MassCalibration:
             elif obsnames[i]=='richness':
                 if self.todo['lambda_min']:
                     if self.catalog['FIELD'][dataID]=='SPTPOL_500d':
-                        lambda_min = self.surveyCutRichness['deep'](self.catalog['REDSHIFT'][dataID])
+                        this_lambda_min = self.lambda_min['deep'](self.catalog['REDSHIFT'][dataID])
                     else:
-                        lambda_min = self.surveyCutRichness['shallow'](self.catalog['REDSHIFT'][dataID])
-                    idx = obsArrTemp>lambda_min
-                    Delta_x0 = lambda_min-obsArrTemp[idx[0]-1]
+                        this_lambda_min = self.lambda_min['shallow'](self.catalog['REDSHIFT'][dataID])
+                    idx = obsArrTemp > this_lambda_min
+                    Delta_x0 = this_lambda_min - obsArrTemp[idx[0]-1]
                     Delta_x = obsArrTemp[idx[0]]-obsArrTemp[idx[0]-1]
                     if i==0:
                         with np.errstate(invalid='ignore'):
@@ -393,7 +393,7 @@ class MassCalibration:
                             Delta_y = lnHMF_3d[:,idx[0],:]-lnHMF_3d[:,idx[0]-1,:]
                             lnHMF_3d_at_cut = lnHMF_3d[:,idx[0]-1,:] + Delta_y*Delta_x0/Delta_x
                         lnHMF_3d = np.insert(lnHMF_3d[:,idx,:], 0, lnHMF_3d_at_cut, axis=1)
-                    obsArrTemp = np.insert(obsArrTemp[idx], 0, lambda_min)
+                    obsArrTemp = np.insert(obsArrTemp[idx], 0, this_lambda_min)
             obsArr.append(obsArrTemp)
             lnobsArr.append(np.log(obsArrTemp))
 

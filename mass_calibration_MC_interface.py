@@ -12,17 +12,17 @@ def setup(options):
         todo[opt[2:]] = options.get_bool(option_section, opt, False)
     todo['lambda_min'] = options.get_bool(option_section, 'lambda_min')
     mcType = options.get_string(option_section, 'mcType', 'None')
-    surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
-    z_DESWISE = options.get_double(option_section, 'z_DESWISE', default=surveyCutRedshift[1])
+    z_cl_min_max = options.get_double_array_1d(option_section, 'z_cl_min_max')
+    z_DESWISE = options.get_double(option_section, 'z_DESWISE', default=z_cl_min_max[1])
     # Data for optical cleaning
     if todo['lambda_min']:
-        surveyCutLambda_file = options.get_string(option_section, 'MCMF_lambda_min')
-        tmp = np.genfromtxt(surveyCutLambda_file, names=True, dtype=None)
-        surveyCutLambda = {}
+        lambda_min_file = options.get_string(option_section, 'MCMF_lambda_min')
+        tmp = np.genfromtxt(lambda_min_file, names=True, dtype=None)
+        lambda_min = {}
         for name in tmp.dtype.names[1:]:
-            surveyCutLambda[name] = make_interp_spline(tmp['z'], tmp[name], k=1)
+            lambda_min[name] = make_interp_spline(tmp['z'], tmp[name], k=1)
     else:
-        surveyCutLambda = None
+        lambda_min = None
     richness_scatter_model = options.get_string(option_section, 'richness_scatter_model')
     NPROC = options.get_int(option_section, 'NPROC', default=0)
     # SPT survey
@@ -38,7 +38,7 @@ def setup(options):
 
     masscalibration = mass_calibration.MassCalibration(todo=todo,
                                                        mcType=mcType,
-                                                       surveyCutRedshift=surveyCutRedshift, surveyCutRichness=surveyCutLambda, richness_scatter_model=richness_scatter_model,
+                                                       z_cl_min_max=z_cl_min_max, lambda_min=lambda_min, richness_scatter_model=richness_scatter_model,
                                                        z_DESWISE=z_DESWISE,
                                                        SPT_survey_fields=SPT_survey_fields, SPTcatalogfile=SPTcatalogfile,
                                                        HSTcalibfile=HSTcalibfile,

@@ -10,13 +10,13 @@ def setup(options):
     for opt in ['doWL', 'doYx', 'doMgas', 'doveldisp', 'dorichness']:
         todo[opt[2:]] = options.get_bool(option_section, opt)
     mcType = options.get_string(option_section, 'mcType')
-    surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
+    z_cl_min_max = options.get_double_array_1d(option_section, 'z_cl_min_max')
     # lambda_min(z)
-    surveyCutLambda_file = options.get_string(option_section, 'MCMF_lambda_min')
-    tmp = np.genfromtxt(surveyCutLambda_file, names=True, dtype=None)
-    surveyCutLambda = {}
+    lambda_min_file = options.get_string(option_section, 'MCMF_lambda_min')
+    tmp = np.genfromtxt(lambda_min_file, names=True, dtype=None)
+    lambda_min = {}
     for name in tmp.dtype.names[1:]:
-        surveyCutLambda[name] = make_interp_spline(tmp['z'], tmp[name], k=1)
+        lambda_min[name] = make_interp_spline(tmp['z'], tmp[name], k=1)
     NPROC = options.get_int(option_section, 'NPROC')
     # SPT survey
     SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
@@ -28,7 +28,7 @@ def setup(options):
     WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile')
 
     masscalibration = mass_calibration.MassCalibration(todo, mcType,
-                                                       surveyCutRedshift, surveyCutLambda,
+                                                       z_cl_min_max, lambda_min,
                                                        SPT_survey_fields, SPTcatalogfile,
                                                        observable_pairs,
                                                        WLsimcalibfile,

@@ -9,7 +9,7 @@ import scaling_relations
 ln2pi = np.log(2.*np.pi)
 
 
-def lnlike(catalog, SPT_survey_tab, HMF, cosmology, scaling, surveyCutRichness, richness_scatter_model, NPROC=0):
+def lnlike(catalog, SPT_survey_tab, HMF, cosmology, scaling, lambda_min, richness_scatter_model, NPROC=0):
     """Returns ln-likelihood of all `catalog['richness']` measurements given
      `catalog['XI']`."""
     # Richness-mass relation, valid for all SPT fields
@@ -23,7 +23,7 @@ def lnlike(catalog, SPT_survey_tab, HMF, cosmology, scaling, surveyCutRichness, 
     if NPROC == 0:
         lnlike_field = np.array([process_field(SPT_survey_tab[i],
                                                catalog['SPT_ID', 'XI', 'richness', 'REDSHIFT', 'FIELD'],
-                                               surveyCutRichness, richness_scatter_model,
+                                               lambda_min, richness_scatter_model,
                                                HMF['z_arr'], HMF['lnM_arr'], HMF['richness_SZ_lndNdlnM'],
                                                lnrichness_z_m,
                                                scaling, cosmology)
@@ -33,7 +33,7 @@ def lnlike(catalog, SPT_survey_tab, HMF, cosmology, scaling, surveyCutRichness, 
             lnlike_field = pool.starmap(process_field,
                                         [(SPT_survey_tab[i],
                                           catalog['XI', 'richness', 'REDSHIFT', 'FIELD'],
-                                          surveyCutRichness, richness_scatter_model,
+                                          lambda_min, richness_scatter_model,
                                           HMF['z_arr'], HMF['lnM_arr'], HMF['richness_SZ_lndNdlnM'],
                                           lnrichness_z_m,
                                           scaling, cosmology)
@@ -42,7 +42,7 @@ def lnlike(catalog, SPT_survey_tab, HMF, cosmology, scaling, surveyCutRichness, 
     return lnlike
 
 
-def process_field(SPT_field, catalog, surveyCutRichness, richness_scatter_model,
+def process_field(SPT_field, catalog, lambda_min, richness_scatter_model,
                   z_arr, lnM_arr, lndN_dz_dlnrichness_dlnzeta_z,
                   lnrichness_z_m,
                   scaling, cosmology):
@@ -51,7 +51,7 @@ def process_field(SPT_field, catalog, surveyCutRichness, richness_scatter_model,
     lnzeta_z_m = scaling_relations.lnmass2lnobs('zeta', lnM_arr[None, :], z_arr[:, None],
                                                 scaling, cosmology,
                                                 SPTfield=SPT_field)
-    lambda_min_z = surveyCutRichness[SPT_field['LAMBDA_MIN']]
+    lambda_min_allz = lambda_min[SPT_field['LAMBDA_MIN']]
     lnlike = 0.
     field_idx = ((catalog['FIELD'] == SPT_field['FIELD']) & (catalog['richness'] > 0.)).nonzero()[0]
     for clusterID in field_idx:
@@ -61,7 +61,7 @@ def process_field(SPT_field, catalog, surveyCutRichness, richness_scatter_model,
         lndN_dlnrichness_dlnzeta = lndN_dz_dlnrichness_dlnzeta_z[z_idx, :, :]
         lnrichness = lnrichness_z_m[z_idx, :]
         lnzeta = lnzeta_z_m[z_idx, :]
-        lambda_min = lambda_min_z(catalog['REDSHIFT'][clusterID])
+        this_lambda_min = lambda_min_allz(catalog['REDSHIFT'][clusterID])
         # Interpolate to fine xi array w/ Delta xi = 0.25 from max(xi-5, xi_min) to xi+3
         xi_min = np.amax([scaling_relations.zeta2xi(scaling['zeta_min']), catalog['XI'][clusterID] - 5.])
         xi_arr = np.arange(xi_min, catalog['XI'][clusterID] + 3., .25)
@@ -77,16 +77,16 @@ def process_field(SPT_field, catalog, surveyCutRichness, richness_scatter_model,
                                       * (lnzeta_arr[1:] - lnzeta_arr[:-1]), axis=1))
         # No observational scatter in richness (or rather, absorbed in intrinsic scatter)
         if richness_scatter_model == 'lognormal':
-            if lambda_min == 0.:
+            if this_lambda_min == 0.:
                 # Normalize to get dP/dlnrichness
                 lndN_dlnrichness -= np.log(np.sum(np.exp(.5*(lndN_dlnrichness[:-1] + lndN_dlnrichness[1:]))
                                                   * (lnrichness[1:] - lnrichness[:-1])))
                 this_lnlike = np.interp(np.log(catalog['richness'][clusterID]), lnrichness, lndN_dlnrichness)
             else:
                 # Insert lambda_min into lnrichness array
-                lnlambda_min = np.log(lambda_min)
-                lnrichness_cut = lnrichness[lnrichness > lnlambda_min]
-                lnrichness_cut = np.insert(lnrichness_cut, 0, lnlambda_min)
+                lnthis_lambda_min = np.log(this_lambda_min)
+                lnrichness_cut = lnrichness[lnrichness > lnthis_lambda_min]
+                lnrichness_cut = np.insert(lnrichness_cut, 0, lnthis_lambda_min)
                 lndN_dlnrichness_cut = np.interp(lnrichness_cut, lnrichness, lndN_dlnrichness)
                 # Normalize to get dP/dlnrichness
                 lndN_dlnrichness_cut -= np.log(np.sum(np.exp(.5*(lndN_dlnrichness_cut[:-1] + lndN_dlnrichness_cut[1:]))
@@ -104,14 +104,14 @@ def process_field(SPT_field, catalog, surveyCutRichness, richness_scatter_model,
                 # var(ln richness) = 1/richness
                 lnrichnessobs = np.log(catalog['richness'][clusterID])
                 lndP_dobs = -.5 * (lnrichnessobs-lnrichness)**2*richness - .5*ln2pi + .5*lnrichness - lnrichnessobs
-                if lambda_min > 0.:
+                if this_lambda_min > 0.:
                     with np.errstate(divide='ignore'):
-                        lndP_dobs -= np.log(1. - ndtr((np.log(lambda_min)-lnrichness)*np.sqrt(richness)))
+                        lndP_dobs -= np.log(1. - ndtr((np.log(this_lambda_min)-lnrichness)*np.sqrt(richness)))
             elif richness_scatter_model == 'lognormalGaussPoisson':
                 # var(richness) = richness
                 lndP_dobs = -.5 * (catalog['richness'][clusterID]-richness)**2/richness - .5*ln2pi - .5*lnrichness
                 with np.errstate(divide='ignore'):
-                    lndP_dobs -= np.log(1. - ndtr((lambda_min-richness)/np.sqrt(richness)))
+                    lndP_dobs -= np.log(1. - ndtr((this_lambda_min-richness)/np.sqrt(richness)))
             lndP_dobs[np.isposinf(lndP_dobs)] = -np.inf
             # ln-likelihood
             with np.errstate(invalid='ignore', divide='ignore'):

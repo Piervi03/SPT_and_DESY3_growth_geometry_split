@@ -63,7 +63,7 @@ with h5py.File(Euclid_WL_priors_file, 'r') as f:
         scaling['Euclid_%s'%k] = f[k][()]
 
 # SPT survey cuts
-surveyCutRedshift = (0.25, 1.79)
+z_cl_min_max = (0.25, 1.79)
 # How to model X-ray profiles? 'PL' or 'beta'
 profile_shape = 'PL'
 # Observable errors

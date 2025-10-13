@@ -8,8 +8,11 @@ import P_richness_given_SZ
 
 
 def setup(options):
+    z_cl_min_max = options.get_double_array_1d(option_section, 'z_cl_min_max')
     catalog = Table.read(options.get_string(option_section, 'SPTcatalogfile'))
-    catalog = catalog[catalog['COSMO_SAMPLE'] == 1]
+    catalog = catalog[(catalog['COSMO_SAMPLE'] == 1)
+                      & (z_cl_min_max[0] <= catalog['REDSHIFT'])
+                      & (catalog['REDSHIFT'] <= z_cl_min_max[1])]
     SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
     richness_scatter_model = options.get_string(option_section, 'richness_scatter_model')
     config = {'catalog': catalog,
@@ -19,9 +22,9 @@ def setup(options):
     # lambda_min(z)
     surveyCutLambda_file = options.get_string(option_section, 'MCMF_lambda_min')
     tmp = np.genfromtxt(surveyCutLambda_file, names=True, dtype=None)
-    config['surveyCutRichness'] = {}
+    config['lambda_min'] = {}
     for name in tmp.dtype.names[1:]:
-        config['surveyCutRichness'][name] = make_interp_spline(tmp['z'], tmp[name], k=1)
+        config['lambda_min'][name] = make_interp_spline(tmp['z'], tmp[name], k=1)
     return config
 
 
@@ -46,7 +49,7 @@ def execute(block, config):
     lnlike = P_richness_given_SZ.lnlike(config['catalog'], config['SPT_survey_tab'],
                                         HMF,
                                         cosmology, scaling,
-                                        config['surveyCutRichness'], config['richness_scatter_model'],
+                                        config['lambda_min'], config['richness_scatter_model'],
                                         config['NPROC'])
     # Finalize
     if not np.isfinite(lnlike):

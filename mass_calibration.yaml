@@ -28,7 +28,7 @@ params:
   or `WtG`)
   mcType: (string) `Duffy08` or `DK15`
   surveyCutSZ: (list of two float) lower and upper limit in xi
-  surveyCutRedshift: (list of two float) lower and upper limit in redshift
+  z_cl_min_max: (list of two float) lower and upper limit in redshift
   NPROC: (int) number of python multiprocessing threads. 0 for no,
   multiprocessing. Set to 0, 2, or 4.
   SPTdatafile: (path) file with survey details

@@ -58,8 +58,8 @@ class MassCalibration:
         self.NPROC = kwargs.pop('NPROC', 0)
         self.get_stacked_DES = kwargs.pop('get_stacked_DES', False)
         self.mcType = kwargs.pop('mcType')
-        self.surveyCutRedshift = kwargs.pop('surveyCutRedshift')
-        self.surveyCutRichness = kwargs.pop('surveyCutRichness')
+        self.z_cl_min_max = kwargs.pop('z_cl_min_max')
+        self.lambda_min = kwargs.pop('lambda_min')
         self.richness_scatter_model = kwargs.pop('richness_scatter_model')
         self.z_DESWISE = kwargs.pop('z_DESWISE')
         # Read input files
@@ -144,7 +144,7 @@ class MassCalibration:
             return 0.
         if (self.catalog['XI'][i] < self.SPT_survey['XI_MIN'][self.SPT_survey['FIELD'] == self.catalog['FIELD'][i]]):
             return 0.
-        if not (self.surveyCutRedshift[0] < self.catalog['REDSHIFT'][i] < self.surveyCutRedshift[1]):
+        if not (self.z_cl_min_max[0] < self.catalog['REDSHIFT'][i] < self.z_cl_min_max[1]):
             return 0.
 
         # Check if follow-up is available
@@ -226,10 +226,10 @@ class MassCalibration:
         if self.todo['lambda_min']:
             lambda_min_type = self.SPT_survey['LAMBDA_MIN'][self.SPT_survey['FIELD'] == self.catalog['FIELD'][dataID]][0]
             if lambda_min_type not in ['none', 'None', 'NONE']:
-                lambda_min = self.surveyCutRichness[lambda_min_type](self.catalog['REDSHIFT'][dataID])
+                this_lambda_min = self.lambda_min[lambda_min_type](self.catalog['REDSHIFT'][dataID])
             else:
-                lambda_min = 0.
-            if lambda_min > 0.:
+                this_lambda_min = 0.
+            if this_lambda_min > 0.:
                 if self.richness_scatter_model in ['lognormal', 'lognormalrelPoisson']:
                     # Scatter in richness
                     var_richness = self.scaling[scatter_dict[richness_obs]]**2
@@ -244,7 +244,7 @@ class MassCalibration:
                     lnlambda_mean = scaling_relations.lnmass2lnobs(richness_obs, lnmass_lambda_mean, self.catalog['REDSHIFT'][dataID], self.scaling)
                     lnmass_lambda_std = np.sqrt(var_richness_lnM - covar_lnM**2/SZscatter_lnM**2)
                     lnlambda_std = lnmass_lambda_std/scaling_relations.dlnM_dlnobs(richness_obs, self.scaling)
-                    lnP_lambda_gtr_cut = log_ndtr((lnlambda_mean-np.log(lambda_min))/lnlambda_std)
+                    lnP_lambda_gtr_cut = log_ndtr((lnlambda_mean-np.log(this_lambda_min))/lnlambda_std)
         # lnP(xi)
         lnweights = xi_lnweights + zeta_lnweights + mass_lnweights + trans_lnweights + lnP_lambda_gtr_cut
         shift_lnweights = np.amax(lnweights)

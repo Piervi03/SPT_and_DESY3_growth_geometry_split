@@ -13,7 +13,7 @@ def setup(options):
     do_covmat = options.get_bool(option_section, 'covmat')
     NPROC = options.get_int(option_section, 'NPROC')
     surveyCutSZmax = options.get_double(option_section, 'surveyCutSZmax')
-    surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
+    z_cl_min_max = options.get_double_array_1d(option_section, 'z_cl_min_max')
     # SPT survey
     SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
     SPT_survey = Table.read(SPT_survey_fields, format='ascii.commented_header')
@@ -29,11 +29,11 @@ def setup(options):
         covmat_file = options.get_string(option_section, 'covmatfile')
         covmat = np.loadtxt(covmat_file)
         config['number_count'] = abundance_covmat.NumberCount(catalog, SPT_survey, covmat,
-                                                              surveyCutSZmax, surveyCutRedshift,
+                                                              surveyCutSZmax, z_cl_min_max,
                                                               NPROC)
     else:
         config['number_count'] = abundance_poisson.NumberCount(catalog, SPT_survey,
-                                                               surveyCutSZmax, surveyCutRedshift,
+                                                               surveyCutSZmax, z_cl_min_max,
                                                                NPROC)
     return config
 

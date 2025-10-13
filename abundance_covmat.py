@@ -16,10 +16,9 @@ class NumberCount:
     def __init__(self, **kwargs):
         catalog = kwargs.pop('catalog')
         self.SPT_survey = kwargs.pop('SPT_survey')
-        #self.surveyCutSZmax = surveyCutSZmax
-        #self.surveyCutRedshift = surveyCutRedshift
         self.NPROC = kwargs.pop('NPROC', 0)
         self.covmat_sv = kwargs.pop('covmat_sv')
+        z_cl_min_max = kwargs.pop('z_cl_min_max')
 
         SPT_survey = kwargs.pop('SPT_survey')
         # Arrays over which we'll integrate (survey cuts applied)
@@ -27,12 +26,12 @@ class NumberCount:
         Nxi = int(np.log10(self.surveyCutSZmax/xi_min)/.005 + 1)
         self.xi_arr = np.logspace(np.log10(xi_min), np.log10(self.surveyCutSZmax), Nxi)
         dz = .01
-        Nz = int((self.surveyCutRedshift[1]-self.surveyCutRedshift[0])/dz + 1)
-        self.z_arr = np.linspace(self.surveyCutRedshift[0], self.surveyCutRedshift[1], Nz)
+        Nz = int((z_cl_min_max[1]-z_cl_min_max[0])/dz + 1)
+        self.z_arr = np.linspace(z_cl_min_max[0], z_cl_min_max[1], Nz)
         # For output
         dz = .1
-        Nz = int((self.surveyCutRedshift[1]-self.surveyCutRedshift[0])/dz + 1)
-        self.z_bins_output = np.linspace(self.surveyCutRedshift[0], self.surveyCutRedshift[1], Nz)
+        Nz = int((z_cl_min_max[1]-z_cl_min_max[0])/dz + 1)
+        self.z_bins_output = np.linspace(z_cl_min_max[0], z_cl_min_max[1], Nz)
         # self.xi_bins_output = np.logspace(np.log10(4.25), np.log10(self.surveyCutSZmax), 11)
         # self.xi_bins_survey = {'SPTPOL_500d': self.xi_bins_output,
         #                        'SZ': np.logspace(np.log10(4.5), np.log10(self.surveyCutSZmax), 11),

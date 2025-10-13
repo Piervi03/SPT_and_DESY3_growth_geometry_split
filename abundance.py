@@ -16,23 +16,23 @@ def unwrap_self_f(arg):
 class NumberCount:
 
     def __init__(self, catalog, SPT_survey,
-                 surveyCutSZmax, surveyCutRedshift,
+                 surveyCutSZmax, z_cl_min_max,
                  NPROC):
         self.catalog = catalog
         self.SPT_survey = SPT_survey
         self.surveyCutSZmax = surveyCutSZmax
-        self.surveyCutRedshift = surveyCutRedshift
+        self.z_cl_min_max = z_cl_min_max
         self.NPROC = NPROC
 
         # Observable arrays
         # Arrays over which we'll integrate (survey cuts applied)
         dz = .01
-        Nz = int((self.surveyCutRedshift[1]-self.surveyCutRedshift[0])/dz + 1)
-        self.z_arr = np.linspace(self.surveyCutRedshift[0], self.surveyCutRedshift[1], Nz)
+        Nz = int((self.z_cl_min_max[1]-self.z_cl_min_max[0])/dz + 1)
+        self.z_arr = np.linspace(self.z_cl_min_max[0], self.z_cl_min_max[1], Nz)
         # For output
         dz = .1
-        Nz = int((self.surveyCutRedshift[1]-self.surveyCutRedshift[0])/dz + 1)
-        self.z_bins_output = np.linspace(self.surveyCutRedshift[0], self.surveyCutRedshift[1], Nz)
+        Nz = int((self.z_cl_min_max[1]-self.z_cl_min_max[0])/dz + 1)
+        self.z_bins_output = np.linspace(self.z_cl_min_max[0], self.z_cl_min_max[1], Nz)
         self.xi_bins_output = np.logspace(np.log10(4.25), np.log10(self.surveyCutSZmax), 11)
         self.xi_bins_survey = {'SPTPOL_500d': self.xi_bins_output,
                                'SZ': np.logspace(np.log10(4.5), np.log10(self.surveyCutSZmax), 11),
@@ -141,8 +141,8 @@ class NumberCount:
                           & (self.catalog['COSMO_SAMPLE'] == 1)
                           & (self.catalog['XI'] >= self.SPT_survey['XI_MIN'][fieldidx])
                           & (self.catalog['XI'] <= self.surveyCutSZmax)
-                          & (self.catalog['REDSHIFT'] >= self.surveyCutRedshift[0])
-                          & (self.catalog['REDSHIFT'] <= self.surveyCutRedshift[1]))
+                          & (self.catalog['REDSHIFT'] >= self.z_cl_min_max[0])
+                          & (self.catalog['REDSHIFT'] <= self.z_cl_min_max[1]))
         these_lndNdxi = (lndNdxi(np.log(self.catalog['REDSHIFT'][thisfield_conf]), np.log(self.catalog['XI'][thisfield_conf]), grid=False)
                          - np.log(self.SPT_survey['AREA'][fieldidx] * (np.pi/180.)**2.))
         for n, i in enumerate(thisfield_conf.nonzero()[0]):

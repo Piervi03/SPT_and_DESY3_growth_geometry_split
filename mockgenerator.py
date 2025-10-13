@@ -32,7 +32,7 @@ def main(configMod_file, catalog_name):
     lnM_arr = np.log(M_arr)
     dlnm = np.log(M_arr[1]/M_arr[0])
     dz_ = .01
-    z_arr = np.linspace(configMod.surveyCutRedshift[0], configMod.surveyCutRedshift[1], int((configMod.surveyCutRedshift[1]-configMod.surveyCutRedshift[0])/dz_) + 1)
+    z_arr = np.linspace(configMod.z_cl_min_max[0], configMod.z_cl_min_max[1], int((configMod.z_cl_min_max[1]-configMod.z_cl_min_max[0])/dz_) + 1)
     dz = z_arr[1]-z_arr[0]
     if configMod.HMF == 'Mira-Titan':
         import compute_HMF_MiraTitan

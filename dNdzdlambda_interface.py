@@ -10,20 +10,20 @@ import dNdzdlambda
 def setup(options):
     ##### Global variables
     NPROC = options.get_int(option_section, 'NPROC')
-    surveyCutRedshift = options.get_double_array_1d(option_section, 'surveyCutRedshift')
+    z_cl_min_max = options.get_double_array_1d(option_section, 'z_cl_min_max')
     # SPT survey
     SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
     SPT_survey = Table.read(SPT_survey_fields, format='ascii.commented_header')
     # Lambda cut
-    surveyCutLambda_file = options.get_string(option_section, 'MCMF_lambda_min')
-    tmp = np.genfromtxt(surveyCutLambda_file, names=True, dtype=None)
-    surveyCutLambda = {}
+    lambda_min_file = options.get_string(option_section, 'MCMF_lambda_min')
+    tmp = np.genfromtxt(lambda_min_file, names=True, dtype=None)
+    lambda_min = {}
     for name in tmp.dtype.names[1:]:
-        surveyCutLambda[name] = make_interp_spline(tmp['z'], tmp[name], k=1)
+        lambda_min[name] = make_interp_spline(tmp['z'], tmp[name], k=1)
     ##### Initialize abundance
     computer = dNdzdlambda.DistCompute(SPT_survey,
-                                       surveyCutRedshift,
-                                       surveyCutLambda,
+                                       z_cl_min_max,
+                                       lambda_min,
                                        NPROC)
     return computer
 

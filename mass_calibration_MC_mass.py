@@ -41,7 +41,7 @@ def unwrap_self_f(arg):
 class MassCalibration:
 
     def __init__(self, todo, mcType,
-                 surveyCutRedshift, surveyCutRichness, richness_scatter_model,
+                 z_cl_min_max, lambda_min, richness_scatter_model,
                  SPT_survey_fields, SPTcatalogfile,
                  HSTcalibfile,
                  NPROC,
@@ -51,8 +51,8 @@ class MassCalibration:
         self.get_stacked_DES = get_stacked_DES
         self.todo = todo
         self.mcType = mcType
-        self.surveyCutRedshift = surveyCutRedshift
-        self.surveyCutRichness = surveyCutRichness
+        self.z_cl_min_max = z_cl_min_max
+        lambda_min = lambda_min
         self.richness_scatter_model = richness_scatter_model
 
         # Read input files
@@ -148,7 +148,7 @@ class MassCalibration:
             return 1.
         if (self.catalog['XI'][i]<self.SPT_survey['XI_MIN'][self.SPT_survey['FIELD']==self.catalog['FIELD'][i]]):
             return 1.
-        if not (self.surveyCutRedshift[0]<self.catalog['REDSHIFT'][i]<self.surveyCutRedshift[1]):
+        if not (self.z_cl_min_max[0]<self.catalog['REDSHIFT'][i]<self.z_cl_min_max[1]):
             return 1.
 
         ##### Check if follow-up is available
