@@ -8,17 +8,19 @@ import P_richness_given_SZ
 
 
 def setup(options):
+    config = {'NPROC': options.get_int(option_section, 'NPROC'),
+              'richness_scatter_model': options.get_string(option_section, 'richness_scatter_model'),
+              'SPT_survey_tab': Table.read(options.get_string(option_section, 'SPT_survey_fields'),
+                                           format='ascii.commented_header')}
+    # Catalog
     z_cl_min_max = options.get_double_array_1d(option_section, 'z_cl_min_max')
     catalog = Table.read(options.get_string(option_section, 'SPTcatalogfile'))
-    catalog = catalog[(catalog['COSMO_SAMPLE'] == 1)
-                      & (z_cl_min_max[0] <= catalog['REDSHIFT'])
-                      & (catalog['REDSHIFT'] <= z_cl_min_max[1])]
-    SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
-    richness_scatter_model = options.get_string(option_section, 'richness_scatter_model')
-    config = {'catalog': catalog,
-              'NPROC': options.get_int(option_section, 'NPROC'),
-              'richness_scatter_model': richness_scatter_model,
-              'SPT_survey_tab': Table.read(SPT_survey_fields, format='ascii.commented_header')}
+    keep = [xi >= config['SPT_survey_tab']['XI_MIN'][config['SPT_survey_tab']['FIELD'] == field][0]
+            for xi, field in zip(catalog['XI'], catalog['FIELD'])]
+    catalog = catalog[keep]
+    config['catalog'] = catalog[(catalog['COSMO_SAMPLE'] == 1)
+                                & (z_cl_min_max[0] <= catalog['REDSHIFT'])
+                                & (catalog['REDSHIFT'] <= z_cl_min_max[1])]
     # lambda_min(z)
     surveyCutLambda_file = options.get_string(option_section, 'MCMF_lambda_min')
     tmp = np.genfromtxt(surveyCutLambda_file, names=True, dtype=None)
