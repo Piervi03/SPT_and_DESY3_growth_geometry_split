@@ -14,7 +14,9 @@ cosmologyRef = {'Omega_m': .272, 'Omega_l': .728, 'h': .702, 'w0': -1, 'wa': 0}
 
 def main(configMod_file, catalog_name):
     # Input parameters and settings
-    configMod = importlib.import_module(configMod_file[:-3])
+    spec = importlib.util.spec_from_file_location('dummy', configMod_file)
+    configMod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(configMod)
     # SPT survey information
     SPT_survey = Table.read(configMod.SPT_survey, format='ascii.commented_header')
     # lambda_min(z)
