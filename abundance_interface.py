@@ -51,8 +51,12 @@ def execute(block, config):
         scaling[p] = block.get_double('mor_parameters', p)
     # Convolved halo mass function
     HMF = {'lnM_arr': block.get_double_array_1d('dN_dmultiobs', 'lnM_arr'),
-           'z_arr': block.get_double_array_1d('dN_dmultiobs', 'z_arr'),
-           'SZ_lndNdlnM': block.get_double_array_nd('dN_dmultiobs', 'SZ_lndNdlnM')}
+           'z_arr': block.get_double_array_1d('dN_dmultiobs', 'z_arr')}
+    if ((not config['do_lambda_min'])
+        or ('none' in config['number_count'].SPT_survey['LAMBDA_MIN'])
+        or ('None' in config['number_count'].SPT_survey['LAMBDA_MIN'])
+        or ('NONE' in config['number_count'].SPT_survey['LAMBDA_MIN'])):
+        HMF['SZ_lndNdlnM'] = block.get_double_array_nd('dN_dmultiobs', 'SZ_lndNdlnM')
     for name in np.unique(config['number_count'].SPT_survey['LAMBDA_MIN']):
         if name not in ['none', 'None', 'NONE']:
             key = 'SZ_lambdacut_{}_lndNdlnM'.format(name)
