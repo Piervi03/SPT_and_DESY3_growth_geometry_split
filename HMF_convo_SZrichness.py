@@ -33,8 +33,6 @@ class MultiObsConvolution:
                  NPROC=0):
         # Sigma-clipping in convolutions
         self.N_sigma = np.array([5, 3])
-        # Sparsity of returned arrays
-        self.compression = 2
         # Number of processes (0 for simple loop)
         self.NPROC = NPROC
         # Cut in richness
@@ -57,7 +55,6 @@ class MultiObsConvolution:
         self.Delta_lnM = HMF['lnM_arr'][1]-self.HMF['lnM_arr'][0]
         # Check length of HMF mass array for compression factor
         self.HMF['len_M'] = len(self.HMF['lnM_arr'])
-        assert (self.HMF['len_M']-1) % self.compression == 0, "HMF has non-standard shape"
         # Needed for halo bias
         if self.do_bias:
             colossus_params = {'flat': True,
@@ -68,7 +65,7 @@ class MultiObsConvolution:
                                'ns': cosmology['n_s']}
             this_colossus_cosmo = colossus_cosmology.setCosmology('myCosmo', colossus_params)
         # Pre-compute the intrinsic scatter convolutions
-        output_dict = {'lnM_arr': HMF['lnM_arr'][::self.compression],
+        output_dict = {'lnM_arr': HMF['lnM_arr'],
                        'z_arr': self.z_arr}
         for pair_idx, pair_name in enumerate(self.observable_pairs):
             output_dict['{}_lndNdlnM'.format(pair_name)] = self.get_P_multiobs_allz(pairname=pair_name)
@@ -146,8 +143,6 @@ class MultiObsConvolution:
         dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
         Nbin = self.scaling['Dsz'] * dlnM_dlnzeta / self.Delta_lnM
         HMF_1d = gaussian_filter1d(dN_dlnM, Nbin, mode='constant')
-        # Compress
-        HMF_1d = HMF_1d[::self.compression]
         # We know we're doing log(0)...
         with np.errstate(divide='ignore'):
             lnHMF_1d = np.log(HMF_1d)
@@ -199,8 +194,6 @@ class MultiObsConvolution:
         # Convolution
         kernels = P_lambda_gtr_cut * np.exp(-.5*lnzeta_arr[None, :]**2/covmat_lnM[:, 1, 1][:, None]) / np.sqrt(2*np.pi*covmat_lnM[:, 1, 1])[:, None]
         HMF_1d = convolution.convolve_HMF_1obs_varkernel(dN_dlnM, self.Delta_lnM, kernels, Nbins_zeta)
-        # Compress
-        HMF_1d = HMF_1d[::self.compression]
         # We know we're doing log(0)...
         with np.errstate(divide='ignore'):
             lnHMF_1d = np.log(HMF_1d)
@@ -227,8 +220,6 @@ class MultiObsConvolution:
         kernel = cy_multivariate_normal.bivariate_normal(lnobs_arr, lnzeta_arr, covmat_lnM)
         # Convolution
         HMF_2d = convolution.convolve_HMF_2obs_fixedkernel(dN_dlnM, self.Delta_lnM, kernel, Nbins_obs, Nbins_zeta)
-        # Compress
-        HMF_2d = HMF_2d[::self.compression, ::self.compression]
         # We know we're doing log(0)...
         with np.errstate(divide='ignore'):
             lnHMF_2d = np.log(HMF_2d)
