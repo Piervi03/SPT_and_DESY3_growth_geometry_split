@@ -1,6 +1,7 @@
 import numpy as np
+from scipy.integrate import simpson
 from multiprocessing import Pool
-from scipy.interpolate import interp1d
+from scipy.interpolate import interp1d, make_interp_spline
 from scipy.special import ndtr
 
 import scaling_relations
@@ -51,7 +52,6 @@ def process_field(SPT_field, catalog, lambda_min, richness_scatter_model,
     lnzeta_z_m = scaling_relations.lnmass2lnobs('zeta', lnM_arr[None, :], z_arr[:, None],
                                                 scaling, cosmology,
                                                 SPTfield=SPT_field)
-    lambda_min_allz = lambda_min[SPT_field['LAMBDA_MIN']]
     lnlike = 0.
     field_idx = ((catalog['FIELD'] == SPT_field['FIELD']) & (catalog['richness'] > 0.)).nonzero()[0]
     for clusterID in field_idx:
@@ -61,20 +61,20 @@ def process_field(SPT_field, catalog, lambda_min, richness_scatter_model,
         lndN_dlnrichness_dlnzeta = lndN_dz_dlnrichness_dlnzeta_z[z_idx, :, :]
         lnrichness = lnrichness_z_m[z_idx, :]
         lnzeta = lnzeta_z_m[z_idx, :]
-        this_lambda_min = lambda_min_allz(catalog['REDSHIFT'][clusterID])
-        # Interpolate to fine xi array w/ Delta xi = 0.25 from max(xi-5, xi_min) to xi+3
-        xi_min = np.amax([scaling_relations.zeta2xi(scaling['zeta_min']), catalog['XI'][clusterID] - 5.])
-        xi_arr = np.arange(xi_min, catalog['XI'][clusterID] + 3., .25)
+        this_lambda_min = lambda_min[SPT_field['LAMBDA_MIN']](catalog['REDSHIFT'][clusterID])
+        # Interpolate to fine xi array w/ Delta xi = 0.25 from max(xi-4, xi_min) to xi+4
+        xi_min = np.amax([scaling_relations.zeta2xi(scaling['zeta_min']), catalog['XI'][clusterID] - 4.])
+        xi_arr = np.arange(xi_min, catalog['XI'][clusterID] + 4., .25)
         lnzeta_arr = np.log(scaling_relations.xi2zeta(xi_arr))
         with np.errstate(invalid='ignore'):
-            lndN_dlnrichness_dlnzeta_arr = interp1d(lnzeta, lndN_dlnrichness_dlnzeta, axis=1, assume_sorted=True)(lnzeta_arr)
+            lndN_dlnrichness_dlnzeta_arr = interp1d(lnzeta, lndN_dlnrichness_dlnzeta,
+                                                    axis=1, kind='linear',
+                                                    assume_sorted=True)(lnzeta_arr)
         lndN_dlnrichness_dlnzeta_arr[np.isnan(lndN_dlnrichness_dlnzeta_arr)] = -np.inf
         # Condition dN/dlnrichness/dlnzeta (lnitg) on measured xi
-        lnitg = lndN_dlnrichness_dlnzeta_arr - .5 * (catalog['XI'][clusterID] - xi_arr)**2.
+        itg = np.exp(lndN_dlnrichness_dlnzeta_arr - .5 * (catalog['XI'][clusterID] - xi_arr)**2.)
         # Marginalize over zeta to get dN/dlnrichness
-        with np.errstate(divide='ignore'):
-            lndN_dlnrichness = np.log(np.sum(np.exp(.5 * (lnitg[:, :-1] + lnitg[:, 1:]))
-                                      * (lnzeta_arr[1:] - lnzeta_arr[:-1]), axis=1))
+        dN_dlnrichness = simpson(itg, lnzeta_arr, axis=1)
         # No observational scatter in richness (or rather, absorbed in intrinsic scatter)
         if richness_scatter_model == 'lognormal':
             if this_lambda_min == 0.:
@@ -95,28 +95,29 @@ def process_field(SPT_field, catalog, lambda_min, richness_scatter_model,
         # Models with observational scatter in richness
         elif richness_scatter_model in ['lognormalrelPoisson', 'lognormalGaussPoisson']:
             # Normalize to get dP/dlnrichness
-            norm = np.sum(np.exp(.5*(lndN_dlnrichness[:-1] + lndN_dlnrichness[1:]))
-                          * (lnrichness[1:] - lnrichness[:-1]))
-            lndN_dlnrichness -= np.log(norm)
+            dN_dlnrichness /= simpson(dN_dlnrichness, lnrichness)
             # P(richness_obs | richness) accounting for lambda_min
             richness = np.exp(lnrichness)
             if richness_scatter_model == 'lognormalrelPoisson':
                 # var(ln richness) = 1/richness
                 lnrichnessobs = np.log(catalog['richness'][clusterID])
-                lndP_dobs = -.5 * (lnrichnessobs-lnrichness)**2*richness - .5*ln2pi + .5*lnrichness - lnrichnessobs
+                dP_dobs = np.exp(-.5 * (lnrichnessobs-lnrichness)**2*richness) / np.sqrt(2. * np.pi * catalog['richness'][clusterID] / richness)
                 if this_lambda_min > 0.:
                     with np.errstate(divide='ignore'):
-                        lndP_dobs -= np.log(1. - ndtr((np.log(this_lambda_min)-lnrichness)*np.sqrt(richness)))
+                        dP_dobs /= (1. - ndtr((np.log(this_lambda_min)-lnrichness)*np.sqrt(richness)))
             elif richness_scatter_model == 'lognormalGaussPoisson':
                 # var(richness) = richness
-                lndP_dobs = -.5 * (catalog['richness'][clusterID]-richness)**2/richness - .5*ln2pi - .5*lnrichness
-                with np.errstate(divide='ignore'):
-                    lndP_dobs -= np.log(1. - ndtr((this_lambda_min-richness)/np.sqrt(richness)))
-            lndP_dobs[np.isposinf(lndP_dobs)] = -np.inf
-            # ln-likelihood
-            with np.errstate(invalid='ignore', divide='ignore'):
-                lnitg = lndP_dobs + lndN_dlnrichness
-                this_lnlike = np.log(np.sum(np.exp(.5*(lnitg[:-1]+lnitg[1:])) * (lnrichness[1:]-lnrichness[:-1])))
+                dP_dobs = np.exp(-.5 * (catalog['richness'][clusterID]-richness)**2/richness) / np.sqrt(2. * np.pi * richness)
+                with np.errstate(invalid='ignore', divide='ignore'):
+                    dP_dobs /= (1. - ndtr((this_lambda_min-richness)/np.sqrt(richness)))
+            # Likelihood = int dlambda P(lambda_obs|lambda) P(lambda)
+            with np.errstate(invalid='ignore'):
+                itg = dP_dobs * dN_dlnrichness
+            # Remove infs and set up interpolation
+            finite = np.isfinite(itg)
+            lnrichness = lnrichness[finite]
+            itg_interp = make_interp_spline(lnrichness, itg[finite], k=2)
+            this_lnlike = np.log(itg_interp.integrate(np.amin(lnrichness), np.amax(lnrichness)))
         else:
             raise ValueError('Invalid richness_scatter_model {}'.format(richness_scatter_model))
         if not np.isfinite(this_lnlike):
