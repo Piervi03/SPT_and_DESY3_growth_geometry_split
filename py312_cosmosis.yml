@@ -10,21 +10,21 @@ dependencies:
   - gcc_linux-64>=13
   - gfortran_linux-64>=13
   - gxx_linux-64>=13
-  - h5py>=3.10
-  - matplotlib>=3.8
+  - h5py>=3.12
+  - matplotlib>=3.9
   - mpi4py>=4
-  - mpich>=4.0
+  - mpich>=4.1
   - numpy>=2.2
   - pip>=25
   - pytest>=8
   - python=3.12
-  - pytorch
-  - scikit-learn>=1.5
-  - scipy>=1.14
-  - setuptools>=75
-  - tensorflow>=2.16
-  - tensorflow-estimator>=2.16
-  - tensorflow-probability>=0.22
+  - pytorch>=2
+  - scikit-learn>=1.6
+  - scipy>=1.15
+  - setuptools>=79
+  - tensorflow>=2.17
+  - tensorflow-estimator>=2.17
+  - tensorflow-probability>=0.24
   - xarray>=2025
   - pip:
     - baccoemu
