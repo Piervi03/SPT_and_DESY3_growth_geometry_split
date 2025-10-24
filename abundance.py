@@ -1,6 +1,7 @@
 import numpy as np
 from multiprocessing import Pool
 from scipy.stats import norm
+from scipy.integrate import simpson
 from scipy.interpolate import RectBivariateSpline, InterpolatedUnivariateSpline
 from scipy.ndimage import gaussian_filter1d
 import scaling_relations
@@ -112,15 +113,18 @@ class NumberCount:
         # Set up interpolation for cluster list below
         with np.errstate(divide='ignore'):
             lndN_dxi = np.log(dN_dxi)
-        lndNdxi = RectBivariateSpline(np.log(self.HMF['z_arr']), np.log(self.xi_bins), lndN_dxi)
+        lndNdxi = RectBivariateSpline(np.log(self.HMF['z_arr']), np.log(self.xi_bins), lndN_dxi, kx=2, ky=2)
 
-        # Ntotal (trapezoid except that we sum in log-space)
-        Nxi = int(np.log10(self.surveyCutSZmax/self.SPT_survey['XI_MIN'][fieldidx])/.005 + 1)
-        self.xi_arr = np.logspace(np.log10(self.SPT_survey['XI_MIN'][fieldidx]), np.log10(self.surveyCutSZmax), Nxi)
-        integrand = (np.exp(.5*(lndNdxi(np.log(self.z_arr), np.log(self.xi_arr[1:])) + lndNdxi(np.log(self.z_arr), np.log(self.xi_arr[:-1]))))
-                     * (self.xi_arr[1:]-self.xi_arr[:-1]))
+        # dN/dz = int dlnxi d2N/dz/dlnxi (trapezoid in ln-space because it's essentially a power law)
+        lnxi_arr = np.arange(np.log(self.SPT_survey['XI_MIN'][fieldidx]),
+                             np.log(self.surveyCutSZmax),
+                             .005)
+        integrand = (np.exp(.5*(lndNdxi(np.log(self.z_arr), lnxi_arr[1:])+lnxi_arr[1:]
+                                + lndNdxi(np.log(self.z_arr), lnxi_arr[:-1])+lnxi_arr[:-1]))
+                     * (lnxi_arr[1:]-lnxi_arr[:-1]))
         dNdz = np.sum(integrand, axis=1)
-        Ntotal = np.trapezoid(dNdz, self.z_arr)
+        # N = int dz dN/dz (approximately quadratic in z)
+        Ntotal = simpson(dNdz, self.z_arr)
 
         # dN_dxi and N(z) for output
         f = InterpolatedUnivariateSpline(self.z_arr, dNdz)
