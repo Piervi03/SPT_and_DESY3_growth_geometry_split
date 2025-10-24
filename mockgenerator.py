@@ -138,8 +138,11 @@ def main(configMod_file, catalog_name):
                                 richness_obs = obs[k, 3]
                             elif configMod.richness_scatter_model == 'lognormalrelPoisson':
                                 richness_obs = np.exp(rng.normal(np.log(obs[k, 3]), scale=1/np.sqrt(obs[k, 3])))
-                            elif configMod.richness_scatter_model == 'lognormalGaussPoisson':
-                                richness_err = np.sqrt(obs[k, 3])
+                            elif configMod.richness_scatter_model in ['lognormalGaussPoisson', 'lognormalGausssuperPoisson']:
+                                if configMod.richness_scatter_model == 'lognormalGaussPoisson':
+                                    richness_err = np.sqrt(obs[k, 3])
+                                elif configMod.richness_scatter_model == 'lognormalGausssuperPoisson':
+                                    richness_err = np.sqrt(obs[k, 3]+10.) * (1.08 + .45*(z-.6))
                                 richness_obs = rng.normal(obs[k, 3], scale=richness_err)
                             else:
                                 raise ValueError("Unknown value for richness_scatter_model")

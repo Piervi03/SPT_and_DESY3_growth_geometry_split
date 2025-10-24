@@ -73,5 +73,5 @@ Xerr = .16
 nXrayCluster = 80
 # Use Mgas or Yx?
 Xray_obs = 'Yx'
-# Type of scatter in richness: 'lognormal', 'lognormalrelPoisson', 'lognormalGaussPoisson'
+# Type of scatter in richness: 'lognormal', 'lognormalrelPoisson', 'lognormalGaussPoisson', 'lognormalGausssuperPoisson'
 richness_scatter_model = 'lognormalrelPoisson'

@@ -7,6 +7,7 @@ from scipy.special import ndtr
 import scaling_relations
 
 
+sqrt2pi = np.sqrt(2.*np.pi)
 ln2pi = np.log(2.*np.pi)
 
 
@@ -79,21 +80,21 @@ def process_field(SPT_field, catalog, lambda_min, richness_scatter_model,
         if richness_scatter_model == 'lognormal':
             if this_lambda_min == 0.:
                 # Normalize to get dP/dlnrichness
-                lndN_dlnrichness -= np.log(np.sum(np.exp(.5*(lndN_dlnrichness[:-1] + lndN_dlnrichness[1:]))
-                                                  * (lnrichness[1:] - lnrichness[:-1])))
-                this_lnlike = np.interp(np.log(catalog['richness'][clusterID]), lnrichness, lndN_dlnrichness)
+                dN_dlnrichness /= simpson(dN_dlnrichness, lnrichness)
+                this_lnlike = make_interp_spline(lnrichness, np.log(dN_dlnrichness), k=2)(
+                                                 np.log(catalog['richness'][clusterID]))
             else:
                 # Insert lambda_min into lnrichness array
                 lnthis_lambda_min = np.log(this_lambda_min)
                 lnrichness_cut = lnrichness[lnrichness > lnthis_lambda_min]
                 lnrichness_cut = np.insert(lnrichness_cut, 0, lnthis_lambda_min)
-                lndN_dlnrichness_cut = np.interp(lnrichness_cut, lnrichness, lndN_dlnrichness)
+                lndN_dlnrichness_cut = make_interp_spline(lnrichness, np.log(dN_dlnrichness), k=2)(lnrichness_cut)
                 # Normalize to get dP/dlnrichness
-                lndN_dlnrichness_cut -= np.log(np.sum(np.exp(.5*(lndN_dlnrichness_cut[:-1] + lndN_dlnrichness_cut[1:]))
-                                                      * (lnrichness_cut[1:] - lnrichness_cut[:-1])))
-                this_lnlike = np.interp(np.log(catalog['richness'][clusterID]), lnrichness_cut, lndN_dlnrichness_cut)
+                lndN_dlnrichness_cut -= np.log(simpson(np.exp(lndN_dlnrichness_cut), lnrichness_cut))
+                this_lnlike = make_interp_spline(lnrichness_cut, lndN_dlnrichness_cut, k=2)(
+                                                 np.log(catalog['richness'][clusterID]))
         # Models with observational scatter in richness
-        elif richness_scatter_model in ['lognormalrelPoisson', 'lognormalGaussPoisson']:
+        elif richness_scatter_model in ['lognormalrelPoisson', 'lognormalGaussPoisson', 'lognormalGausssuperPoisson']:
             # Normalize to get dP/dlnrichness
             dN_dlnrichness /= simpson(dN_dlnrichness, lnrichness)
             # P(richness_obs | richness) accounting for lambda_min
@@ -101,15 +102,19 @@ def process_field(SPT_field, catalog, lambda_min, richness_scatter_model,
             if richness_scatter_model == 'lognormalrelPoisson':
                 # var(ln richness) = 1/richness
                 lnrichnessobs = np.log(catalog['richness'][clusterID])
-                dP_dobs = np.exp(-.5 * (lnrichnessobs-lnrichness)**2*richness) / np.sqrt(2. * np.pi * catalog['richness'][clusterID] / richness)
+                dP_dobs = (np.exp(-.5 * (lnrichnessobs-lnrichness)**2*richness)
+                           / np.sqrt(2. * np.pi * catalog['richness'][clusterID] / richness))
                 if this_lambda_min > 0.:
                     with np.errstate(divide='ignore'):
                         dP_dobs /= (1. - ndtr((np.log(this_lambda_min)-lnrichness)*np.sqrt(richness)))
-            elif richness_scatter_model == 'lognormalGaussPoisson':
-                # var(richness) = richness
-                dP_dobs = np.exp(-.5 * (catalog['richness'][clusterID]-richness)**2/richness) / np.sqrt(2. * np.pi * richness)
+            elif richness_scatter_model in ['lognormalGaussPoisson', 'lognormalGausssuperPoisson']:
+                if richness_scatter_model == 'lognormalGaussPoisson':
+                    std_richness = np.sqrt(richness)
+                elif richness_scatter_model == 'lognormalGausssuperPoisson':
+                    std_richness = np.sqrt(richness+10.) * (1.08 + .45*(catalog['REDSHIFT'][clusterID]-.6))
+                dP_dobs = np.exp(-.5 * ((catalog['richness'][clusterID]-richness)/std_richness)**2) / (sqrt2pi * std_richness)
                 with np.errstate(invalid='ignore', divide='ignore'):
-                    dP_dobs /= (1. - ndtr((this_lambda_min-richness)/np.sqrt(richness)))
+                    dP_dobs /= (1. - ndtr((this_lambda_min-richness)/std_richness))
             # Likelihood = int dlambda P(lambda_obs|lambda) P(lambda)
             with np.errstate(invalid='ignore'):
                 itg = dP_dobs * dN_dlnrichness

@@ -3,6 +3,7 @@ from math import sqrt as msqrt
 
 from multiprocessing import Pool
 from scipy.ndimage import gaussian_filter1d
+from scipy.integrate import simpson
 from scipy.special import ndtr
 
 from colossus.cosmology import cosmology as colossus_cosmology
@@ -13,6 +14,7 @@ import convolution
 import scaling_relations
 
 
+sqrt2pi = msqrt(2.*np.pi)
 # For interpolation of HMF in redshift
 z_tol = .001
 
@@ -162,7 +164,7 @@ class MultiObsConvolution:
                              [dlnM_dlnobs*dlnM_dlnzeta, dlnM_dlnzeta**2]])
         Dsz = self.scaling['Dsz']
         Drich = scaling_relations.richnessscatter(z, self.scaling)
-        if self.richness_scatter_model in ['lognormal', 'lognormalGaussPoisson']:
+        if self.richness_scatter_model in ['lognormal', 'lognormalGaussPoisson', 'lognormalGausssuperPoisson']:
             covmat = np.array([[Drich**2, self.scaling['rhoSZrichness']*Drich*Dsz],
                                [self.scaling['rhoSZrichness']*Drich*Dsz, Dsz**2]])[None, :, :]
         elif self.richness_scatter_model == 'lognormalrelPoisson':
@@ -177,22 +179,28 @@ class MultiObsConvolution:
         # Number of bins and arrays for each observable
         Nbins_zeta, lnzeta_arr = self.get_Nbins_array(msqrt(np.amax(covmat_lnM[:, 1, 1])))
         Nbins_zeta = Nbins_zeta[None, :] * np.ones((self.HMF['len_M'], 2), dtype=int)
-        lnmass_lambda_mean = self.HMF['lnM_arr'][:, None] + (covmat_lnM[:, 0, 1]/covmat_lnM[:, 1, 1])[:, None]*lnzeta_arr[None, :]
+        lnmass_lambda_mean = (self.HMF['lnM_arr'][:, None]
+                              + (covmat_lnM[:, 0, 1]/covmat_lnM[:, 1, 1])[:, None]*lnzeta_arr[None, :])
         lnlambda_mean = scaling_relations.lnmass2lnobs('richness', lnmass_lambda_mean, z, self.scaling)
         lnmass_lambda_std = np.sqrt(covmat_lnM[:, 0, 0] - covmat_lnM[:, 0, 1]**2/covmat_lnM[:, 1, 1])
         lnlambda_std = lnmass_lambda_std/dlnM_dlnobs
-        # Cumulative Gaussian
+        # Cumulative distribution
         if self.richness_scatter_model in ['lognormal', 'lognormalrelPoisson']:
             P_lambda_gtr_cut = ndtr((lnlambda_mean-np.log(self.lambda_cut[SZsurvey](z)))/lnlambda_std[:, None])
-        elif self.richness_scatter_model == 'lognormalGaussPoisson':
-            lnlambda_arr = np.linspace(lnlambda_mean-3*lnlambda_std, lnlambda_mean+3*lnlambda_std, 32)
+        elif self.richness_scatter_model in ['lognormalGaussPoisson', 'lognormalGausssuperPoisson']:
+            lnlambda_arr = np.linspace(lnlambda_mean-3*lnlambda_std, lnlambda_mean+3*lnlambda_std, 64)
             lambda_arr = np.exp(lnlambda_arr)
-            P_lambda_intrinsic = np.exp(-.5*(lnlambda_arr-lnlambda_mean)**2/lnlambda_std**2) / (msqrt(2*np.pi)*lambda_arr*lnlambda_std)
-            P_lambda_gtr_cut = ndtr((lambda_arr-self.lambda_cut[SZsurvey](z))/np.sqrt(lambda_arr))
-            P_lambda = np.trapezoid(P_lambda_gtr_cut*P_lambda_intrinsic, lambda_arr, axis=0)
-            P_lambda_gtr_cut = P_lambda
+            P_lambda_intrinsic = np.exp(-.5*((lnlambda_arr-lnlambda_mean)/lnlambda_std)**2) / (sqrt2pi*lambda_arr*lnlambda_std)
+            if self.richness_scatter_model == 'lognormalGaussPoisson':
+                lambda_obs_std = np.sqrt(lambda_arr)
+            elif self.richness_scatter_model == 'lognormalGausssuperPoisson':
+                lambda_obs_std = np.sqrt(lambda_arr+10.) * (1.08 + .45*(z-.6))
+            P_lambdaobs_gtr_cut = ndtr((lambda_arr-self.lambda_cut[SZsurvey](z))/lambda_obs_std)
+            P_lambda_gtr_cut = simpson(P_lambdaobs_gtr_cut*P_lambda_intrinsic, lambda_arr, axis=0)
         # Convolution
-        kernels = P_lambda_gtr_cut * np.exp(-.5*lnzeta_arr[None, :]**2/covmat_lnM[:, 1, 1][:, None]) / np.sqrt(2*np.pi*covmat_lnM[:, 1, 1])[:, None]
+        kernels = (P_lambda_gtr_cut
+                   * np.exp(-.5*lnzeta_arr[None, :]**2/covmat_lnM[:, 1, 1][:, None])
+                   / np.sqrt(2*np.pi*covmat_lnM[:, 1, 1])[:, None])
         HMF_1d = convolution.convolve_HMF_1obs_varkernel(dN_dlnM, self.Delta_lnM, kernels, Nbins_zeta)
         # We know we're doing log(0)...
         with np.errstate(divide='ignore'):
