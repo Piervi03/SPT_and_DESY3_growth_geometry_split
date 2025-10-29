@@ -19,8 +19,15 @@ def lnlike(catalog, SPT_survey_tab, HMF, cosmology, scaling, lambda_min, richnes
                                                     HMF['lnM_arr'][None, :], HMF['z_arr'][:, None],
                                                     scaling, cosmology)
     # Only fields with lambda_min have richness measurements
-    field_idx = np.nonzero([SPT_survey_tab['LAMBDA_MIN'][i] not in ['None', 'none', 'NONE']
-                            for i in range(len(SPT_survey_tab))])[0]
+    if len(SPT_survey_tab) == 1:
+        # If there is only one field, make a list with the one field
+        if SPT_survey_tab['LAMBDA_MIN'] not in ['None', 'none', 'NONE']:
+             field_idx = [0]
+        else:
+            return 0.
+    else:
+        field_idx = np.nonzero([SPT_survey_tab['LAMBDA_MIN'][i] not in ['None', 'none', 'NONE']
+                                for i in range(len(SPT_survey_tab))])[0]
     # Each field separately because zeta-mass relation changes
     if NPROC == 0:
         lnlike_field = np.array([process_field(SPT_survey_tab[i],
