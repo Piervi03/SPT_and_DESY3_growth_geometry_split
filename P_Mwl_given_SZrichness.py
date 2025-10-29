@@ -61,8 +61,9 @@ def get_obs_draws(HMF, cosmology, scaling,
     z = z[idx]
     xi = xi[idx]
     SNR = SNR[idx]
-    SPTfield = SPTfield[idx]
     lnrichness = lnrichness[idx]
+    if len(SPTfield) > 1:
+        SPTfield = SPTfield[idx]
     # Draw richness_obs given lnrichness
     richness_obs, lnw_richness = draw_richness_obs(rng, z, lnrichness,
                                                    survey_cut_richness, richness_scatter_model,
@@ -72,13 +73,24 @@ def get_obs_draws(HMF, cosmology, scaling,
 
 
 def draw_SPTfield(N, rng, SPT_field):
-    """Return area-weighted draws from SPT fields."""
-    MCMF_fields = ['_MCMF' in SPT_field['FIELD'][i]
-                   for i in range(len(SPT_field))]
-    cum_area = np.cumsum(SPT_field['AREA'][MCMF_fields])
-    cum_area /= cum_area[-1]
-    field_idx = np.digitize(rng.random(N), cum_area) - 1
-    field = SPT_field[['FIELD', 'GAMMA', 'XI_MIN', 'LAMBDA_MIN', 'DELTA_CSZ']][MCMF_fields][field_idx]
+    """Return area-weighted draws from SPT fields. If there is only one field,
+    then this is trivial."""
+    # Only one field
+    if len(SPT_field) == 1:
+        field = SPT_field[['FIELD', 'GAMMA', 'XI_MIN', 'LAMBDA_MIN', 'DELTA_CSZ']]
+    # Multiple fields
+    else:
+        MCMF_fields = np.nonzero([SPT_field['LAMBDA_MIN'][i] not in ['none', 'None', 'NONE']
+                                  for i in range(len(SPT_field))])[0]
+        if len(MCMF_fields) == 1:
+            # No need to draw fields
+            field = SPT_field[['FIELD', 'GAMMA', 'XI_MIN', 'LAMBDA_MIN', 'DELTA_CSZ']][MCMF_fields]
+        else:
+            # Area-weighted draws
+            cum_area = np.cumsum(SPT_field['AREA'][MCMF_fields])
+            cum_area /= cum_area[-1]
+            field_idx = np.digitize(rng.random(N), cum_area) - 1
+            field = SPT_field[['FIELD', 'GAMMA', 'XI_MIN', 'LAMBDA_MIN', 'DELTA_CSZ']][MCMF_fields][field_idx]
     return field
 
 
@@ -133,8 +145,11 @@ def draw_richness_obs(rng, z, lnrichness,
     """Return draws of observed richness given `lnrichness`, accounting for
     lambda_min(z)."""
     # Lambda_min(z) is a function of redshift and SPT field
-    lambda_min = np.array([survey_cut_richness[SPT_field['LAMBDA_MIN'][i]](z[i])
-                           for i in range(len(z))])
+    if len(SPT_field) == 1:
+        lambda_min = survey_cut_richness[SPT_field['LAMBDA_MIN'][0]](z)
+    else:
+        lambda_min = np.array([survey_cut_richness[SPT_field['LAMBDA_MIN'][i]](z[i])
+                               for i in range(len(z))])
     # Draw richness_obs given lnrichness
     richness = np.exp(lnrichness)
     if richness_scatter_model == 'lognormalGaussPoisson':
