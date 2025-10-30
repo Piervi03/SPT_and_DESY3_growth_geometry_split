@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.interpolate import make_interp_spline
+from astropy.table import Table
 import h5py
 from cosmosis.datablock import option_section
 
@@ -10,7 +11,7 @@ def setup(options):
     SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
     config = {
               'NPROC': options.get_int(option_section, 'NPROC', 0),
-              'SPT_survey_tab': np.genfromtxt(SPT_survey_fields, names=True, dtype=None),
+              'SPT_survey_tab': Table.read(SPT_survey_fields, format='ascii.commented_header'),
               'z_bins': options.get_double_array_1d(option_section, 'z_bins'),
               'rot_bins_x': options.get_double_array_1d(option_section, 'rot_bins_x'),
               'rot_bins_y': options.get_double_array_1d(option_section, 'rot_bins_y'),
