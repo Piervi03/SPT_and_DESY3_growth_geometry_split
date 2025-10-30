@@ -6,8 +6,8 @@ from scipy.interpolate import RectBivariateSpline
 import scaling_relations
 
 
-# At most, draw +3 sigma deviates
-ndtr_max = ndtr(3.)
+# At most, draw +4 sigma deviates
+ndtr_max = ndtr(4.)
 
 
 def execute(HMF, cosmology, scaling,
@@ -69,6 +69,14 @@ def get_obs_draws(HMF, cosmology, scaling,
                                                    survey_cut_richness, richness_scatter_model,
                                                    SPTfield)
     lnw += lnw_richness
+    # Only keep valid draws
+    idx = np.isfinite(lnw)
+    z = z[idx]
+    xi = xi[idx]
+    SNR = SNR[idx]
+    richness_obs = richness_obs[idx]
+    lnMwl = lnMwl[idx]
+    lnw = lnw[idx]
     return z, xi, SNR, richness_obs, lnMwl, lnw
 
 
@@ -130,7 +138,7 @@ def draw_xi(rng, lnzeta, SPT_field):
     r_min = ndtr(SPT_field['XI_MIN'] - xi_mean)
     r = r_min + (ndtr_max-r_min) * rng.random(len(lnzeta))
     xi = xi_mean + ndtri(r)
-    # For bining
+    # For binning
     SNR = scaling_relations.xi2zeta(xi)/SPT_field['GAMMA']
     # Account for xi>XI_MIN
     lnw = np.log(1. - r_min)
@@ -157,14 +165,20 @@ def draw_richness_obs(rng, z, lnrichness,
         r_min = ndtr((lambda_min - richness) / np.sqrt(richness))
         r = r_min + (ndtr_max - r_min) * rng.random(len(lnrichness))
         richness_obs = richness + ndtri(r) * np.sqrt(richness)
-        lnw = np.log(1. - r_min)
+        # Catch lambda < lambda_min
+        with np.errstate(divide='ignore'):
+            lnw = np.log(1. - r_min)
+        lnw[r_min > ndtr_max] = -np.inf
     elif richness_scatter_model == 'lognormalrelPoisson':
         lnlambda_min = np.log(lambda_min)
         # var(ln richness) = 1/richness
         r_min = ndtr((lnlambda_min - lnrichness) * np.sqrt(richness))
         r = r_min + (ndtr_max - r_min) * rng.random(len(lnrichness))
         richness_obs = np.exp(lnrichness + ndtri(r_min) / np.sqrt(richness))
-        lnw = np.log(1. - r_min)
+        # Catch lambda < lambda_min
+        with np.errstate(divide='ignore'):
+            lnw = np.log(1. - r_min)
+        lnw[r_min > ndtr_max] = -np.inf
     else:
         raise ValueError("Unknown richness scatter model: %s" % richness_scatter_model)
     return richness_obs, lnw

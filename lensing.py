@@ -438,10 +438,9 @@ def boost_get_A(method, z, lam, r, Rmis, **kwargs):
     """Compute A(z, lambda, r) where fcl = A/(1+A)."""
     if method in ['z_bins', 'Gausssmooth', 'Gauss_step', 'spline']:
         z_arr = kwargs.pop('z_arr')
-        if method in ['Gauss_step', 'Gausssmooth', 'spline']:
+        if method in ['Gauss_step', 'Gausssmooth']:
             corr_len = kwargs.pop('corr_len')
-            if method in ['Gauss_step', 'Gausssmooth']:
-                A_inf = kwargs.pop('A_inf')
+            A_inf = kwargs.pop('A_inf')
     logc = kwargs.pop('logc')
     Blambda = kwargs.pop('Blambda')
     # Radial dependence normalized to 1 at 1Mpc/h [r]
