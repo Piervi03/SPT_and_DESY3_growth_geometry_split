@@ -14,7 +14,7 @@ def execute(HMF, cosmology, scaling,
             SPT_survey_tab,
             survey_cut_richness, richness_scatter_model,
             z_lims,
-            N_draws=100000, NPROC=0):
+            N_draws=1000000, NPROC=0):
     if NPROC == 0:
         z, xi, SNR, richness, lnMwl, lnw = get_obs_draws(HMF,
                                                          cosmology, scaling,
@@ -32,7 +32,7 @@ def get_obs_draws(HMF, cosmology, scaling,
                   SPT_survey_tab,
                   survey_cut_richness, richness_scatter_model,
                   z_lims,
-                  N_draws=100000, seed=0):
+                  N_draws=1000000, seed=0):
     """Wrapper function that calls all workflow steps. Return observables and
     ln-weights."""
     # Initialize random number generator
@@ -54,16 +54,18 @@ def get_obs_draws(HMF, cosmology, scaling,
                                                                             SPTfield)
     # Draw xi given lnzeta
     xi, SNR, lnw_xi = draw_xi(rng, lnzeta, SPTfield)
-    # Only keep valid draws
     lnw = lnw_HMF + lnw_zeta + lnw_xi
+    # Only keep valid draws
     idx = np.isfinite(lnw)
-    lnw = lnw[idx]
-    z = z[idx]
-    xi = xi[idx]
-    SNR = SNR[idx]
-    lnrichness = lnrichness[idx]
-    if len(SPTfield) > 1:
-        SPTfield = SPTfield[idx]
+    if not np.all(idx):
+        lnw = lnw[idx]
+        z = z[idx]
+        lnMwl = lnMwl[idx]
+        xi = xi[idx]
+        SNR = SNR[idx]
+        lnrichness = lnrichness[idx]
+        if len(SPTfield) > 1:
+            SPTfield = SPTfield[idx]
     # Draw richness_obs given lnrichness
     richness_obs, lnw_richness = draw_richness_obs(rng, z, lnrichness,
                                                    survey_cut_richness, richness_scatter_model,
@@ -71,12 +73,13 @@ def get_obs_draws(HMF, cosmology, scaling,
     lnw += lnw_richness
     # Only keep valid draws
     idx = np.isfinite(lnw)
-    z = z[idx]
-    xi = xi[idx]
-    SNR = SNR[idx]
-    richness_obs = richness_obs[idx]
-    lnMwl = lnMwl[idx]
-    lnw = lnw[idx]
+    if not np.all(idx):
+        z = z[idx]
+        xi = xi[idx]
+        SNR = SNR[idx]
+        richness_obs = richness_obs[idx]
+        lnMwl = lnMwl[idx]
+        lnw = lnw[idx]
     return z, xi, SNR, richness_obs, lnMwl, lnw
 
 
@@ -110,10 +113,11 @@ def draw_lnobs_intrinsic_given_lnmass(rng, z, lnM, scaling, cosmology, covmat,
                                                SPTfield=SPT_field)
     # Draw zeta>zeta_min | lnM
     SZscatter_lnM = np.sqrt(covmat[:, 0, 0])
-    ln_weight = log_ndtr((lnM_zetamin - lnM) / SZscatter_lnM)
+    ln_weight = log_ndtr((lnM - lnM_zetamin) / SZscatter_lnM)
     r_min = ndtr((lnM_zetamin - lnM) / SZscatter_lnM)
     r = r_min + (ndtr_max-r_min) * rng.random(len(lnM))
     lnM_zeta = lnM + ndtri(r) * SZscatter_lnM
+    ln_weight[r_min > ndtr_max] = -np.inf
     # Draw ln(richness, DESWL) | ln(zeta, lnM)
     mean_cond = lnM[:, None] + covmat[:, 0, 1:]/covmat[:, 0, 0][:, None] * (lnM_zeta - lnM)[:, None]
     var_cond = np.linalg.inv(np.linalg.inv(covmat)[:, 1:, 1:])
@@ -138,12 +142,12 @@ def draw_xi(rng, lnzeta, SPT_field):
     r_min = ndtr(SPT_field['XI_MIN'] - xi_mean)
     r = r_min + (ndtr_max-r_min) * rng.random(len(lnzeta))
     xi = xi_mean + ndtri(r)
+    # Account for xi>XI_MIN
+    lnw = log_ndtr(xi_mean-SPT_field['XI_MIN'])
+    # Catch cases where xi_mean + 4 < XI_MIN
+    lnw[r_min > ndtr_max] = -np.inf
     # For binning
     SNR = scaling_relations.xi2zeta(xi)/SPT_field['GAMMA']
-    # Account for xi>XI_MIN
-    lnw = np.log(1. - r_min)
-    # Catch cases where xi_mean + 3 < XI_MIN
-    lnw[r_min > ndtr_max] = -np.inf
     return xi, SNR, lnw
 
 
@@ -166,8 +170,7 @@ def draw_richness_obs(rng, z, lnrichness,
         r = r_min + (ndtr_max - r_min) * rng.random(len(lnrichness))
         richness_obs = richness + ndtri(r) * np.sqrt(richness)
         # Catch lambda < lambda_min
-        with np.errstate(divide='ignore'):
-            lnw = np.log(1. - r_min)
+        lnw = log_ndtr((richness - lambda_min) / np.sqrt(richness))
         lnw[r_min > ndtr_max] = -np.inf
     elif richness_scatter_model == 'lognormalrelPoisson':
         lnlambda_min = np.log(lambda_min)
@@ -176,8 +179,7 @@ def draw_richness_obs(rng, z, lnrichness,
         r = r_min + (ndtr_max - r_min) * rng.random(len(lnrichness))
         richness_obs = np.exp(lnrichness + ndtri(r_min) / np.sqrt(richness))
         # Catch lambda < lambda_min
-        with np.errstate(divide='ignore'):
-            lnw = np.log(1. - r_min)
+        lnw = log_ndtr((lnrichness - lnlambda_min) * np.sqrt(richness))
         lnw[r_min > ndtr_max] = -np.inf
     else:
         raise ValueError("Unknown richness scatter model: %s" % richness_scatter_model)
