@@ -1,6 +1,6 @@
 import numpy as np
 from numpy.lib import scimath as sm
-from scipy.interpolate import CubicSpline
+from scipy.interpolate import make_interp_spline
 from multiprocessing import Pool
 import h5py
 
@@ -465,10 +465,10 @@ def boost_get_A(method, z, lam, r, Rmis, **kwargs):
         A_z = np.exp(A_inf + np.sum(amps * np.exp(-.5*(z-z_arr[z_arr_idx])**2/corr_len**2)))
     elif method == 'spline':
         z_step = kwargs.pop('z_step')
-        z_step_idx = np.digitize(z, z_step)-1
+        z_step_idx = (z < z_step).nonzero()[0][0] - 1
         z_arr_idx = ((z_arr >= z_step[z_step_idx]) & (z_arr < z_step[z_step_idx+1])).nonzero()[0]
         amps = np.array([kwargs['A_{}'.format(i)] for i in z_arr_idx])
-        A_z = np.exp(CubicSpline(z_arr[z_arr_idx], amps)(z))
+        A_z = 10.**(make_interp_spline(z_arr[z_arr_idx], amps, k=2)(z))
     elif method == 'const':
         A_z = np.exp(kwargs.pop('lnA'))
     # Richness dependence
