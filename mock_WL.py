@@ -16,13 +16,17 @@ import cosmo, lensing, Mconversion_concentration, miscentering
 
 def main():
     datetime = time.strftime("%y%m%d-%H%M%S")
-    WLconfigMod = importlib.import_module(sys.argv[1][:-3])
-    mockconfigMod = importlib.import_module(sys.argv[2][:-3])
+    spec = importlib.util.spec_from_file_location('dummy', sys.argv[1])
+    WLconfigMod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(WLconfigMod)
+    spec = importlib.util.spec_from_file_location('dummy', sys.argv[2])
+    mockconfigMod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mockconfigMod)
     cosmology = mockconfigMod.cosmology
     cat = Table.read(sys.argv[3])
 
     # DES weak lensing
-    mock_WL = MockUpDESWL(cosmology, sys.argv[1][:-3])
+    mock_WL = MockUpDESWL(cosmology, sys.argv[1])
     with h5py.File('mock_WL_DES_%s.hdf5'%datetime, 'w') as f:
         g = f.create_group('config')
         fits = fitsio.FITS(WLconfigMod.DES['source_Pz_file'])
@@ -43,7 +47,7 @@ def main():
         print('DES', N, 'halos')
 
     # Euclid weak lensing
-    mock_WL = MockUpEuclidWL(cosmology, sys.argv[1][:-3])
+    mock_WL = MockUpEuclidWL(cosmology, sys.argv[1])
     with h5py.File('mock_WL_Euclid_%s.hdf5'%datetime, 'w') as f:
         g = f.create_group('config')
         _ = g.create_dataset('shape_noise', data=WLconfigMod.Euclid['shape_noise'])
@@ -66,7 +70,7 @@ def main():
         print('Euclid', N, 'halos')
 
     # HST weak lensing
-    mock_WL = MockUpHSTWL(cosmology, sys.argv[1][:-3])
+    mock_WL = MockUpHSTWL(cosmology, sys.argv[1])
     corr = np.ones((2,11))
     corr[0,:] = np.linspace(0, .25, 11)
     with h5py.File('mock_WL_HST_%s.hdf5'%datetime, 'w') as f:
@@ -95,7 +99,9 @@ class MockUpDESWL:
 
     def __init__(self, cosmology, WLconfigname):
         self.cosmology = cosmology
-        self.config_mod = importlib.import_module(WLconfigname)
+        spec = importlib.util.spec_from_file_location('dummy', WLconfigname)
+        self.config_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.config_mod)
         self.Delta_crit = self.config_mod.Delta_crit
         self.MCrel = Mconversion_concentration.ConcentrationConversion(self.config_mod.DES['mcType'], cosmology, setup_interp=True)
         self.rng = np.random.default_rng(self.config_mod.random_seed)
@@ -196,7 +202,7 @@ class MockUpDESWL:
 
 
     def apply_cl_mem_contamination(self, z, Rmis, g_t):
-        A = lensing.boost_get_A(self.boost_dict, 'Gausssmooth', self.boost_dict['z_arr'], z, self.cat['richness'], self.r_arr, Rmis)
+        A = lensing.boost_get_A('Gausssmooth', z, self.cat['richness'], self.r_arr, Rmis, **self.boost_dict)
         reduced_shear_cont = 1/(1+A) * g_t
         return reduced_shear_cont
 
@@ -257,7 +263,9 @@ class MockUpEuclidWL:
 
     def __init__(self, cosmology, WLconfigname):
         self.cosmology = cosmology
-        self.config_mod = importlib.import_module(WLconfigname)
+        spec = importlib.util.spec_from_file_location('dummy', WLconfigname)
+        self.config_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.config_mod)
         self.Delta_crit = self.config_mod.Delta_crit
         self.MCrel = Mconversion_concentration.ConcentrationConversion(self.config_mod.Euclid['mcType'], cosmology, setup_interp=True)
         self.rng = np.random.default_rng(self.config_mod.random_seed)
@@ -362,7 +370,7 @@ class MockUpEuclidWL:
 
 
     def apply_cl_mem_contamination(self, z, Rmis, g_t):
-        A = lensing.boost_get_A(self.boost_dict, 'Gausssmooth', self.boost_dict['z_arr'], z, self.cat['richness'], self.r_arr, Rmis)
+        A = lensing.boost_get_A('Gausssmooth', z, self.cat['richness'], self.r_arr, Rmis, **self.boost_dict)
         reduced_shear_cont = 1/(1+A) * g_t
         return reduced_shear_cont
 
@@ -425,7 +433,9 @@ class MockUpHSTWL:
 
     def __init__(self, cosmology, WLconfigname):
         self.cosmology = cosmology
-        self.config_mod = importlib.import_module(WLconfigname)
+        spec = importlib.util.spec_from_file_location('dummy', WLconfigname)
+        self.config_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.config_mod)
         self.Delta_crit = self.config_mod.Delta_crit
         self.MCrel = Mconversion_concentration.ConcentrationConversion(self.config_mod.HST['mcType'], cosmology, setup_interp=True)
         self.rng = np.random.default_rng(self.config_mod.random_seed)
