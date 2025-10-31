@@ -36,7 +36,7 @@ def main():
         g = f.create_group('clusters')
         N = 0
         for i,name in enumerate(cat['SPT_ID']):
-            if (cat['REDSHIFT'][i]>0)&(cat['REDSHIFT'][i]<WLconfigMod.DES['WL_z_max'])&('_MCMF' in cat['FIELD'][i]):
+            if (cat['REDSHIFT'][i]>0) & (cat['REDSHIFT'][i]<WLconfigMod.DES['WL_z_max']) & (cat['richness'][i] > 0.):
                 res_dict = mock_WL(cat[i])
 
                 gg = g.create_group(name)
