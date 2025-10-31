@@ -124,8 +124,8 @@ def draw_lnobs_intrinsic_given_lnmass(rng, z, lnM, scaling, cosmology, covmat,
     # rng.multivariate_normal only accepts single mean and cov, cholesky broadcasts
     # and is faster than svd. Gain factor ~30 in speed.
     std_normal_draws = rng.standard_normal((len(lnM), 2))
-    l = np.linalg.cholesky(var_cond).transpose((0, 2, 1))
-    lnobs_lnM = mean_cond + np.matmul(std_normal_draws[:, None, :], l)[:, 0, :]
+    cho = np.linalg.cholesky(var_cond).transpose((0, 2, 1))
+    lnobs_lnM = mean_cond + np.matmul(std_normal_draws[:, None, :], cho)[:, 0, :]
     # Observable space
     lnzeta = scaling_relations.lnmass2lnobs('zeta', lnM_zeta, z,
                                             scaling, cosmology,
@@ -137,7 +137,7 @@ def draw_lnobs_intrinsic_given_lnmass(rng, z, lnM, scaling, cosmology, covmat,
 
 def draw_xi(rng, lnzeta, SPT_field):
     """Return draws of `xi` given `lnzeta`."""
-    # Draw (xi>XI_MIN)|zeta
+    # Draw xi>XI_MIN | zeta
     xi_mean = scaling_relations.zeta2xi(np.exp(lnzeta))
     r_min = ndtr(SPT_field['XI_MIN'] - xi_mean)
     r = r_min + (ndtr_max-r_min) * rng.random(len(lnzeta))
@@ -169,7 +169,7 @@ def draw_richness_obs(rng, z, lnrichness,
         r_min = ndtr((lambda_min - richness) / np.sqrt(richness))
         r = r_min + (ndtr_max - r_min) * rng.random(len(lnrichness))
         richness_obs = richness + ndtri(r) * np.sqrt(richness)
-        # Catch lambda < lambda_min
+        # Account for lambda_min
         lnw = log_ndtr((richness - lambda_min) / np.sqrt(richness))
         lnw[r_min > ndtr_max] = -np.inf
     elif richness_scatter_model == 'lognormalrelPoisson':
@@ -178,23 +178,12 @@ def draw_richness_obs(rng, z, lnrichness,
         r_min = ndtr((lnlambda_min - lnrichness) * np.sqrt(richness))
         r = r_min + (ndtr_max - r_min) * rng.random(len(lnrichness))
         richness_obs = np.exp(lnrichness + ndtri(r_min) / np.sqrt(richness))
-        # Catch lambda < lambda_min
+        # Account for lambda_min
         lnw = log_ndtr((lnrichness - lnlambda_min) * np.sqrt(richness))
         lnw[r_min > ndtr_max] = -np.inf
     else:
         raise ValueError("Unknown richness scatter model: %s" % richness_scatter_model)
     return richness_obs, lnw
-
-
-def lnP_greater_richnesscut(lnrichness, z, lambda_min_interp, richness_scatter_model):
-    """Return ln-probability of exceeding `lambda_min` given `lnrichness`."""
-    lambda_min = lambda_min_interp(z)
-    if richness_scatter_model == 'lognormalGaussPoisson':
-        richness = np.exp(lnrichness)
-        lnP = log_ndtr((richness - lambda_min) / np.sqrt(richness))
-    elif richness_scatter_model == 'lognormalrelPoisson':
-        lnP = log_ndtr((lnrichness - np.log(lambda_min)) * np.sqrt(np.exp(lnrichness)))
-    return lnP
 
 
 def cov_lnM(scaling, z, lnM):
