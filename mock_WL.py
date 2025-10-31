@@ -297,7 +297,7 @@ class MockUpEuclidWL:
         z_m = .9
         z_0 = z_m/np.sqrt(2)
         p = (self.z_s/z_0) * np.exp(-(self.z_s/z_0)**1.5)
-        p/= np.trapz(p, self.z_s)
+        p/= np.trapezoid(p, self.z_s)
         self.tomo_bin_edges = np.append(np.arange(0, 2.2, .2), 2.6)
         self.tomo_dist = p * np.ones((len(self.tomo_bin_edges)-1, len(self.z_s)))
         tomo_idx = np.arange(0, len(self.tomo_dist), 1)
@@ -306,7 +306,7 @@ class MockUpEuclidWL:
                 self.tomo_dist[i]*= (1 + erf((self.z_s-self.tomo_bin_edges[i])/.06/np.sqrt(2))) / 2
             if i<len(self.tomo_dist)-1:
                 self.tomo_dist[i]*= (1 + erf(-(self.z_s-self.tomo_bin_edges[i+1])/.06/np.sqrt(2))) / 2
-        int_tomo_dist = np.trapz(self.tomo_dist, self.z_s, axis=1)
+        int_tomo_dist = np.trapezoid(self.tomo_dist, self.z_s, axis=1)
         int_tomo_dist/= np.sum(int_tomo_dist)
         self.tomo_dist_cum = np.insert(np.cumsum(int_tomo_dist), 0, 0.)
         self.get_invSigmac()
