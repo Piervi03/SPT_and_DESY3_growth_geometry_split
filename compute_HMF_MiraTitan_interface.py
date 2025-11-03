@@ -9,11 +9,12 @@ import compute_HMF_MiraTitan
 class EmptyClass:
     pass
 
+
 def setup(options):
     # Print repository status
     path_to_repo = os.path.dirname(__file__)
-    os.system("git --git-dir=%s/.git --work-tree=%s status"%(path_to_repo, path_to_repo))
-    os.system("git --git-dir=%s/.git --work-tree=%s "%(path_to_repo, path_to_repo)+"show -s --format=%h")
+    os.system("git --git-dir=%s/.git --work-tree=%s status" % (path_to_repo, path_to_repo))
+    os.system("git --git-dir=%s/.git --work-tree=%s " % (path_to_repo, path_to_repo)+"show -s --format=%h")
     # Proceed with actual setup
     Deltacrit = options.get_double(option_section, 'Deltacrit', default=500.)
     mcType = options.get_string(option_section, 'mcType')
@@ -25,6 +26,7 @@ def setup(options):
     HMF_calculator = compute_HMF_MiraTitan.HMFCalculator(Deltacrit, mcType, z_arr, M_arr)
 
     return HMF_calculator
+
 
 def execute(block, HMF_calculator):
     # Only need cosmo for E(z)-type stuff
@@ -38,7 +40,7 @@ def execute(block, HMF_calculator):
         'n_s': block.get_double('cosmological_parameters', 'n_s'),
         'sigma_8': block.get_double('cosmological_parameters', 'sigma_8'),
         'w0': block.get_double('cosmological_parameters', 'w'),
-        'wa': block.get_double('cosmological_parameters', 'wa'),}
+        'wa': block.get_double('cosmological_parameters', 'wa')}
     # Compute the HMF
     bad = HMF_calculator.compute_HMF(cosmology)
     if bad:
@@ -48,6 +50,7 @@ def execute(block, HMF_calculator):
     block.put_double_array_nd('HMF', 'dNdlnM_unitVol', HMF_calculator.dNdlnM_unitVol)
 
     return 0
+
 
 def cleanup(config):
     pass

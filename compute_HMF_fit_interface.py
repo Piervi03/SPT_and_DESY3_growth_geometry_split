@@ -4,7 +4,9 @@ import os
 
 from cosmosis.datablock import option_section
 
-import compute_HMF_Bocquet16, compute_HMF_Tinker08, compute_HMF_Tinker10
+import compute_HMF_Bocquet16
+import compute_HMF_Tinker08
+import compute_HMF_Tinker10
 
 
 class EmptyClass:
@@ -14,8 +16,8 @@ class EmptyClass:
 def setup(options):
     # Print repository status
     path_to_repo = os.path.dirname(__file__)
-    os.system("git --git-dir=%s/.git --work-tree=%s status"%(path_to_repo, path_to_repo))
-    os.system("git --git-dir=%s/.git --work-tree=%s "%(path_to_repo, path_to_repo)+"show -s --format=%h")
+    os.system("git --git-dir=%s/.git --work-tree=%s status" % (path_to_repo, path_to_repo))
+    os.system("git --git-dir=%s/.git --work-tree=%s " % (path_to_repo, path_to_repo)+"show -s --format=%h")
     # Proceed with actual setup
     tmp = options.get_double_array_1d(option_section, 'z_arr')
     z_arr = np.linspace(tmp[0], tmp[1], int(tmp[2]))
@@ -26,11 +28,11 @@ def setup(options):
     save_HMF_to_disk = options.get_bool(option_section, 'save_HMF_to_disk', default=False)
     Deltacrit = options.get_double(option_section, 'Deltacrit', default=500.)
     if recalc_HMF:
-        if fitting_function=='Tinker08':
+        if fitting_function == 'Tinker08':
             HMF_calculator = compute_HMF_Tinker08.HMFCalculator(Deltacrit, z_arr, M_arr)
-        elif fitting_function=='Tinker10':
+        elif fitting_function == 'Tinker10':
             HMF_calculator = compute_HMF_Tinker10.HMFCalculator(Deltacrit, z_arr, M_arr)
-        elif fitting_function=='Bocquet16':
+        elif fitting_function == 'Bocquet16':
             HMF_calculator = compute_HMF_Bocquet16.HMFCalculator(Deltacrit, z_arr, M_arr)
     else:
         HMF_calculator = EmptyClass()
@@ -57,8 +59,8 @@ def execute(block, HMF_calculator):
         z, k, Pk = block.get_grid('cdm_baryon_power_lin', 'z', 'k_h', 'p_k')
         # Compute the HMF
         dNdlnM_noVol, dNdlnM = HMF_calculator.compute_HMF(cosmology, z, k, Pk)
-        dNdlnM_noVol*= cosmology['HMFbias'] + cosmology['HMFslope']*np.log(HMF_calculator.M_arr/1e14)
-        dNdlnM*= cosmology['HMFbias'] + cosmology['HMFslope']*np.log(HMF_calculator.M_arr/1e14)
+        dNdlnM_noVol *= cosmology['HMFbias'] + cosmology['HMFslope']*np.log(HMF_calculator.M_arr/1e14)
+        dNdlnM *= cosmology['HMFbias'] + cosmology['HMFslope']*np.log(HMF_calculator.M_arr/1e14)
         # Put it into block
         block.put_grid('HMF', 'z_arr', HMF_calculator.z_arr, 'M_arr', HMF_calculator.M_arr, 'dNdlnM', dNdlnM)
         block.put_double_array_nd('HMF', 'dNdlnM_unitVol', dNdlnM_noVol)

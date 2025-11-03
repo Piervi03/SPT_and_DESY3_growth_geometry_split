@@ -22,42 +22,40 @@ class HMFCalculator:
 
     def compute_HMF(self, cosmology, z, k, Pk):
         """Compute Tinker HMF and apply redshift volume."""
-        ##### Setup
+        # Setup
         rho_m = (cosmology['Omega_m'] - cosmology['Omega_nu']) * cosmo.RHOCRIT
         # Mean overdensity at each redshift
         Deltamean = self.Deltacrit / cosmo.Omega_m_z(self.z_arr, cosmology)
 
-        ##### Compute sigma(M)
+        # Compute sigma(M)
         # Radius [M_arr]
         R = (3 * self.M_arr / (4 * np.pi * rho_m))**(1/3)
         # [M_arr, k]
-        kR = k[None,:] * R[:,None]
+        kR = k[None, :] * R[:, None]
         # Window functions [M_arr, k]
         window = 3 * (np.sin(kR)/kR**3 - np.cos(kR)/kR**2)
         dwindow = 3/kR**4 * (3*kR*np.cos(kR) + ((kR**2 - 3)*np.sin(kR)))
         # Integrands [z_arr, M_arr, k]
-        integrand_sigma2 = Pk[:,None,:] * window[None,:,:]**2 * k[None,None,:]**3
-        integrand_dsigma2dM = Pk[:,None,:] * window[None,:,:] * dwindow[None,:,:] * k[None,None,:]**4
+        integrand_sigma2 = Pk[:, None, :] * window[None, :, :]**2 * k[None, None, :]**3
+        integrand_dsigma2dM = Pk[:, None, :] * window[None, :, :] * dwindow[None, :, :] * k[None, None, :]**4
         # Sigma^2 and dsigma^2/dM [z_arr, M_arr]
         sigma2 = .5/np.pi**2 * np.trapezoid(integrand_sigma2, np.log(k), axis=-1)
-        dsigma2dM = np.pi**-2 * R[None,:]/self.M_arr[None,:]/3 * np.trapezoid(integrand_dsigma2dM, np.log(k), axis=-1)
+        dsigma2dM = np.pi**-2 * R[None, :]/self.M_arr[None, :]/3 * np.trapezoid(integrand_dsigma2dM, np.log(k), axis=-1)
         sigma2_fine = np.exp(interp1d(z, np.log(sigma2), axis=0)(self.z_arr))
         dsigma2dM_fine = -np.exp(interp1d(z, np.log(-dsigma2dM), axis=0)(self.z_arr))
 
-        ##### Compute Tinker HMF (unit volume)
+        # Compute Tinker HMF (unit volume)
         A, a, b, c = np.array([self.Tinker_params(self.z_arr[i], Deltamean[i]) for i in range(len(self.z_arr))]).T
         # HMF [z_arr, M_arr]
-        fsigma = A[:,None] * ((np.sqrt(sigma2_fine)/b[:,None])**-a[:,None] + 1) * np.exp(-c[:,None]/sigma2_fine)
+        fsigma = A[:, None] * ((np.sqrt(sigma2_fine)/b[:, None])**-a[:, None] + 1) * np.exp(-c[:, None]/sigma2_fine)
         dNdlnM_noVol = - fsigma * rho_m * dsigma2dM_fine/2/sigma2_fine
 
-        ##### Apply redshift volume
+        # Apply redshift volume
         deltaV = cosmo.deltaV(self.z_arr, cosmology)
-        dNdlnM = dNdlnM_noVol * deltaV[:,None]
+        dNdlnM = dNdlnM_noVol * deltaV[:, None]
 
-        ##### Return HMF
+        # Return HMF
         return dNdlnM_noVol, dNdlnM
-
-
 
     def Tinker_params(self, z, Deltamean):
         """For given redshift and mean overdensity, return list of four Tinker
@@ -68,7 +66,7 @@ class HMFCalculator:
         # Redshift evolution
         logalpha = -(.75/np.log10(Deltamean/75.))**1.2
         alpha = 10**logalpha
-        A*= (1+z)**-.14
-        a*= (1+z)**-.06
-        b*= (1+z)**-alpha
+        A *= (1+z)**-.14
+        a *= (1+z)**-.06
+        b *= (1+z)**-alpha
         return A, a, b, c

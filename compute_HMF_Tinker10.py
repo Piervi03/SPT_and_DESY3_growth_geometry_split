@@ -28,26 +28,26 @@ class HMFCalculator:
         Deltamean = self.Deltacrit / cosmo.Omega_m_z(self.z_arr, cosmology)
         # Window functions [M_arr, k]
         R = (3 * self.M_arr / (4 * np.pi * rho_m))**(1/3)
-        kR = k[None,:] * R[:,None]
+        kR = k[None, :] * R[:, None]
         window = 3 * (np.sin(kR)/kR**3 - np.cos(kR)/kR**2)
         dwindow = 3/kR**4 * (3*kR*np.cos(kR) + ((kR**2 - 3)*np.sin(kR)))
         # Integrands [z_arr, M_arr, k]
-        integrand_sigma2 = Pk[:,None,:] * window[None,:,:]**2 * k[None,None,:]**3
-        integrand_dsigma2dM = Pk[:,None,:] * window[None,:,:] * dwindow[None,:,:] * k[None,None,:]**4
+        integrand_sigma2 = Pk[:, None, :] * window[None, :, :]**2 * k[None, None, :]**3
+        integrand_dsigma2dM = Pk[:, None, :] * window[None, :, :] * dwindow[None, :, :] * k[None, None, :]**4
         # Sigma^2 and dsigma^2/dM [z_arr, M_arr]
         sigma2 = .5/np.pi**2 * np.trapezoid(integrand_sigma2, np.log(k), axis=-1)
-        dsigma2dM = np.pi**-2 * R[None,:]/self.M_arr[None,:]/3 * np.trapezoid(integrand_dsigma2dM, np.log(k), axis=-1)
+        dsigma2dM = np.pi**-2 * R[None, :]/self.M_arr[None, :]/3 * np.trapezoid(integrand_dsigma2dM, np.log(k), axis=-1)
         sigma2_fine = np.exp(interp1d(z, np.log(sigma2), axis=0)(self.z_arr))
         dsigma2dM_fine = -np.exp(interp1d(z, np.log(-dsigma2dM), axis=0)(self.z_arr))
         # Tinker multiplicity function [z_arr, M_arr]
         alpha, beta, phi, eta, gamma = np.array([self.Tinker_params(self.z_arr[i], Deltamean[i])
                                                  for i in range(len(self.z_arr))]).T
         nu = 1.686/np.sqrt(sigma2_fine)
-        fsigma = nu * alpha[:,None] * (1 + (beta[:,None]*nu)**(-2.*phi[:,None])) * nu**(2*eta[:,None]) * np.exp(-gamma[:,None]*nu**2/2.)
+        fsigma = nu * alpha[:, None] * (1 + (beta[:, None]*nu)**(-2.*phi[:, None])) * nu**(2*eta[:, None]) * np.exp(-gamma[:, None]*nu**2/2.)
         dNdlnM_noVol = - fsigma * rho_m * dsigma2dM_fine/2/sigma2_fine
         # Apply redshift volume
         deltaV = cosmo.deltaV(self.z_arr, cosmology)
-        dNdlnM = dNdlnM_noVol * deltaV[:,None]
+        dNdlnM = dNdlnM_noVol * deltaV[:, None]
         return dNdlnM_noVol, dNdlnM
 
     def Tinker_params(self, z, Deltamean):
