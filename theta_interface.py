@@ -1,6 +1,3 @@
-from cosmosis.datablock import option_section
-
-
 def setup(options):
     pass
 

@@ -50,13 +50,13 @@ def lnmass2lnobs(name, lnmass, z, scaling,
         return lnzeta
     elif name == 'Yx':
         if scaling['YXPARAM'] == 'SPT_XVP':
-            return (np.log(3.) -2.5*np.log(cosmology['h']/.7)
-                    + (1/scaling['Bx'])*(lnmass - np.log(1e14 /.7**(3/2) / scaling['Ax'] / cosmo.Ez(z, cosmology)**scaling['Cx'])))
+            return (np.log(3.) - 2.5*np.log(cosmology['h']/.7)
+                    + (1/scaling['Bx'])*(lnmass - np.log(1e14 / .7**(3/2) / scaling['Ax'] / cosmo.Ez(z, cosmology)**scaling['Cx'])))
         elif scaling['YXPARAM'] == 'obs-mass':
             return (np.log(scaling['Ax'])
-                    -2.5 * np.log(cosmology['h']/.7)
+                    - 2.5 * np.log(cosmology['h']/.7)
                     + scaling['Bx'] * (lnmass - np.log(cosmology['h']/scaling['XraymPivot']))
-                    + scaling['Cx']* np.log(cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology)))
+                    + scaling['Cx'] * np.log(cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology)))
     elif name == 'Mgas':
         return (np.log(scaling['XraymPivot'] * scaling['Ax']) - 2.5 * np.log(cosmology['h']/.7)
                 + scaling['Bx'] * (lnmass-np.log(scaling['XraymPivot']/cosmology['h']))
@@ -65,10 +65,10 @@ def lnmass2lnobs(name, lnmass, z, scaling,
     elif name == 'disp':
         h70z = cosmology['h']/.7*cosmo.Ez(z, cosmology)
         lnM200c = lnM500_to_lnM200(z, lnmass)
-        if len(lnM200c)==1:
+        if len(lnM200c) == 1:
             lnM200c = lnM200c[0]
         return (np.log(scaling['Adisp']) + (1/scaling['Bdisp'])*(lnM200c-np.log(1e15/cosmology['h']))
-                +scaling['Cdisp']*np.log(h70z))
+                + scaling['Cdisp']*np.log(h70z))
     elif name == 'richness_base':
         return (scaling['Arichness']
                 + scaling['Brichness']*(lnmass-np.log(scaling['richmPivot']))
@@ -189,7 +189,7 @@ def dlnM_dlnobs(name, scaling,
             return 1/(scaling['Bx'] - scaling['dlnMg_dlnr']/3)
     elif name == 'Mgas':
         return 1/(scaling['Bx'] - scaling['dlnMg_dlnr']/3)
-    elif (name == 'WLMegacam')|(name == 'WLHST'):
+    elif (name == 'WLMegacam') | (name == 'WLHST'):
         return 1.
     elif name == 'WLDES':
         b_m = scaling['DES_bias_slope'][0] + scaling['DES_b_dev_m']*scaling['DES_bias_slope'][1]

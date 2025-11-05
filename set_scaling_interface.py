@@ -20,7 +20,7 @@ def setup(options):
 def execute(block, stuff):
     scaling_setter, todo = stuff
     # Read scaling relation parameters from block
-    scaling = {'Dsz': block.get_double('mor_parameters', 'Dsz'),}
+    scaling = {'Dsz': block.get_double('mor_parameters', 'Dsz')}
     if todo['WL']:
         for p in ['MegacamBias', 'HSTbias', 'WLscatter', 'rhoSZWL']:
             scaling[p] = block.get_double('mor_parameters', p)
@@ -51,8 +51,8 @@ def execute(block, stuff):
             for p in ['bWL_Megacam', 'DWL_Megacam']:
                 block.put_double('mor_parameters', p, scaling[p])
             for name in scaling_setter.HSTcalib['SPT_ID']:
-                block.put_double('mor_parameters', 'bWL_HST_%s'%name, scaling['bWL_HST'][name])
-                block.put_double('mor_parameters', 'DWL_HST_%s'%name, scaling['DWL_HST'][name])
+                block.put_double('mor_parameters', 'bWL_HST_%s' % name, scaling['bWL_HST'][name])
+                block.put_double('mor_parameters', 'DWL_HST_%s' % name, scaling['DWL_HST'][name])
         return 0
     else:
         print("set scaling", flush=True)
