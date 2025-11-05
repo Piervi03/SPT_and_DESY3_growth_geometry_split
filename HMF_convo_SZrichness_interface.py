@@ -3,6 +3,7 @@ from scipy.interpolate import make_interp_spline
 from cosmosis.datablock import option_section
 import HMF_convo_SZrichness as HMF_convo
 
+
 def setup(options):
     observable_pairs = options.get_string(option_section, 'observable_pairs').split()
     z_cl_min_max = options.get_double_array_1d(option_section, 'z_cl_min_max')
@@ -27,8 +28,9 @@ def setup(options):
 
     return multi_obs_convolution
 
+
 def execute(block, multi_obs_convolution):
-    ##### Extract from datablock
+    # Extract from datablock
     if multi_obs_convolution.do_bias:
         cosmology = {'Omega_l': block.get_double('cosmological_parameters', 'Omega_lambda'),
                      'h': block.get_double('cosmological_parameters', 'hubble')/100,
@@ -49,14 +51,16 @@ def execute(block, multi_obs_convolution):
     z, M, N = block.get_grid('HMF', 'z_arr', 'M_arr', 'dNdlnM')
     HMF = {'z_arr': z, 'lnM_arr': np.log(M), 'dNdlnM': N}
 
-    ##### Compute the convolutions
+    # Compute the convolutions
     dN_dmultiobs_dict = multi_obs_convolution.execute(HMF, scaling, cosmology)
     block.put_double_array_1d('dN_dmultiobs', 'lnM_arr', dN_dmultiobs_dict['lnM_arr'])
     block.put_double_array_1d('dN_dmultiobs', 'z_arr', dN_dmultiobs_dict['z_arr'])
     for pair_name in multi_obs_convolution.observable_pairs:
-        block.put_double_array_nd('dN_dmultiobs', '{}_lndNdlnM'.format(pair_name), dN_dmultiobs_dict['{}_lndNdlnM'.format(pair_name)])
+        block.put_double_array_nd('dN_dmultiobs', '{}_lndNdlnM'.format(pair_name),
+                                  dN_dmultiobs_dict['{}_lndNdlnM'.format(pair_name)])
 
     return 0
+
 
 def cleanup(config):
     pass
