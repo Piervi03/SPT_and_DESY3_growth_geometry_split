@@ -5,8 +5,9 @@ from cosmosis.datablock import option_section
 import mass_calibration_MC as mass_calibration
 import lensing
 
+
 def setup(options):
-    ##### Config parameters
+    # Config parameters
     todo = {}
     for opt in ['doWL', 'doYx', 'doMgas', 'doveldisp', 'dorichness']:
         todo[opt[2:]] = options.get_bool(option_section, opt, False)
@@ -29,8 +30,6 @@ def setup(options):
     SPT_survey_fields = options.get_string(option_section, 'SPT_survey_fields')
     # Cluster catalog
     SPTcatalogfile = options.get_string(option_section, 'SPTcatalogfile')
-    # WL param file
-    WLsimcalibfile = options.get_string(option_section, 'WLsimcalibfile', default='None')
     # HST file
     HSTcalibfile = options.get_string(option_section, 'HSTcalibfile', default='None')
     # Do stack lensing for validation
@@ -55,18 +54,18 @@ def setup(options):
                         'save_shear_profiles': get_stacked_DES,
                         }
         # DES specific
-        if lensing_dict['DESfile']!='None':
+        if lensing_dict['DESfile'] != 'None':
             for name in ['DESboostfile', 'DESmiscenterfile', 'DEScentertype']:
                 lensing_dict[name] = options.get_string(option_section, name)
             lensing_dict['DESboost_z_arr'] = options.get_double_array_1d(option_section, 'DESboost_z_arr')
         # HST and Megacam specific
-        if (lensing_dict['HSTfile']!='None') or (lensing_dict['MegacamFile']!='None'):
+        if (lensing_dict['HSTfile'] != 'None') or (lensing_dict['MegacamFile'] != 'None'):
             lensing_dict['mcType'] = mcType
             lensing_dict['Delta_crit'] = options.get_double(option_section, 'Delta_crit')
         # Set up lensing module
         masscalibration.WL = lensing.SPTlensing(masscalibration.catalog, **lensing_dict)
         # DES lensing priors
-        if lensing_dict['DESfile']=='None':
+        if lensing_dict['DESfile'] == 'None':
             DES_WL_prior = None
         else:
             DES_WL_priors_file = options.get_string(option_section, 'DES_WL_priors_file')
@@ -82,7 +81,7 @@ def setup(options):
 
 def execute(block, setup_stuff):
     masscalibration, DES_WL_prior = setup_stuff
-    ##### Extract from datablock
+    # Extract from datablock
     cosmology = {
         'Omega_l': block.get_double('cosmological_parameters', 'Omega_lambda'),
         'h': block.get_double('cosmological_parameters', 'hubble')/100,
@@ -121,19 +120,19 @@ def execute(block, setup_stuff):
                   'DES_m_piv']:
             scaling[p] = block.get_double('mor_parameters', p)
         for p in DES_WL_prior.keys():
-            scaling['DES_%s'%p] = DES_WL_prior[p]
+            scaling['DES_%s' % p] = DES_WL_prior[p]
     # HST
     if masscalibration.todo['WL']:
         scaling['bWL_HST'], scaling['DWL_HST'] = {}, {}
         for name in masscalibration.HSTcalib['SPT_ID']:
-            scaling['bWL_HST'][name] = block.get_double('mor_parameters', 'bWL_HST_%s'%name)
-            scaling['DWL_HST'][name] = block.get_double('mor_parameters', 'DWL_HST_%s'%name)
+            scaling['bWL_HST'][name] = block.get_double('mor_parameters', 'bWL_HST_%s' % name)
+            scaling['DWL_HST'][name] = block.get_double('mor_parameters', 'DWL_HST_%s' % name)
 
     # Halo mass function
     z, M, N = block.get_grid('HMF', 'z_arr', 'M_arr', 'dNdlnM')
     HMF = {'z_arr': z, 'lnM_arr': np.log(M), 'dNdlnM': N}
 
-    ##### Setup lensing likelihoods
+    # Setup lensing likelihoods
     if masscalibration.todo['WL']:
         masscalibration.WL.setup_one_cluster_mode(cosmology)
 
@@ -141,14 +140,14 @@ def execute(block, setup_stuff):
     if block.has_section('cat') and block.has_value('cat', 'lndNdxi'):
         masscalibration.catalog['lndNdxi'] = block.get_double_array_1d('cat', 'lndNdxi')
 
-    ##### Compute likelihood
+    # Compute likelihood
     lnlike, DES_stack = masscalibration.lnlike(HMF, cosmology, scaling)
     if np.isfinite(lnlike):
         block.put_double('likelihoods', 'MASS_CALIBRATION_LIKE', lnlike)
         if masscalibration.get_stacked_DES:
             for name in DES_stack.keys():
-                for i,n in enumerate(DES_stack[name]):
-                    block.put_double('DES_stack', '%s_%d'%(name,i), n)
+                for i, n in enumerate(DES_stack[name]):
+                    block.put_double('DES_stack', '%s_%d' % (name, i), n)
         return 0
     else:
         print("mass calibration", flush=True)

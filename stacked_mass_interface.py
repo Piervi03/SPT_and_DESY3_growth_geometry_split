@@ -55,7 +55,7 @@ def execute(block, config):
               'z_DESWISE']:
         scaling[p] = block.get_double('mor_parameters', p)
     for p in config['DES_WL_prior'].keys():
-        scaling['DES_%s'%p] = config['DES_WL_prior'][p]
+        scaling['DES_%s' % p] = config['DES_WL_prior'][p]
     # Halo mass function
     z, M, N = block.get_grid('HMF', 'z_arr', 'M_arr', 'dNdlnM')
     HMF = {'z_arr': z, 'lnM_arr': np.log(M), 'dNdlnM': N}

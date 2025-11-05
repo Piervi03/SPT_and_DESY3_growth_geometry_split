@@ -45,31 +45,31 @@ class SetScaling:
                 # SZ WL covariance matrix
                 cov = [[DWL_HST**2, scaling['rhoSZWL']*scaling['Dsz']*DWL_HST],
                        [scaling['rhoSZWL']*scaling['Dsz']*DWL_HST, scaling['Dsz']**2]]
-                if np.linalg.det(cov)<=0.:
+                if np.linalg.det(cov) <= 0.:
                     return False
-                scaling['cov_HST_SZ_%s'%name] = np.array(cov)
+                scaling['cov_HST_SZ_%s' % name] = np.array(cov)
                 # SZ WL X covariance matrix
                 if todo['Yx'] or todo['Mgas']:
                     cov = [[DWL_HST**2, scaling['rhoWLX']*DWL_HST*scaling['Dx'], scaling['rhoSZWL']*scaling['Dsz']*DWL_HST],
                            [scaling['rhoWLX']*DWL_HST*scaling['Dx'], scaling['Dx']**2, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx']],
                            [scaling['rhoSZWL']*scaling['Dsz']*DWL_HST, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2]]
-                    if np.linalg.det(cov)<=0.:
+                    if np.linalg.det(cov) <= 0.:
                         return False
-                    scaling['cov_HST_X_SZ_%s'%name] = np.array(cov)
+                    scaling['cov_HST_X_SZ_%s' % name] = np.array(cov)
                 # SZ WL richness covariance matrix
                 if todo['richness']:
                     cov = [[DWL_HST**2, scaling['rhoWLrichness']*DWL_HST*scaling['Drichness'], scaling['rhoSZWL']*scaling['Dsz']*DWL_HST],
                            [scaling['rhoWLrichness']*DWL_HST*scaling['Drichness'], scaling['Drichness']**2, scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness']],
                            [scaling['rhoSZWL']*scaling['Dsz']*DWL_HST, scaling['rhoSZrichness']*scaling['Dsz']*scaling['Drichness'], scaling['Dsz']**2]]
-                    if np.linalg.det(cov)<=0.:
+                    if np.linalg.det(cov) <= 0.:
                         return False
-                    scaling['cov_HST_richness_SZ_%s'%name] = np.array(cov)
+                    scaling['cov_HST_richness_SZ_%s' % name] = np.array(cov)
 
         # X-ray
         if todo['Yx'] or todo['Mgas']:
             cov = [[scaling['Dx']**2, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx']],
                    [scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2]]
-            if np.linalg.det(cov) <=0.:
+            if np.linalg.det(cov) <= 0.:
                 return False
             scaling['cov_X_SZ'] = np.array(cov)
 
@@ -105,7 +105,7 @@ class SetScaling:
             cov = [[scaling['DWL_Megacam']**2, scaling['rhoWLX']*scaling['DWL_Megacam']*scaling['Dx'], scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_Megacam']],
                    [scaling['rhoWLX']*scaling['DWL_Megacam']*scaling['Dx'], scaling['Dx']**2, scaling['rhoSZX']*scaling['Dsz']*scaling['Dx']],
                    [scaling['rhoSZWL']*scaling['Dsz']*scaling['DWL_Megacam'], scaling['rhoSZX']*scaling['Dsz']*scaling['Dx'], scaling['Dsz']**2]]
-            if np.linalg.det(cov) <=0.:
+            if np.linalg.det(cov) <= 0.:
                 return False
             scaling['cov_Megacam_X_SZ'] = np.array(cov)
 
@@ -119,7 +119,7 @@ class SetScaling:
                                        [scaling['rhoWLrichness']*DES_scatter[i]*scaling['Drichness'], scaling['Drichness']**2, scaling['rhoSZrichness']*scaling['Drichness']*scaling['Dsz']],
                                        [scaling['rhoSZWL']*DES_scatter[i]*scaling['Dsz'], scaling['rhoSZrichness']*scaling['Drichness']*scaling['Dsz'], scaling['Dsz']**2]])
                         for i in range(4)]
-                if np.any(np.array(dets)<=0.):
+                if np.any(np.array(dets) <= 0.):
                     return False
 
         return True

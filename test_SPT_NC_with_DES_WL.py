@@ -19,19 +19,19 @@ class TestClass:
     cosmology['Omega_nu'] = cosmology['Omnuh2']/cosmology['h']**2
     cosmology['Omega_b'] = cosmology['Ombh2']/cosmology['h']**2
     scaling = {'Asz': .96, 'Bsz': 1.5, 'Csz': .5, 'Dsz': .2, 'zeta_min': 1., 'SPECS_calib': 1.,
-               'Esz':0,
+               'Esz': 0,
                'Delta_Csz_ECS': -.09, 'Delta_Csz_500d': .26,
                'WLbias': 0., 'WLscatter': 0.,
-               'HSTbias': 0., 'HSTscatterLSS':5.6e13,
+               'HSTbias': 0., 'HSTscatterLSS': 5.6e13,
                'MegacamBias': 0., 'MegacamScatterLSS': 6.3e13,
                'DWL_Megacam': .3, 'bWL_Megacam': 1,
                'DESbias': 0., 'DESscatterLSS': 6.3e13,
-               'Adisp':939., 'Bdisp':2.91, 'Cdisp':.33, 'Ddisp0':.2, 'DdispN':3.,
+               'Adisp': 939., 'Bdisp': 2.91, 'Cdisp': .33, 'Ddisp0': .2, 'DdispN': 3.,
                'Arichness': 70., 'Brichness': 1., 'Crichness': 0., 'Drichness': .2,
-               'Ax': 6.5, 'Bx': .57, 'Cx': -.4, 'Dx': .12, 'Ex':0,
+               'Ax': 6.5, 'Bx': .57, 'Cx': -.4, 'Dx': .12, 'Ex': 0,
                'slope_MgR': 1.16, 'slope_MgR_std': .016,
                'rhoSZrichness': 0., 'rhoSZdisp': 0., 'rhoSZX': 0., 'rhoSZWL': 0.,
-               'rhoWLX': 0., 'rhoWLrichness':0.,
+               'rhoWLX': 0., 'rhoWLrichness': 0.,
                'rhoXrichness': 0,
                'SZmPivot': 3e14,
                'XraymPivot': 5e14,
@@ -39,10 +39,10 @@ class TestClass:
                'YXPARAM': 'SPT_XVP',
                }
     # Arrays for mass function
-    z_arr_pk = np.linspace(0,2,21)
+    z_arr_pk = np.linspace(0, 2, 21)
     Deltacrit = 200.
-    z_arr = np.linspace(0,2,201)
-    M_arr = np.logspace(13,16,301)
+    z_arr = np.linspace(0, 2, 201)
+    M_arr = np.logspace(13, 16, 301)
     lnM_arr = np.log(M_arr)
     # Observables for multi-obs convolutions
     observable_pairs = ['SZ_lambdacut_shallow', 'SZ_lambdacut_deep', 'SZ']
@@ -114,9 +114,9 @@ class TestClass:
         HMF = {'lnM_arr': dN_dmultiobs_dict['lnM_arr']}
         z = {}
         for tmp in ['SZ_lambdacut_shallow', 'SZ_lambdacut_deep', 'SZ']:
-            z['%s_z'%tmp] = dN_dmultiobs_dict['%s_z'%tmp]
-            HMF['%s_dNdlnM'%tmp] = dN_dmultiobs_dict[tmp]
-        if np.all(z['SZ_lambdacut_shallow_z']==z['SZ_lambdacut_deep_z']):
+            z['%s_z' % tmp] = dN_dmultiobs_dict['%s_z' % tmp]
+            HMF['%s_dNdlnM' % tmp] = dN_dmultiobs_dict[tmp]
+        if np.all(z['SZ_lambdacut_shallow_z'] == z['SZ_lambdacut_deep_z']):
             HMF['z_arr'] = z['SZ_lambdacut_shallow_z']
         HMF['len_z'] = len(HMF['z_arr'])
-        res = number_count.lnlike(HMF, self.cosmology, self.scaling)
+        _ = number_count.lnlike(HMF, self.cosmology, self.scaling)
