@@ -77,7 +77,8 @@ class DistCompute:
                                       for j in range(len(self.lambda_bins_out)-1)])
             lambda_min_idx = np.digitize(lambda_min_allz[i], self.lambda_bins_out)-1
             N_z_lambda[i, :lambda_min_idx] = 0.
-            N_z_lambda[i, lambda_min_idx] = f.integral(np.log(lambda_min_allz[i]), np.log(self.lambda_bins_out[lambda_min_idx+1]))
+            N_z_lambda[i, lambda_min_idx] = f.integral(np.log(lambda_min_allz[i]),
+                                                       np.log(self.lambda_bins_out[lambda_min_idx+1]))
         N_lambda = np.array([InterpolatedUnivariateSpline(self.HMF['z_arr'], N_z_lambda[:, i]
                                                           ).integral(self.z_cl_min_max[0], self.z_cl_min_max[1])
                              for i in range(len(self.lambda_bins_out)-1)])

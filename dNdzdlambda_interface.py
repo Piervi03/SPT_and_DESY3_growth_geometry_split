@@ -8,7 +8,7 @@ import dNdzdlambda
 
 
 def setup(options):
-    ##### Global variables
+    # Global variables
     NPROC = options.get_int(option_section, 'NPROC')
     z_cl_min_max = options.get_double_array_1d(option_section, 'z_cl_min_max')
     # SPT survey
@@ -20,7 +20,7 @@ def setup(options):
     lambda_min = {}
     for name in tmp.dtype.names[1:]:
         lambda_min[name] = make_interp_spline(tmp['z'], tmp[name], k=1)
-    ##### Initialize abundance
+    # Initialize abundance
     computer = dNdzdlambda.DistCompute(SPT_survey,
                                        z_cl_min_max,
                                        lambda_min,
@@ -45,11 +45,11 @@ def execute(block, computer):
     # Convolved halo mass function
     HMF = {'lnM_arr': block.get_double_array_1d('dN_dmultiobs', 'lnM_arr'),
            'z_arr': block.get_double_array_1d('dN_dmultiobs', 'z_arr'),
-           'richness_SZ_lndNdlnM': block.get_double_array_nd('dN_dmultiobs', 'richness_SZ_lndNdlnM'),}
+           'richness_SZ_lndNdlnM': block.get_double_array_nd('dN_dmultiobs', 'richness_SZ_lndNdlnM')}
     # Compute
     N_lambda = computer.run(HMF, cosmology, scaling)
-    for i,n in enumerate(N_lambda):
-        block.put_double('N', 'N_lambda_%d'%i, n)
+    for i, n in enumerate(N_lambda):
+        block.put_double('N', 'N_lambda_%d' % i, n)
     return 0
 
 
