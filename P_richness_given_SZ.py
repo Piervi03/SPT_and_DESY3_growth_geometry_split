@@ -129,7 +129,7 @@ def process_field(SPT_field, catalog, lambda_min, richness_scatter_model,
             finite = np.isfinite(itg)
             lnrichness = lnrichness[finite]
             itg_interp = make_interp_spline(lnrichness, itg[finite], k=2)
-            this_lnlike = np.log(itg_interp.integrate(np.amin(lnrichness), np.amax(lnrichness)))
+            this_lnlike = np.log(itg_interp.integrate(lnrichness[0], lnrichness[-1]))
         else:
             raise ValueError('Invalid richness_scatter_model {}'.format(richness_scatter_model))
         if not np.isfinite(this_lnlike):
