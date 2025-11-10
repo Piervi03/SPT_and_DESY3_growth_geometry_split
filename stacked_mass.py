@@ -28,8 +28,8 @@ def execute(HMF,
         for j in range(len(rot_bins_x)-1):
             ij_idx = i_idx[(rot_obs[i_idx, 0] >= rot_bins_x[j]) & (rot_obs[i_idx, 0] < rot_bins_x[j+1])]
             for k in range(len(rot_bins_y)-1):
-                if (j == 0) and (k == 1):
-                    continue
                 ijk_idx = ij_idx[(rot_obs[ij_idx, 1] >= rot_bins_y[k]) & (rot_obs[ij_idx, 1] < rot_bins_y[k+1])]
+                if not np.any(ijk_idx):
+                    continue
                 Mwl_mean[i, j, k] = np.sum(np.exp(lnMwl[ijk_idx]) * np.exp(lnw[ijk_idx])) / np.sum(np.exp(lnw[ijk_idx]))
     return Mwl_mean
