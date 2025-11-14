@@ -113,7 +113,7 @@ def process_field(SPT_field, catalog, lambda_min, richness_scatter_model,
                            / np.sqrt(2. * np.pi * catalog['richness'][clusterID] / richness))
                 if this_lambda_min > 0.:
                     with np.errstate(divide='ignore'):
-                        dP_dobs /= (1. - ndtr((np.log(this_lambda_min)-lnrichness)*np.sqrt(richness)))
+                        dP_dobs /= ndtr((lnrichness-np.log(this_lambda_min))*np.sqrt(richness))
             elif richness_scatter_model in ['lognormalGaussPoisson', 'lognormalGausssuperPoisson']:
                 if richness_scatter_model == 'lognormalGaussPoisson':
                     std_richness = np.sqrt(richness)
@@ -121,7 +121,7 @@ def process_field(SPT_field, catalog, lambda_min, richness_scatter_model,
                     std_richness = np.sqrt(richness+10.) * (1.08 + .45*(catalog['REDSHIFT'][clusterID]-.6))
                 dP_dobs = np.exp(-.5 * ((catalog['richness'][clusterID]-richness)/std_richness)**2) / (sqrt2pi * std_richness)
                 with np.errstate(invalid='ignore', divide='ignore'):
-                    dP_dobs /= (1. - ndtr((this_lambda_min-richness)/std_richness))
+                    dP_dobs /= ndtr((richness-this_lambda_min)/std_richness)
             # Likelihood = int dlambda P(lambda_obs|lambda) P(lambda)
             with np.errstate(invalid='ignore'):
                 itg = dP_dobs * dN_dlnrichness
