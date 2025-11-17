@@ -10,13 +10,12 @@ HMF = 'Tinker08'
 
 # We mainly need the cosmology for E(z) and h
 # (and for the DK15 c-M relation)
-cosmology = {'Omega_m': .28, 'Ombh2': .022, 'Omnuh2': .0006,
-             'nnu': 3.046,
+cosmology = {'Omega_m': .3, 'Ombh2': .022,
+             'mnu': .06, 'nnu': 3.046,
              'h': 0.7,
              'w0': -1., 'wa': 0.,
-             'sigma8': .78, 'n_s': .96, 'ln1e10As': 3.001}
+             'n_s': .96, 'ln1e10As': 2.948}
 cosmology['Omega_b'] = cosmology['Ombh2']/cosmology['h']**2
-cosmology['Omega_nu'] = cosmology['Omnuh2']/cosmology['h']**2
 cosmology['Ommh2'] = cosmology['Omega_m']*cosmology['h']**2
 cosmology['Omega_l'] = 1-cosmology['Omega_m']
 

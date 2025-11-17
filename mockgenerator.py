@@ -48,11 +48,15 @@ def main(configMod_file, catalog_name):
         import compute_HMF_Bocquet16
         import compute_HMF_Tinker08
         emulator = baccoemu.Matter_powerspectrum()
-        params = {'neutrino_mass': cosmology['Omnuh2'] * 94.06410581217612 / (cosmology['nnu']/3.)**.75 / (2.7255/2.7255)**3,
-                  'A_s': 1e-10*np.exp(cosmology['ln1e10As'])}
-        for me, they in zip(['Omega_m', 'Omega_b', 'h', 'n_s', 'w0', 'wa'],
-                            ['omega_matter', 'omega_baryon', 'hubble', 'ns', 'w0', 'wa']):
-            params[they] = cosmology[me]
+        params = {'A_s': 1e-10*np.exp(cosmology['ln1e10As'])}
+        if 'mnu' not in cosmology.keys():
+            cosmology['mnu'] = cosmology['Omnuh2'] * 94.06410581217612 / (cosmology['nnu']/3.)**.75 / (2.7255/2.7255)**3
+        else:
+            cosmology['Omnuh2'] = cosmology['mnu'] * (cosmology['nnu']/3.)**.75 * (2.7255/2.7255)**3 / 94.06410581217612
+        cosmology['Omega_nu'] = cosmology['Omnuh2'] / cosmology['h']**2
+        for me, bacco in zip(['Omega_m', 'Omega_b', 'mnu', 'h', 'n_s', 'w0', 'wa'],
+                             ['omega_matter', 'omega_baryon', 'neutrino_mass', 'hubble', 'ns', 'w0', 'wa']):
+            params[bacco] = cosmology[me]
         # Call the emulator for P_{CDM+bar}(k)
         k, Pk = emulator.get_linear_pk(expfactor=1./(1.+z_arr),
                                        cold=True,
@@ -169,6 +173,7 @@ def main(configMod_file, catalog_name):
                                    'GAMMA_FIELD'])
     mock['SPT_ID'] = ['cluster%d' % i for i in range(nCluster)]
     mock['FIELD'] = fieldnames
+    mock['Mwl_DES_200_obs'] = rng.lognormal(np.log(mock['Mwl_DES_200']), sigma=.8)
 
     # HST weak lensing
     HST_z_range = ((mock['REDSHIFT'] > .6) & (mock['REDSHIFT'] < 1.1)).nonzero()[0]
