@@ -88,7 +88,10 @@ def process_field(SPT_field, catalog, lambda_min, richness_scatter_model,
             if this_lambda_min == 0.:
                 # Normalize to get dP/dlnrichness
                 dN_dlnrichness /= simpson(dN_dlnrichness, lnrichness)
-                this_lnlike = make_interp_spline(lnrichness, np.log(dN_dlnrichness), k=2)(
+                with np.errstate(divide='ignore'):
+                    lndN_dlnrichness = np.log(dN_dlnrichness)
+                finite = np.isfinite(lndN_dlnrichness)
+                this_lnlike = make_interp_spline(lnrichness[finite], lndN_dlnrichness[finite], k=2)(
                                                  np.log(catalog['richness'][clusterID]))
             else:
                 # Insert lambda_min into lnrichness array
