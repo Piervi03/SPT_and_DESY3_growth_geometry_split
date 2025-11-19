@@ -110,7 +110,7 @@ def main(configMod_file, catalog_name):
         obs_0 = np.array([np.exp(scaling_relations.lnmass2lnobs(name, lnM_arr[None, :], z_arr[:, None], scaling, cosmology, SPTfield=SPT_survey[fieldidx]))
                           for name in ('WLDES', configMod.Xray_obs, 'zeta', 'richness_base', 'WLEuclid')])
         # Hack for HST
-        obs_0 = np.insert(obs_0, -1, np.full(obs_0[0].shape, lnM_arr)[None, ...], axis=0)
+        obs_0 = np.insert(obs_0, -1, np.full(obs_0[0].shape, np.exp(lnM_arr))[None, ...], axis=0)
 
         for i, z in enumerate(z_arr):
             if SPT_survey['LAMBDA_MIN'][fieldidx] not in ['NONE', 'None', 'none']:
@@ -154,7 +154,12 @@ def main(configMod_file, catalog_name):
                             if richness_obs < lambda_min:
                                 continue
 
-                        mock.append([M, z, xi, X, obs[k, 0], obs[k, 4], obs[k, 5], richness_obs, richness_err, SPT_survey['GAMMA'][fieldidx]])
+                        mock.append([M, z,
+                                     obs[k, 2], xi,
+                                     X,
+                                     obs[k, 0], obs[k, 4], obs[k, 5],
+                                     obs[k, 3], richness_obs, richness_err,
+                                     SPT_survey['GAMMA'][fieldidx]])
                         fieldnames.append(field)
 
         # False detections
@@ -166,10 +171,11 @@ def main(configMod_file, catalog_name):
         #         fieldnames.append(field)
 
     nCluster = len(mock)
-    mock = Table(rows=mock, names=['M_true', 'REDSHIFT', 'XI',
+    mock = Table(rows=mock, names=['M_true', 'REDSHIFT',
+                                   'zeta', 'XI',
                                    configMod.Xray_obs,
                                    'Mwl_DES_200', 'Mwl_HST_200', 'Mwl_Euclid_200',
-                                   'richness', 'richness_err',
+                                   'richness_int', 'richness', 'richness_err',
                                    'GAMMA_FIELD'])
     mock['SPT_ID'] = ['cluster%d' % i for i in range(nCluster)]
     mock['FIELD'] = fieldnames
