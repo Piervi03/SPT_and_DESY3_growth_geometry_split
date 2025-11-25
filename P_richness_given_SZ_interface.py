@@ -15,10 +15,10 @@ def setup(options):
     # Catalog
     z_cl_min_max = options.get_double_array_1d(option_section, 'z_cl_min_max')
     catalog = Table.read(options.get_string(option_section, 'SPTcatalogfile'))
-    keep = [xi >= config['SPT_survey_tab']['XI_MIN'][config['SPT_survey_tab']['FIELD'] == field][0]
-            for xi, field in zip(catalog['XI'], catalog['FIELD'])]
-    catalog = catalog[keep]
+    xi_cut = [xi >= config['SPT_survey_tab']['XI_MIN'][config['SPT_survey_tab']['FIELD'] == field][0]
+              for xi, field in zip(catalog['XI'], catalog['FIELD'])]
     config['catalog'] = catalog[(catalog['COSMO_SAMPLE'] == 1)
+                                & xi_cut
                                 & (z_cl_min_max[0] <= catalog['REDSHIFT'])
                                 & (catalog['REDSHIFT'] <= z_cl_min_max[1])]
     # lambda_min(z)
