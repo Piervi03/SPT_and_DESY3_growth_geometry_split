@@ -7,6 +7,7 @@ from scipy.ndimage import gaussian_filter1d
 import cosmo
 import scaling_relations
 
+sqrt2pi = np.sqrt(2.*np.pi)
 Delta_xi = .2
 
 
@@ -75,14 +76,23 @@ def run_field(SPTfield,
     xi_bins = xi_bins[::2]
     dN_dz_dlnlambda_dxi_conv = dN_dz_dlnlambda_dxi_conv[:, :, ::2]
     # Convolve with measurement error in lambda
-    if richness_scatter_model == 'lognormalGaussPoisson':
+    if richness_scatter_model in ['lognormalGaussPoisson', 'lognormalGausssuperPoisson']:
         richness = np.exp(lnrichness_m)
+        # Obs scatter [z, richness_int]
+        if richness_scatter_model == 'lognormalGaussPoisson':
+            std = np.sqrt(richness)
+        else:
+            std = np.sqrt(richness+10) * (1.08 + .45*(HMF['z_arr'][z_idx, None]-.6))
         # integrand shape [z, richness, richness_int, xi]
-        kernel = (np.exp(-.5 * (richness[:, :, None] - richness[:, None, :])**2/richness[:, None, :])
-                  / np.sqrt(2. * np.pi * richness[:, None, :]))
-        dN_dz_dlambda_dxi = np.array([simpson(dN_dz_dlnlambda_dxi_conv[i, None, :, :] * kernel[i, :, :, None],
+        # P(richness | richness_int) [z, richness, richness_int]
+        Prich_gvn_richint = (np.exp(-.5 * ((richness[:, :, None] - richness[:, None, :])/std[:, None, :])**2)
+                             / (sqrt2pi * std[:, None, :]))
+        # integrand P(richness | richness_int) d3N/dz/drichness_int/dxi [z, richness, richness_int, xi]
+        dN_dz_dlambda_dxi = np.array([simpson(dN_dz_dlnlambda_dxi_conv[i, None, :, :] * Prich_gvn_richint[i, :, :, None],
                                               lnrichness_m[i], axis=1)
                                       for i in range(len(z_idx))])
+    else:
+        raise ValueError("richness_scatter_model {} is not supported".format(richness_scatter_model))
     # Apply lambda_min(z)
     lambda_min_z = lambda_min[SPTfield['LAMBDA_MIN']](HMF['z_arr'][z_idx])
     for i in range(len(z_idx)):
