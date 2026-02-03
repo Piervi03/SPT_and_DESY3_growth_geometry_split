@@ -61,7 +61,6 @@ class MassCalibration:
         self.z_cl_min_max = kwargs.pop('z_cl_min_max')
         self.lambda_min = kwargs.pop('lambda_min')
         self.richness_scatter_model = kwargs.pop('richness_scatter_model')
-        self.z_DESWISE = kwargs.pop('z_DESWISE')
         # Read input files
         self.SPT_survey = Table.read(kwargs.pop('SPT_survey_fields'), format='ascii.commented_header')
         self.catalog = Table.read(kwargs.pop('SPTcatalogfile'))
@@ -169,7 +168,7 @@ class MassCalibration:
             obsnames.append('Mgas')
         if self.todo['richness'] and self.catalog['richness'][i] > 0.:
             nobs += 1
-            if self.catalog['REDSHIFT'][i] < self.z_DESWISE:
+            if self.catalog['REDSHIFT'][i] < self.scaling['z_DESWISE']:
                 obsnames.append('richness_base')
             else:
                 obsnames.append('richness_ext')

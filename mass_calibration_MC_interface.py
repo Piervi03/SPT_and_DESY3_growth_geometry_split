@@ -14,7 +14,6 @@ def setup(options):
     todo['lambda_min'] = options.get_bool(option_section, 'lambda_min')
     mcType = options.get_string(option_section, 'mcType', 'None')
     z_cl_min_max = options.get_double_array_1d(option_section, 'z_cl_min_max')
-    z_DESWISE = options.get_double(option_section, 'z_DESWISE', default=z_cl_min_max[1])
     # Data for optical cleaning
     if todo['lambda_min']:
         lambda_min_file = options.get_string(option_section, 'MCMF_lambda_min')
@@ -38,7 +37,6 @@ def setup(options):
     masscalibration = mass_calibration.MassCalibration(todo=todo,
                                                        mcType=mcType,
                                                        z_cl_min_max=z_cl_min_max, lambda_min=lambda_min, richness_scatter_model=richness_scatter_model,
-                                                       z_DESWISE=z_DESWISE,
                                                        SPT_survey_fields=SPT_survey_fields, SPTcatalogfile=SPTcatalogfile,
                                                        HSTcalibfile=HSTcalibfile,
                                                        NPROC=NPROC, get_stacked_DES=get_stacked_DES)
@@ -103,6 +101,7 @@ def execute(block, setup_stuff):
     if masscalibration.todo['richness']:
         for p in ['Arichness', 'Brichness', 'Crichness', 'Drichness',
                   'Arichness_ext', 'Brichness_ext', 'Crichness_ext', 'Drichness_ext',
+                  'z_DESWISE',
                   'richmPivot', 'rhoSZrichness']:
             scaling[p] = block.get_double('mor_parameters', p)
     if masscalibration.todo['veldisp']:
