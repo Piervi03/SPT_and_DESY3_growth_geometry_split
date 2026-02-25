@@ -1,4 +1,5 @@
 import numpy as np
+from astropy import table
 
 import cosmo
 
@@ -39,19 +40,29 @@ def lnmass2lnobs(name, lnmass, z, scaling,
                   + (scaling['Csz'] + SPTfield['DELTA_CSZ']) * ln_z_term
                   + scaling['Esz'] * (lnmass-np.log(scaling['SZmPivot'])) * ln_z_term)
         # ECS correction
-        if np.ndim(SPTfield['FIELD']) == 0:
-            # Default expectation is that we're looking at a single field
+        if type(SPTfield) is table.row.Row:
+            # We're looking at a single field (single row)
             if '_sptpol' in SPTfield['FIELD']:
                 lnzeta += np.log(scaling['SPECS_calib'])
         else:
-            # Expect that we're looking at a field per mass and z
-            idx = '_sptpol' in SPTfield['FIELD']
-            lnzeta[idx] += np.log(scaling['SPECS_calib'])
+            # It's a table
+            if len(SPTfield) == 1:
+                # single field (but still a table)
+                if '_sptpol' in SPTfield['FIELD'][0]:
+                    lnzeta += np.log(scaling['SPECS_calib'])
+            elif len(SPTfield) == len(lnzeta):
+                # We're looking at a field per mass and z
+                idx = ['_sptpol' in field for field in SPTfield['FIELD']]
+                lnzeta[idx] += np.log(scaling['SPECS_calib'])
+            else:
+                raise ValueError("SPTfield length does not match expected lengths.")
         return lnzeta
     elif name == 'Yx':
         if scaling['YXPARAM'] == 'SPT_XVP':
             return (np.log(3.) - 2.5*np.log(cosmology['h']/.7)
-                    + (1/scaling['Bx'])*(lnmass - np.log(1e14 / .7**(3/2) / scaling['Ax'] / cosmo.Ez(z, cosmology)**scaling['Cx'])))
+                    + (1/scaling['Bx']
+                       * (lnmass
+                          - np.log(1e14 / .7**(3/2) / scaling['Ax'] / cosmo.Ez(z, cosmology)**scaling['Cx']))))
         elif scaling['YXPARAM'] == 'obs-mass':
             return (np.log(scaling['Ax'])
                     - 2.5 * np.log(cosmology['h']/.7)
@@ -61,7 +72,8 @@ def lnmass2lnobs(name, lnmass, z, scaling,
         return (np.log(scaling['XraymPivot'] * scaling['Ax']) - 2.5 * np.log(cosmology['h']/.7)
                 + scaling['Bx'] * (lnmass-np.log(scaling['XraymPivot']/cosmology['h']))
                 + scaling['Cx'] * np.log(cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology))
-                + scaling['Ex'] * (lnmass - np.log(scaling['XraymPivot']/cosmology['h']))*np.log(cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology)))
+                + scaling['Ex'] * ((lnmass - np.log(scaling['XraymPivot']/cosmology['h']))
+                                   * np.log(cosmo.Ez(z, cosmology)/cosmo.Ez(.6, cosmology))))
     elif name == 'disp':
         h70z = cosmology['h']/.7*cosmo.Ez(z, cosmology)
         lnM200c = lnM500_to_lnM200(z, lnmass)
@@ -126,14 +138,22 @@ def obs2lnmass(name, obs, z, scaling,
         tmp = (np.log(obs) - scaling['Asz'] - np.log(SPTfield['GAMMA'])
                - (scaling['Csz'] + SPTfield['DELTA_CSZ']) * ln_z_term)
         # ECS correction
-        if np.ndim(SPTfield['FIELD']) == 0:
-            # Default expectation is that we're looking at a single field
+        if type(SPTfield) is table.row.Row:
+            # We're looking at a single field (single row)
             if '_sptpol' in SPTfield['FIELD']:
                 tmp -= np.log(scaling['SPECS_calib'])
         else:
-            # Expect that we're looking at a field per obs and z
-            idx = '_sptpol' in SPTfield['FIELD']
-            tmp[idx] -= np.log(scaling['SPECS_calib'])
+            # It's a table
+            if len(SPTfield) == 1:
+                # single field (but still a table)
+                if '_sptpol' in SPTfield['FIELD'][0]:
+                    tmp -= np.log(scaling['SPECS_calib'])
+            elif len(SPTfield) == len(tmp):
+                # We're looking at a field per mass and z
+                idx = ['_sptpol' in field for field in SPTfield['FIELD']]
+                tmp[idx] -= np.log(scaling['SPECS_calib'])
+            else:
+                raise ValueError("SPTfield length does not match expected lengths.")
         return np.log(scaling['SZmPivot']) + tmp / (scaling['Bsz'] + scaling['Esz']*ln_z_term)
     elif name == 'richness_base':
         lnmass = (np.log(scaling['richmPivot']) + (1/scaling['Brichness'])*(np.log(obs)
