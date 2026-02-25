@@ -164,13 +164,17 @@ def draw_richness_obs(rng, z, lnrichness,
                                for i in range(len(z))])
     # Draw richness_obs given lnrichness
     richness = np.exp(lnrichness)
-    if richness_scatter_model == 'lognormalGaussPoisson':
+    if richness_scatter_model in ['lognormalGaussPoisson', 'lognormalGausssuperPoisson']:
+        if richness_scatter_model == 'lognormalGaussPoisson':
+            richness_err = np.sqrt(richness)
+        else:
+            richness_err = np.sqrt(richness+10.) * (1.08 + .45*(z-.6))
         # var(richness) = richness
-        r_min = ndtr((lambda_min - richness) / np.sqrt(richness))
+        r_min = ndtr((lambda_min - richness) / richness_err)
         r = r_min + (ndtr_max - r_min) * rng.random(len(lnrichness))
-        richness_obs = richness + ndtri(r) * np.sqrt(richness)
+        richness_obs = richness + ndtri(r) * richness_err
         # Account for lambda_min
-        lnw = log_ndtr((richness - lambda_min) / np.sqrt(richness))
+        lnw = log_ndtr((richness - lambda_min) / richness_err)
         lnw[r_min > ndtr_max] = -np.inf
     elif richness_scatter_model == 'lognormalrelPoisson':
         lnlambda_min = np.log(lambda_min)
