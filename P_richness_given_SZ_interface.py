@@ -19,6 +19,7 @@ def setup(options):
               for xi, field in zip(catalog['XI'], catalog['FIELD'])]
     config['catalog'] = catalog[(catalog['COSMO_SAMPLE'] == 1)
                                 & xi_cut
+                                & (catalog['MASK_FRACTION_60'] < options.get_double(option_section, 'MASK_FRACTION_60', 1.))
                                 & (z_cl_min_max[0] <= catalog['REDSHIFT'])
                                 & (catalog['REDSHIFT'] <= z_cl_min_max[1])]
     # lambda_min(z)
