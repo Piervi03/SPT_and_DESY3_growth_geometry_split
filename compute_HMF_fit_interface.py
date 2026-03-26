@@ -26,6 +26,7 @@ def setup(options):
     fitting_function = options.get_string(option_section, 'fitting_function')
     recalc_HMF = options.get_bool(option_section, 'recalc_HMF', default=True)
     save_HMF_to_disk = options.get_bool(option_section, 'save_HMF_to_disk', default=False)
+    fname = options.get_string(option_section, 'HMF_file', default='HMF.nc')
     Deltacrit = options.get_double(option_section, 'Deltacrit', default=500.)
     if recalc_HMF:
         if fitting_function == 'Tinker08':
@@ -36,9 +37,10 @@ def setup(options):
             HMF_calculator = compute_HMF_Bocquet16.HMFCalculator(Deltacrit, z_arr, M_arr)
     else:
         HMF_calculator = EmptyClass()
-        HMF_calculator.HMF = xr.open_dataset('HMF.nc')
+        HMF_calculator.HMF = xr.open_dataset(fname)
     HMF_calculator.recalc_HMF = recalc_HMF
     HMF_calculator.save_HMF_to_disk = save_HMF_to_disk
+    HMF_calculator.fname = fname
     return HMF_calculator
 
 
@@ -69,7 +71,7 @@ def execute(block, HMF_calculator):
                                dims=['z', 'm'],
                                coords={'z': block.get_double_array_1d('HMF', 'z_arr'),
                                        'm': block.get_double_array_1d('HMF', 'M_arr')})
-            HMF.to_netcdf('HMF.nc')
+            HMF.to_netcdf(HMF_calculator.fname)
 
     else:
         block.put_grid('HMF',
