@@ -47,6 +47,9 @@ def execute(block, multi_obs_convolution):
               'z_DESWISE',
               'rhoSZrichness',]:
         scaling[p] = block.get_double('mor_parameters', p)
+    if block.has_value('mor_parameters', 'Drichness_B'):
+        for p in ['Drichness_B', 'Drichness_log10Mbreak']:
+            scaling[p] = block.get_double('mor_parameters', p)
     # Halo mass function
     z, M, N = block.get_grid('HMF', 'z_arr', 'M_arr', 'dNdlnM')
     HMF = {'z_arr': z, 'lnM_arr': np.log(M), 'dNdlnM': N}

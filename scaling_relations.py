@@ -4,6 +4,9 @@ from astropy import table
 import cosmo
 
 
+ln10 = np.log(10.)
+
+
 ################
 def xi2zeta(xi):
     return np.sqrt(xi**2 - 3)
@@ -227,12 +230,15 @@ def dlnM_dlnobs(name, scaling,
 
 
 ###########################################
-def richnessscatter(z, scaling):
+def richnessscatter(z, scaling, lnm=0.):
     """Returns the scatter in richness for a given redshift."""
     if z < scaling['z_DESWISE']:
-        return scaling['Drichness']
+        D = scaling['Drichness']
     else:
-        return scaling['Drichness_ext']
+        D = scaling['Drichness_ext']
+    if ('Drichness_B' in scaling.keys()) and (scaling['Drichness_B'] != 0.):
+        D *= (1. + 10.**(scaling['Drichness_log10Mbreak']-lnm/ln10))**scaling['Drichness_B']
+    return D
 
 
 def WLscatter(name, lnmass, z, scaling):

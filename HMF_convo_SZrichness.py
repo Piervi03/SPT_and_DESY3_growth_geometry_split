@@ -65,7 +65,7 @@ class MultiObsConvolution:
                                'Ob0': cosmology['Omega_b'],
                                'sigma8': cosmology['sigma8'],
                                'ns': cosmology['n_s']}
-            this_colossus_cosmo = colossus_cosmology.setCosmology('myCosmo', colossus_params)
+            colossus_cosmology.setCosmology('myCosmo', colossus_params)
         # Pre-compute the intrinsic scatter convolutions
         output_dict = {'lnM_arr': HMF['lnM_arr'],
                        'z_arr': self.z_arr}
@@ -103,15 +103,17 @@ class MultiObsConvolution:
         return P_obs_grid
 
     def get_P_multiobs_z(self, z):
-        """Decide whether it's a 2D or 3D observable array or whether it's the
-        fancy DES stuff."""
+        """Depending on the observable pairs, call the appropriate function."""
         # Which HMF convolution?
         if self.pairname == 'SZ':
             # dN/dlnzeta
             return self.get_P_zeta_z(z)
         elif self.pairname == 'richness_SZ':
             # dN/dlnzeta/dlnlambda
-            return self.get_P_zeta_lambda_lognormal_z(z)
+            if ('Drichness_B' in self.scaling.keys()) and (self.scaling['Drichness_B'] != 0.):
+                return self.get_P_zeta_lambda_lognormal_massdep_z(z)
+            else:
+                return self.get_P_zeta_lambda_lognormal_z(z)
         elif 'SZ_lambdacut_' in self.pairname:
             # dN/dlnzeta given lambda>lambda_min
             survey = self.pairname[13:]
@@ -232,3 +234,32 @@ class MultiObsConvolution:
         with np.errstate(divide='ignore'):
             lnHMF_2d = np.log(HMF_2d)
         return lnHMF_2d
+
+    def get_P_zeta_lambda_lognormal_massdep_z(self, z):
+        """Return P(obs, zeta | M, z[z_id], p) for correlated scatter when the
+        scatter in richness is mass-dependent."""
+        dN_dlnM = self.dNdlnM_at_z(z)
+        # Convert observable covmat into covmat in mass
+        dlnM_dlnzeta = scaling_relations.dlnM_dlnobs('zeta', self.scaling)
+        dlnM_dlnobs = scaling_relations.dlnM_dlnobs('richness', self.scaling, z=z)
+        Jacobian = np.array([[dlnM_dlnobs**2, dlnM_dlnobs*dlnM_dlnzeta],
+                             [dlnM_dlnobs*dlnM_dlnzeta, dlnM_dlnzeta**2]])
+        Drich = scaling_relations.richnessscatter(z, self.scaling, self.HMF['lnM_arr'])
+        Dsz = self.scaling['Dsz']
+        # [mass, richness, SZ]
+        covmat = np.array([[Drich**2, self.scaling['rhoSZrichness']*Drich*Dsz],
+                           [self.scaling['rhoSZrichness']*Drich*Dsz, np.full(self.HMF['len_M'], Dsz**2)]]
+                          ).transpose(2, 0, 1)
+        covmat_lnM = covmat * Jacobian
+        # Scatter kernels and number of bins and arrays for each observable
+        kernels = [None]*self.HMF['len_M']
+        Nbins_obs, Nbins_zeta = np.empty((2, self.HMF['len_M'], 2), dtype=int)
+        # Nbins_zeta = np.empty((self.HMF['len_M'], 2), dtype=int)
+        for i in range(self.HMF['len_M']):
+            Nbins_obs[i], lnobs_arr = self.get_Nbins_array(msqrt(covmat_lnM[i, 0, 0]))
+            Nbins_zeta[i], lnzeta_arr = self.get_Nbins_array(msqrt(covmat_lnM[i, 1, 1]))
+            kernels[i] = cy_multivariate_normal.bivariate_normal(lnobs_arr, lnzeta_arr, covmat_lnM[i])
+        HMF_2d = convolution.convolve_HMF_2obs_varkernel(dN_dlnM, self.Delta_lnM, kernels, Nbins_obs, Nbins_zeta)
+        # We know we're doing log(0)...
+        with np.errstate(divide='ignore'):
+            return np.log(HMF_2d)
