@@ -72,9 +72,9 @@ def main(configMod_file, catalog_name):
         print('sigma_8 %.5f' % np.sqrt(sigma8_squ))
         # Initialize fitting function
         if configMod.HMF == 'Tinker08':
-            HMF_calculator = compute_HMF_Tinker08.HMFCalculator(200., z_arr, M_arr)
+            HMF_calculator = compute_HMF_Tinker08.HMFCalculator(configMod.Delta_crit, z_arr, M_arr)
         elif configMod.HMF == 'Bocquet16':
-            HMF_calculator = compute_HMF_Bocquet16.HMFCalculator(200., z_arr, M_arr)
+            HMF_calculator = compute_HMF_Bocquet16.HMFCalculator(configMod.Delta_crit, z_arr, M_arr)
         # Compute the mass function and volume element
         dNdlnM_noVol, dNdlnM = HMF_calculator.compute_HMF(cosmology, z_arr, k, Pk)
     HMF_dNdM_V = dNdlnM * dz*dlnm*(np.pi/180)**2

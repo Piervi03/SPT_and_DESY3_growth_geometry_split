@@ -7,6 +7,7 @@ random_seed = 0
 
 # Mira-Titan, Bocquet16, Tinker08
 HMF = 'Tinker08'
+Delta_crit = 200.
 
 # We mainly need the cosmology for E(z) and h
 # (and for the DK15 c-M relation)
