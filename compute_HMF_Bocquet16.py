@@ -10,23 +10,23 @@ class HMFCalculator:
         self.z_arr = z_arr
         self.M_arr = M_arr
 
-    def get_factors(self, Omega_m, z):
+    def get_factors(self, Omega_m_growth, z):
         """Return the universality correction factors."""
         if self.Deltacrit == 200.:
-            gamma0 = 3.54e-2 + Omega_m**.09
-            gamma1 = 4.56e-2 + 2.68e-2/Omega_m
-            gamma2 = 0.721 + 3.5e-2/Omega_m
-            gamma3 = .628 + .164/Omega_m
-            delta0 = -1.67e-2 + 2.18e-2*Omega_m
-            delta1 = 6.52e-3 - 6.86e-3*Omega_m
+            gamma0 = 3.54e-2 + Omega_m_growth**.09
+            gamma1 = 4.56e-2 + 2.68e-2/Omega_m_growth
+            gamma2 = 0.721 + 3.5e-2/Omega_m_growth
+            gamma3 = .628 + .164/Omega_m_growth
+            delta0 = -1.67e-2 + 2.18e-2*Omega_m_growth
+            delta1 = 6.52e-3 - 6.86e-3*Omega_m_growth
             alpha = gamma0 + gamma1 * np.exp(-((gamma2-z)/gamma3)**2)
             beta = delta0 + delta1*z
         elif self.Deltacrit == 500.:
-            alpha0 = .88 + .329*Omega_m
-            alpha1 = 1. + 4.31e-2/Omega_m
-            alpha2 = -.365 + .254/Omega_m
+            alpha0 = .88 + .329*Omega_m_growth
+            alpha1 = 1. + 4.31e-2/Omega_m_growth
+            alpha2 = -.365 + .254/Omega_m_growth
             alpha = alpha0 * (alpha1*z+alpha2)/(z+alpha2)
-            beta = -1.7e-2 + 3.74e-3*Omega_m
+            beta = -1.7e-2 + 3.74e-3*Omega_m_growth
         return alpha, beta
 
     def get_params(self, z):
@@ -42,11 +42,12 @@ class HMFCalculator:
     def compute_HMF(self, cosmology, z, k, Pk):
         """Compute Bocquet et al. (2016) HMF and apply redshift volume."""
         # Setup
-        rho_m = (cosmology['Omega_m'] - cosmology['Omega_nu']) * cosmo.RHOCRIT
+        rho_m_growth = (cosmology['Omega_m_growth'] - cosmology['Omega_nu']) * cosmo.RHOCRIT
+        rho_m_geo = (cosmology['Omega_m_geo'] - cosmology['Omega_nu']) * cosmo.RHOCRIT
 
         # Compute sigma(M)
         # Radius [M_arr]
-        R = (3 * self.M_arr / (4 * np.pi * rho_m))**(1/3)
+        R = (3 * self.M_arr / (4 * np.pi * rho_m_geo))**(1/3)
         # [M_arr, k]
         kR = k[None, :] * R[:, None]
         # Window functions [M_arr, k]
@@ -64,12 +65,14 @@ class HMFCalculator:
         # Compute HMF (unit volume) [z_arr, M_arr]
         A, a, b, c = self.get_params(self.z_arr)
         fsigma = A[:, None] * ((np.sqrt(sigma2_fine)/b[:, None])**-a[:, None] + 1) * np.exp(-c[:, None]/sigma2_fine)
-        dNdlnM_noVol = - fsigma * rho_m * dsigma2dM_fine/2/sigma2_fine
+        dNdlnM_noVol = - fsigma * rho_m_geo * dsigma2dM_fine/2/sigma2_fine
         # Universality correction
-        alpha, beta = self.get_factors(cosmology['Omega_m'], self.z_arr)
+        alpha, beta = self.get_factors(cosmology['Omega_m_growth'], self.z_arr)
         dNdlnM_noVol *= alpha[:, None] + beta[:, None]*np.log(self.M_arr/cosmology['h'])[None, :]
 
-        # Apply redshift volume
+        # Apply redshift volume changing the dictionary
+        del cosmology['Omega_m_growth']
+        cosmology['Omega_m'] = cosmology.pop('Omega_m_geo')
         deltaV = cosmo.deltaV(self.z_arr, cosmology)
         dNdlnM = dNdlnM_noVol * deltaV[:, None]
 

@@ -4,7 +4,6 @@ from scipy.interpolate import make_interp_spline
 from cosmosis.datablock import option_section
 import HMF_convo
 
-
 def setup(options):
     observable_pairs = options.get_string(option_section, 'observable_pairs').split()
     if len(observable_pairs)==1:

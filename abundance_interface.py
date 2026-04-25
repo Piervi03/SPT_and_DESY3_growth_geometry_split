@@ -41,7 +41,7 @@ def setup(options):
 def execute(block, config):
     # Only need cosmo for E(z)-type stuff
     cosmology = {
-        'Omega_m': block.get_double('cosmological_parameters', 'Omega_m'),
+        'Omega_m_geo': block.get_double('cosmological_parameters', 'Omega_m_geo'),
         'Omega_l': block.get_double('cosmological_parameters', 'omega_lambda'),
         'w0': block.get_double('cosmological_parameters', 'w'),
         'wa': block.get_double('cosmological_parameters', 'wa')}
