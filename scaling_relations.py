@@ -32,9 +32,7 @@ def lnmass2lnobs(name, lnmass, z, scaling,
                  lnM500_to_lnM200=None,
                  SPTfield=None,
                  SZ_Ez=True):
-    #We use omega_geo
-    del cosmology['Omega_m_growth']
-    cosmology['Omega_m'] = cosmology.pop('Omega_m_geo')
+    #We use omega_geo in the cosmo.py file
         
     """Returns ln-observable given (lnmass, z) using scaling relation."""
     if name == 'zeta':
@@ -138,8 +136,7 @@ def obs2lnmass(name, obs, z, scaling,
                SZ_Ez=True):
     """Return lnmass given observable and z."""
     
-    del cosmology['Omega_m_growth']
-    cosmology['Omega_m'] = cosmology.pop('Omega_m_geo')
+    #We use omega_geo in cosmo.py
     
     if name == 'zeta':
         if SZ_Ez:

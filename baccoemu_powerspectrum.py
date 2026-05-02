@@ -55,7 +55,7 @@ def execute(block, stuff):
                                    cold=True,
                                    **params_growth)
     #New power spectrum 
-    Pk=Pk_geo_zi/P_growth_zi*P_growth_z
+    Pk=Pk_geo_zi/Pk_growth_zi*Pk_growth_z
     
     block.put_grid('cdm_baryon_power_lin', 'z', z_arr, 'k_h', k, 'p_k', Pk)
     # Compute sigma_8 for cold dark matter here, otherwise no split is possible

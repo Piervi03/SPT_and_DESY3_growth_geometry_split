@@ -48,7 +48,7 @@ def execute(block, HMF_calculator):
     if HMF_calculator.recalc_HMF:
         # Only need cosmo for E(z)-type stuff
         cosmology = {
-            'Omega_m_geo': block.get_double('cosmological_parameters', 'Omega_m_geo'),
+            'Omega_m_geo': block.get_double('cosmological_parameters', 'omega_m_geo'),
             'Omega_m_growth': block.get_double('cosmological_parameters', 'Omega_m_growth'),
             'Omega_nu': block.get_double('cosmological_parameters', 'Omega_nu'),
             'Omega_l': block.get_double('cosmological_parameters', 'omega_lambda'),

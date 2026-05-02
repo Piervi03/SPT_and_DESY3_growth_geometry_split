@@ -36,7 +36,7 @@ def execute(block, multi_obs_convolution):
                      'h': block.get_double('cosmological_parameters', 'hubble')/100,
                      'w0': block.get_double('cosmological_parameters', 'w'),
                      'sigma8': block.get_double('cosmological_parameters', 'sigma_8')}
-        for p in ['Omega_m', 'Omega_b', 'wa', 'n_s']:
+        for p in ['Omega_m_geo', 'Omega_b', 'wa', 'n_s']:
             cosmology[p] = block.get_double('cosmological_parameters', p)
     else:
         cosmology = None

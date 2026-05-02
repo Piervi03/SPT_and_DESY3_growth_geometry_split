@@ -70,9 +70,7 @@ class HMFCalculator:
         alpha, beta = self.get_factors(cosmology['Omega_m_growth'], self.z_arr)
         dNdlnM_noVol *= alpha[:, None] + beta[:, None]*np.log(self.M_arr/cosmology['h'])[None, :]
 
-        # Apply redshift volume changing the dictionary
-        del cosmology['Omega_m_growth']
-        cosmology['Omega_m'] = cosmology.pop('Omega_m_geo')
+        #we use geo here thanks to the modification in the cosmo.py file
         deltaV = cosmo.deltaV(self.z_arr, cosmology)
         dNdlnM = dNdlnM_noVol * deltaV[:, None]
 

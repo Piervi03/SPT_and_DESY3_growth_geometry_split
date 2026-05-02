@@ -86,7 +86,7 @@ def execute(block, setup_stuff):
         'w0': block.get_double('cosmological_parameters', 'w'),
         'wa': block.get_double('cosmological_parameters', 'wa'),
         'sigma8': block.get_double('cosmological_parameters', 'sigma_8')}
-    for p in ['Omega_m', 'Omega_b', 'n_s', 'wa']:
+    for p in ['Omega_m_geo', 'Omega_b', 'n_s', 'wa']:
         cosmology[p] = block.get_double('cosmological_parameters', p)
 
     scaling = {'YXPARAM': masscalibration.YXPARAM}
