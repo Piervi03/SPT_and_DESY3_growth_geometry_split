@@ -71,7 +71,7 @@ def execute(block, stuff):
                                    **params_growth)
         #New power spectrum 
         Pk_=Pk_geo_zi/Pk_growth_zi*Pk_growth_0
-    
+        
         kR = 8.*k2
         window = 3. * (np.sin(kR)/kR**3 - np.cos(kR)/kR**2)
         integrand_sigma2 = Pk_ * window**2 * k2**3
