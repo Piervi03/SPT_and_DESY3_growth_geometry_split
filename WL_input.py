@@ -10,13 +10,13 @@ DES = {'WL_z_max': .94,
        # Type of M-c scaling relation, 'Duffy08' or 'DK15' or 'Cihld18_obs' or float
        'mcType': 3.5,
        # Boost and miscentering chains
-       'DESboostfile': 'data/boost_smooth_dnf_MCMF.txt',
-       'DESmiscenterfile': 'data/miscenter_SPTopt.txt',
+       'DESboostfile': 'SPT_NC_with_DES_WL_split_dev/data/boost_smooth_dnf_MCMF.txt',
+       'DESmiscenterfile': 'SPT_NC_with_DES_WL_split_dev/data/miscenter_SPTopt.txt',
        'DEScentertype': 'MCMF',
        # DES source photo-z
-       'source_Pz_file': "data/2pt_NG_final_2ptunblind_11_13_20_wnz.fits",
-       'source_weights_file': "data/tomo_weight_hist.txt",
-       'Sigmacrit_file': "data/beta_tomo_bin.npy",
+       'source_Pz_file': "SPT_NC_with_DES_WL_split_dev/data/2pt_NG_final_2ptunblind_11_13_20_wnz.fits",
+       'source_weights_file': "SPT_NC_with_DES_WL_split_dev/data/tomo_weight_hist.txt",
+       'Sigmacrit_file': "SPT_NC_with_DES_WL_split_dev/data/beta_tomo_bin.npy",
        }
 
 Euclid = {'WL_z_max': 1.,

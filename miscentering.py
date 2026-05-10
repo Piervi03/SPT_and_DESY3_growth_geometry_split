@@ -11,7 +11,6 @@ def generic_miscenter(params, lam, z):
     mis_phys_1 = mis_phys_0 + Delta_mis_phys
     return alpha, mis_phys_0, mis_phys_1
 
-
 class MisCentering(object):
 
     def __init__(self, opt):

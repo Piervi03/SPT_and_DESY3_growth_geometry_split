@@ -12,6 +12,11 @@ def Ez(z, cosmology):
     return np.sqrt(cosmology['Omega_m_geo']*(1+z)**3
                    + cosmology['Omega_l']*(1+z)**(3*(1+cosmology['w0']+cosmology['wa']))*np.exp(-3*cosmology['wa']*z/(1+z)))
 
+def Ez_growth(z, cosmology):
+    """Return the dimensionless Hubble parameter."""
+    return np.sqrt(cosmology['Omega_m_growth']*(1+z)**3
+                   + cosmology['Omega_l']*(1+z)**(3*(1+cosmology['w0']+cosmology['wa']))*np.exp(-3*cosmology['wa']*z/(1+z)))
+
 #Omega_m_z is only used in the Tinker08 and Tinker10 files to calculate Delta crit. We use geometry (we are not sure but we do not use it in any case)
 def Omega_m_z(z, cosmology):
     """Return Omega_m(z)."""

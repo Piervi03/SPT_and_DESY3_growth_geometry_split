@@ -9,7 +9,9 @@ import cosmo
 import scaling_relations
 
 # Reference cosmology for which Mgas is measured
-cosmologyRef = {'Omega_m': .272, 'Omega_l': .728, 'h': .702, 'w0': -1, 'wa': 0}
+#Delta critic is 200.
+#python SPT_NC_with_DES_WL_split_dev/mockgenerator.py split_analysis/mockinput_split_10_par [catalog_name.fits]
+cosmologyRef = {'Omega_m_geo': .3, 'Omega_l': .7, 'h': .702, 'w0': -1, 'wa': 0}
 
 
 def main(configMod_file, catalog_name):
@@ -25,7 +27,9 @@ def main(configMod_file, catalog_name):
     for name in tmp.dtype.names[1:]:
         surveyCutLambda[name] = make_interp_spline(tmp['z'], tmp[name], k=1)
 
-    cosmology = configMod.cosmology
+    cosmology_geo = configMod.cosmology_geo
+    cosmology_growth = configMod.cosmology_growth
+    cosmology_both=configMod.cosmology_both
     scaling = configMod.scaling
     rng = np.random.default_rng(configMod.random_seed)
 
@@ -48,35 +52,67 @@ def main(configMod_file, catalog_name):
         import compute_HMF_Bocquet16
         import compute_HMF_Tinker08
         emulator = baccoemu.Matter_powerspectrum()
-        params = {'A_s': 1e-10*np.exp(cosmology['ln1e10As'])}
-        if 'mnu' not in cosmology.keys():
-            cosmology['mnu'] = cosmology['Omnuh2'] * 94.06410581217612 / (cosmology['nnu']/3.)**.75 / (2.7255/2.7255)**3
+        params_geo = {'A_s': 1e-10*np.exp(cosmology_geo['ln1e10As'])}
+        params_growth = {'A_s': 1e-10*np.exp(cosmology_growth['ln1e10As'])}
+        if 'mnu' not in cosmology_both.keys():
+            cosmology_geo['mnu'] = cosmology_geo['Omnuh2'] * 94.06410581217612 / (cosmology['nnu']/3.)**.75 / (2.7255/2.7255)**3
+            cosmology_growth['mnu'] = cosmology_growth['Omnuh2'] * 94.06410581217612 / (cosmology['nnu']/3.)**.75 / (2.7255/2.7255)**3
+            cosmology_both['mnu'] = cosmology_both['Omnuh2'] * 94.06410581217612 / (cosmology['nnu']/3.)**.75 / (2.7255/2.7255)**3
+                
         else:
-            cosmology['Omnuh2'] = cosmology['mnu'] * (cosmology['nnu']/3.)**.75 * (2.7255/2.7255)**3 / 94.06410581217612
-        cosmology['Omega_nu'] = cosmology['Omnuh2'] / cosmology['h']**2
-        for me, bacco in zip(['Omega_m', 'Omega_b', 'mnu', 'h', 'n_s', 'w0', 'wa'],
-                             ['omega_matter', 'omega_baryon', 'neutrino_mass', 'hubble', 'ns', 'w0', 'wa']):
-            params[bacco] = cosmology[me]
+            cosmology_geo['Omnuh2'] = cosmology_geo['mnu'] * (cosmology_geo['nnu']/3.)**.75 * (2.7255/2.7255)**3 / 94.06410581217612
+            cosmology_growth['Omnuh2'] = cosmology_growth['mnu'] * (cosmology_geo['nnu']/3.)**.75 * (2.7255/2.7255)**3 / 94.06410581217612
+            cosmology_both['Omnuh2'] = cosmology_both['mnu'] * (cosmology_geo['nnu']/3.)**.75 * (2.7255/2.7255)**3 / 94.06410581217612
+            
+            cosmology_geo['Omega_nu'] = cosmology_geo['Omnuh2'] / cosmology_geo['h']**2
+            cosmology_growth['Omega_nu'] = cosmology_growth['Omnuh2'] / cosmology_growth['h']**2
+            cosmology_both['Omega_nu'] = cosmology_both['Omnuh2'] / cosmology_both['h']**2
+            
+        for me, bacco in zip(['Omega_m_geo','Omega_b', 'mnu', 'h', 'n_s', 'w0', 'wa'], ['omega_matter', 'omega_baryon', 'neutrino_mass', 'hubble', 'ns', 'w0', 'wa']):
+            params_geo[bacco] = cosmology_geo[me]
+            
+        for me, bacco in zip(['Omega_m_growth','Omega_b', 'mnu', 'h', 'n_s', 'w0', 'wa'], ['omega_matter', 'omega_baryon', 'neutrino_mass', 'hubble', 'ns', 'w0', 'wa']):
+            params_growth[bacco] = cosmology_growth[me]
+            
         # Call the emulator for P_{CDM+bar}(k)
-        k, Pk = emulator.get_linear_pk(expfactor=1./(1.+z_arr),
-                                       cold=True,
-                                       **params)
-        # Compute sigma_8 for total matter
-        k_, Pk_ = emulator.get_linear_pk(expfactor=1.,
-                                         cold=False,
-                                         **params)
-        kR = 8.*k_
+        z_i=scaling['z_i']
+        
+        k_in, Pk_geo_zi_in = emulator.get_linear_pk(expfactor=1./(1.+z_i),
+                                   cold=True,
+                                   **params_geo)
+        k1_in, Pk_growth_zi_in = emulator.get_linear_pk(expfactor=1./(1.+z_i),
+                                   cold=True,
+                                   **params_growth)
+        k2_in, Pk_growth_z_in = emulator.get_linear_pk(expfactor=1./(1.+z_arr),
+                                   cold=True,
+                                   **params_growth)
+        #New power spectrum 
+        Pk_in=Pk_geo_zi_in/Pk_growth_zi_in*Pk_growth_z_in
+        k, Pk_geo_zi = emulator.get_linear_pk(expfactor=1./(1.+z_i),
+                                   cold=True,
+                                   **params_geo)
+        k1, Pk_growth_zi = emulator.get_linear_pk(expfactor=1./(1.+z_i),
+                                   cold=True,
+                                   **params_growth)
+        k2, Pk_growth_0 = emulator.get_linear_pk(expfactor=1.,
+                                   cold=True,
+                                   **params_growth)
+        #New power spectrum 
+        Pk_=Pk_geo_zi/Pk_growth_zi*Pk_growth_0
+        
+        kR = 8.*k2
         window = 3. * (np.sin(kR)/kR**3 - np.cos(kR)/kR**2)
-        integrand_sigma2 = Pk_ * window**2 * k_**3
-        sigma8_squ = .5/np.pi**2 * np.trapezoid(integrand_sigma2, np.log(k_))
+        integrand_sigma2 = Pk_ * window**2 * k2**3
+        sigma8_squ = .5/np.pi**2 * np.trapezoid(integrand_sigma2, np.log(k2))
+        
         print('sigma_8 %.5f' % np.sqrt(sigma8_squ))
         # Initialize fitting function
         if configMod.HMF == 'Tinker08':
-            HMF_calculator = compute_HMF_Tinker08.HMFCalculator(configMod.Delta_crit, z_arr, M_arr)
+            HMF_calculator = compute_HMF_Tinker08.HMFCalculator(200., z_arr, M_arr)
         elif configMod.HMF == 'Bocquet16':
-            HMF_calculator = compute_HMF_Bocquet16.HMFCalculator(configMod.Delta_crit, z_arr, M_arr)
+            HMF_calculator = compute_HMF_Bocquet16.HMFCalculator(200., z_arr, M_arr)
         # Compute the mass function and volume element
-        dNdlnM_noVol, dNdlnM = HMF_calculator.compute_HMF(cosmology, z_arr, k, Pk)
+        dNdlnM_noVol, dNdlnM = HMF_calculator.compute_HMF(cosmology_both, z_arr, k, Pk_in)
     HMF_dNdM_V = dNdlnM * dz*dlnm*(np.pi/180)**2
     # First and last redshift bins are only half in the sample
     HMF_dNdM_V[0, :] *= .5
@@ -107,7 +143,7 @@ def main(configMod_file, catalog_name):
         # Poisson realization
         N = rng.poisson(HMF_dNdM_V*SPT_survey['AREA'][fieldidx])
 
-        obs_0 = np.array([np.exp(scaling_relations.lnmass2lnobs(name, lnM_arr[None, :], z_arr[:, None], scaling, cosmology, SPTfield=SPT_survey[fieldidx]))
+        obs_0 = np.array([np.exp(scaling_relations.lnmass2lnobs(name, lnM_arr[None, :], z_arr[:, None], scaling, cosmology_both, SPTfield=SPT_survey[fieldidx]))
                           for name in ('WLDES', configMod.Xray_obs, 'zeta', 'richness_base', 'WLEuclid')])
         # Hack for HST
         obs_0 = np.insert(obs_0, -1, np.full(obs_0[0].shape, np.exp(lnM_arr))[None, ...], axis=0)
@@ -198,6 +234,8 @@ def main(configMod_file, catalog_name):
     mock[configMod.Xray_obs][XVP[:-configMod.nXrayCluster]] = 0.
     mock['ln%s_err' % configMod.Xray_obs][XVP[:-configMod.nXrayCluster]] = 0.
 
+    #We don't change anaything 
+    
     # Create X-ray gas mass profiles
     # For maximal confusion, this part is in decent units, with factors of h
     # because Xrayprofile.py is in nice units as well :)
@@ -209,13 +247,13 @@ def main(configMod_file, catalog_name):
         # Angular diameter distances
         # The reference cosmology matches Mike M's choice for the XVP data
         dAref = cosmo.dA(mock['REDSHIFT'][i], cosmologyRef) / cosmologyRef['h']
-        dA = cosmo.dA(mock['REDSHIFT'][i], cosmology) / cosmology['h']
+        dA = cosmo.dA(mock['REDSHIFT'][i], cosmology_both) / cosmology_both['h']
         # Scale r_ref to current cosmo
         rArr = r_ref * dA/dAref
         # Get the true r500
-        rho_c_z = cosmo.RHOCRIT * cosmo.Ez(mock['REDSHIFT'][i], cosmology)**2.
+        rho_c_z = cosmo.RHOCRIT * cosmo.Ez(mock['REDSHIFT'][i], cosmology_both)**2.
         r500 = 1000 * (3*mock['M_true'][i]/(4*np.pi*500*rho_c_z))**(1/3)
-        r500 /= cosmology['h']
+        r500 /= cosmology_both['h']
         if configMod.profile_shape == 'BETA':
             # Build a BETA profile with BETA=2/3 (because that easy to integrate)
             # and random r500/7 < rc < r500/3
@@ -242,11 +280,11 @@ def main(configMod_file, catalog_name):
     mock['REDSHIFT_UNC'] = np.zeros(nCluster)
 
     # M500 estimate, neede for defining X-ray observable
-    mock['M500'] = rng.lognormal(np.log(mock['M_true']/cosmology['h']), scaling['Dsz']/scaling['Bsz'])
+    mock['M500'] = rng.lognormal(np.log(mock['M_true']/cosmology_both['h']), scaling['Dsz']/scaling['Bsz'])
 
     # Theta_core (random)
     theta_core_Mpc = rng.exponential(scale=1/3.76, size=len(mock))
-    theta_core_arcmin = theta_core_Mpc*cosmology['h'] / [cosmo.dA(z, cosmology) for z in mock['REDSHIFT']] * 180/np.pi * 60
+    theta_core_arcmin = theta_core_Mpc*cosmology_both['h'] / [cosmo.dA(z, cosmology_both) for z in mock['REDSHIFT']] * 180/np.pi * 60
     theta_core = np.round(theta_core_arcmin*4)/4
     theta_core[theta_core > 3] = 3.
     mock['THETA_CORE'] = theta_core

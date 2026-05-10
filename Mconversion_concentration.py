@@ -21,19 +21,22 @@ class ConcentrationConversion:
             # M_arr, and store the interpolation function in self
             z_arr = np.linspace(0, 2, 21)
             M_arr = np.logspace(13, 16, 301)
-            rho_m = cosmology['Omega_m'] * cosmo.RHOCRIT
-            Omh2 = cosmology['Omega_m']*cosmology['h']**2
+            rho_m_geo = cosmology['Omega_m_geo'] * cosmo.RHOCRIT
+            rho_m_growth = cosmology['Omega_m_growth'] * cosmo.RHOCRIT
+            Omh2_growth = cosmology['Omega_m_growth']*cosmology['h']**2
+            Omh2_geo = cosmology['Omega_m_geo']*cosmology['h']**2
             Obh2 = cosmology['Omega_b']*cosmology['h']**2
-            fb = cosmology['Omega_b']/cosmology['Omega_m']
+            fb_growth = cosmology['Omega_b']/cosmology['Omega_m_growth']
+            fb_geo=cosmology['Omega_b']/cosmology['Omega_m_geo']
             k_arr = np.logspace(-4, 2, 400)
 
             # Eisenstein&Hu'99 transfer function (no wiggles)
             # EQ 6
-            sound_horizon = 44.5 * np.log(9.83/Omh2) / np.sqrt(1 + 10*Obh2**.75)
+            sound_horizon = 44.5 * np.log(9.83/Omh2_geo) / np.sqrt(1 + 10*Obh2**.75)
             # EQ 31
-            alphaGamma = 1 - .328 * np.log(431 * Omh2) * fb + .38 * np.log(22.3*Omh2) * fb**2
+            alphaGamma = 1 - .328 * np.log(431 * Omh2_geo) * fb_geo + .38 * np.log(22.3*Omh2_geo) * fb_geo**2
             # EQ 30
-            Gamma = cosmology['Omega_m']*cosmology['h'] * (alphaGamma + (1-alphaGamma)/(1 + (.43*k_arr*cosmology['h']*sound_horizon)**4))
+            Gamma = cosmology['Omega_m_geo']*cosmology['h'] * (alphaGamma + (1-alphaGamma)/(1 + (.43*k_arr*cosmology['h']*sound_horizon)**4))
             # EQ 28
             q = k_arr * (2.7255/2.7)**2 / Gamma
             # EQ 29
@@ -46,13 +49,13 @@ class ConcentrationConversion:
             n_of_k = InterpolatedUnivariateSpline(np.log(k_arr), np.log(PK_EHsmooth))
 
             # Normalized growth function
-            integrand = lambda z_int: (1+z_int) / cosmo.Ez(z_int, cosmology)**3
-            D_arr = np.array([cosmo.Ez(z, cosmology) * integrate.quad(integrand, z, 1e3)[0] for z in z_arr])
+            integrand = lambda z_int: (1+z_int) / cosmo.Ez_growth(z_int, cosmology)**3
+            D_arr = np.array([cosmo.Ez_growth(z, cosmology) * integrate.quad(integrand, z, 1e3)[0] for z in z_arr])
             D_arr /= D_arr[0]
 
             # Compute sigma(M, z=0)
             # Radius [M_arr]
-            R = (3 * M_arr / (4 * np.pi * rho_m))**(1/3)
+            R = (3 * M_arr / (4 * np.pi * rho_m_geo))**(1/3)
             R = np.append(R, 8)
             # [M_arr, k_arr]
             kR = k_arr[None, :] * R[:, None]
