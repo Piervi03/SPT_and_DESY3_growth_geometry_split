@@ -61,7 +61,7 @@ class MultiObsConvolution:
         if self.do_bias:
             colossus_params = {'flat': True,
                                'H0': 100*cosmology['h'],
-                               'Om0': cosmology['Omega_m'],
+                               'Om0': cosmology['Omega_m_geo'],
                                'Ob0': cosmology['Omega_b'],
                                'sigma8': cosmology['sigma8'],
                                'ns': cosmology['n_s']}
