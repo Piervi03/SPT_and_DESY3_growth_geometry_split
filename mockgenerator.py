@@ -11,7 +11,7 @@ import scaling_relations
 # Reference cosmology for which Mgas is measured
 #Delta critic is 200.
 #python SPT_NC_with_DES_WL_split_dev/mockgenerator.py split_analysis/mockinput_split_10_par [catalog_name.fits]
-cosmologyRef = {'Omega_m_geo': .3, 'Omega_l': .7, 'h': .702, 'w0': -1, 'wa': 0}
+cosmologyRef = {'Omega_m_geo': .27, 'Omega_l': .73, 'h': .67, 'w0': -1, 'wa': 0}
 
 
 def main(configMod_file, catalog_name):
