@@ -4,8 +4,8 @@
 #SBATCH --mail-user=p.conti@campus.lmu.de
 
 #SBATCH --ntasks=1
-#SBATCH --partition=usm-cl-el9
-#SBATCH --mem-per-cpu 2000 
+#SBATCH --partition=lsm-rbg
+#SBATCH --mem-per-cpu 1000 
 #SBATCH --nodes=1
 
 export OMP_NUM_THREADS=1
