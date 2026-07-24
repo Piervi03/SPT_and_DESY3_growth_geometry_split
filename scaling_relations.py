@@ -192,7 +192,7 @@ def obs2lnmass(name, obs, z, scaling,
         raise ValueError("Observable not known:", name)
 
 
-##############################
+##############################n
 def dlnM_dlnobs(name, scaling,
                 cosmology=None,
                 M0_arr=None,
