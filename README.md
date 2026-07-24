@@ -1,15 +1,2 @@
-# SPT_NC_with_DES_WL
-
-## Installation
-
-Use `py39_cosmosis.yml` to create a conda environment for and with cosmosis. This will already contain all likelihoods and samplers.
-
-In your `SPT_NC_with_DES_WL` directory, run `python setup.py build_ext --inplace` to compile and install a cython extension.
-
-## Data
-
-You will most likely want access to https://github.com/SebastianBocquet/SPT_cluster_data. Just ask me!
-
-## Example
-
-Take a look at `setup_example.ini`.
+# SPT_and_DESY3_growth_geometry_split
+This is the collection of files needed to perform a growth geometry split analysis on Omega matter, based on the SPT+DESY3 analysis by Sebastian Bocquet et al. (https://journals.aps.org/prd/abstract/10.1103/PhysRevD.110.083510). To get the original pipeline:https://github.com/SebastianBocquet/SPT_NC_with_DES_WL/tree/dev.
