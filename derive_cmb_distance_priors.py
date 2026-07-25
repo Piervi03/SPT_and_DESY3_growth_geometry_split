@@ -1,65 +1,60 @@
 """
 derive_cmb_distance_priors.py
 
-OFFLINE, ONE-TIME script - run this yourself, locally, after downloading a
-public Planck chain (e.g. from the Planck Legacy Archive,
-https://pla.esac.esa.int, the "base_Alens_plikHM_TTTEEE_lowl_lowE" chain
-to match the A_lens-marginalized approach discussed earlier). This is NOT
-a CosmoSIS module and is NOT run as part of your pipeline - it produces a
-small data file (mean vector + covariance matrix) that the CosmoSIS
+OFFLINE, ONE-TIME script.
+
+Download Planck chain "base_Alens_plikHM_TTTEEE_lowl_lowE" from https://pla.esac.esa.int. This one has A_lens-marginalized approach.
+
+This is NOT a CosmoSIS module and is NOT run as part of the pipeline - it produces a
+ data file (mean vector + covariance matrix) that the CosmoSIS
 likelihood module (cmb_distance_prior_like_5d.py) reads at runtime.
 
 What it does, per MCMC sample in the chain:
   1. Reads the already-sampled parameters: ombh2, omch2, H0 (or h0), ns,
      and As (or logA, converted).
   2. Computes z_star (Hu & Sugiyama 1996 fit) and r_s(z_star)
-     (Eisenstein & Hu 1998 closed form) - same formulas as pre_cmb.py.
+     (Eisenstein & Hu 1998 closed form).
   3. Computes D_M(z_star) via direct numerical integration of the
-     radiation-inclusive E(z), same physics as pre_cmb.py's approach
-     (but here using the chain's own single Omega_m - this is REAL data
-     being summarized, not a geo/growth-split theory prediction, so
-     there is no split to apply here).
+     radiation-inclusive E(z)
   4. Computes R and l_A from those.
+  
+  
 Then takes the WEIGHTED mean and covariance of the 5D vector
     x = (R, l_A, ombh2, ns, 1e9*As)
-across all samples (MCMC chains carry a multiplicity/weight per row -
-using an unweighted mean/cov would bias the result) and writes them to
-a text file for the likelihood module to load.
+across all samples and writes them to a text file for the likelihood module to load.
 
-====================================================================
-YOU MUST CHECK / EDIT the CONFIG block below against your actual
-downloaded chain's .paramnames file before running this. Column names
-and the presence/absence of a native 'zstar' derived parameter vary
-between chain releases - I cannot verify these against your specific
-download since I don't have access to it.
-====================================================================
+This file uses the data of the planck file only, so there's no split at all here.
+The resulting gaussian distribution on the parameters has no omega_m at all.
+
+In the original file there's no split at all, jsut the normal parameters, however when we'll compare the 
+results with out pipeline we'll use the geometry parameters, so the constrains are really on omega_geo.
+
+Beware that you need to change file to base_w if you want to vary w as well!!
 """
 import numpy as np
 import scipy.integrate
 import getdist
 
-# ------------------------- CONFIG - CHECK THIS -------------------------
+
 CHAIN_ROOT = "./base_Alens_plikHM_TTTEEE_lowl_lowE"  # no file extension
 
 # Column names as they appear in your chain's .paramnames file.
-# Check that file and adjust these strings if they differ.
 COL_OMBH2 = "omegabh2"
 COL_OMCH2 = "omegach2"
-COL_H0 = "H0"          # Hubble constant in km/s/Mpc (NOT h)
+COL_H0 = "H0"          # Hubble constant in km/s/Mpc 
 COL_NS = "ns"
 COL_LOGA = "logA"      # ln(1e10 * A_s) 
-COL_AS = None          # stores A_s directly - set exactly one of these two
 COL_ZSTAR = "zstar"    
                        
-COL_OMNUH2 =  None     # set to a column name if present; else uses
-                       # OMNUH2_FIXED below (typical single massive nu
-                       # minimal-mass default)
-OMNUH2_FIXED =0.0 #0.00064
+COL_OMNUH2 =  None     
+                      
+                      
+OMNUH2_FIXED =0.0 #We consider massless neutrinos. Otherwise we'd have had 0.00064
 TCMB = 2.7255
 NEFF = 3.046           # fixed for standard base_Alens chain (w=-1, flat)
 
 THIN = 1               # set >1 to subsample every Nth row for speed
-Z_GRID_MAX = 1200.0    # comfortably above any realistic z_star
+Z_GRID_MAX = 1200.0    #  above any realistic z_star
 Z_GRID_N = 2000
 
 OUTPUT_FILE = "cmb_distance_priors_5d.txt"
@@ -98,9 +93,6 @@ def _omega_r(h0, tcmb, neff):
 
 
 def _D_M_single(omega_m, omega_r, omega_lambda, H0_phys, z_star):
-    """One numerical integral per sample - slower than a vectorized
-    approach but simple, memory-safe, and easy to check for correctness.
-    A chain of ~1e4-1e5 samples still finishes in well under a minute."""
     def E(z):
         return np.sqrt(omega_r * (1.0 + z) ** 4
                         + omega_m * (1.0 + z) ** 3

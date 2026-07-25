@@ -30,7 +30,7 @@ def setup(options):#options is the instance of the class. When we do options.som
 def execute(block, config):
     zmax = config["zmax"]
     nz = config["nz"]
-    omega_m_geo = block['cosmological_parameters', 'Omega_m_growth']
+    omega_m_geo = block['cosmological_parameters', 'Omega_m_geo']
 
     cosmology = {
         "Omega_m_geo": omega_m_geo,
@@ -40,7 +40,7 @@ def execute(block, config):
     }
     #We use Da in physical units, not Mpc/h as it is normally from cosmo.dA
     z = np.linspace(0.0, zmax, nz)
-    D_A = np.array([cosmo.dA(z_, cosmology) for z_ in z])*block['cosmological_parameters', 'h0']
+    D_A = np.array([cosmo.dA(z_, cosmology) for z_ in z])/block['cosmological_parameters', 'h0']
     D_A[0] = 0.0  
 
     block[distances, "z"] = z

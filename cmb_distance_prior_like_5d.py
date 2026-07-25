@@ -1,16 +1,9 @@
 """
 cmb_distance_prior_like_5d.py
 
-Generalized (N-dimensional) version of cmb_distance_prior_like.py. Reads
-a mean vector + covariance matrix from a data file (produced by
-derive_cmb_distance_priors.py) rather than individual ini options, so it
-scales to the 5D vector (R, l_A, ombh2, ns, 1e9*As) instead of just 3D.
+This module creates the actual likelihood comparing the parameters to the distribution obtained through the derive_cmb_distance_priors.py.
 
-R and l_A still come from pre_cmb.py's 'cmb_distance_priors' section
-(the geo-split quantities). ombh2, ns, and A_s are read directly from
-cosmological_parameters, same pattern as the 3D version - no split
-applies to them, they are ordinary free parameters already in your
-cosmology.
+Basically we sample, then we calculate the derived values of the distribution and then we check them wrt the original distribution. In this file we only have the likelihood evaluation, not the actual calcualtions of R l_A, ecc...
 
 Ini options:
     data_file   - path to the mean+covariance file (see file format
@@ -18,15 +11,12 @@ Ini options:
     feedback    - optional, default False
 
 Data file format (matches derive_cmb_distance_priors.py's output):
+
     # order: R l_A ombh2 ns 1e9*As
-    # mean vector
-    <5 numbers>
-    # covariance matrix
-    <5 numbers>
-    <5 numbers>
-    <5 numbers>
-    <5 numbers>
-    <5 numbers>
+    # mean vector: 5 numbers
+    # covariance matrix: 5 by 5 matrix
+    
+Beware that you need to change file to base_w if you want to vary w as well!!
 """
 import numpy as np
 from cosmosis.datablock import names, option_section
@@ -69,9 +59,7 @@ def execute(block, config):
     l_A = block[cmb_priors, "l_A"]
     ombh2 = block[cosmo_section, "ombh2"]
     ns = block[cosmo_section, "n_s"]
-    # Check your consistency/values setup: this may be stored as "A_s"
-    # directly, or as "log1e10As" if that parameterization is used -
-    # adjust the key/conversion below to match.
+    
     As = block[cosmo_section, "A_s"]
 
     x = np.array([R, l_A, ombh2, ns, 1.0e9 * As])
